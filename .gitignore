@@ -4,6 +4,7 @@ contracts/out/
 contracts/cache/
 contracts/broadcast/
 docs/spike/openapi.json
+docs/spike/openapi.yaml
 
 # Foundry deps (clone forge-std as described in docs/PHASE0_KIT.md)
 contracts/lib/

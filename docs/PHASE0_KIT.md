@@ -1,73 +1,73 @@
-# Shift — Kit de la Fase 0
+# Shift — Phase 0 kit
 
-> Este archivo vive en `docs/PHASE0_KIT.md`. Los comandos se ejecutan desde la raíz del repo.
+> This file lives at `docs/PHASE0_KIT.md`. Run all commands from the repo root.
 
-Primer paso del plan (`SHIFT_PLAN.md`, sección 21): comprobar con llamadas **reales** los supuestos del Plan A antes de construir encima, y dejar listo el contrato `ShiftLedger`.
+First step of the plan (`SHIFT_PLAN.md`, section 21): verify the Plan A assumptions with **real** calls before building on top of them, and have the `ShiftLedger` contract ready.
 
-## Qué incluye
+## What is included
 
-| Archivo | Para qué |
+| File | Purpose |
 |---|---|
-| `scripts/smoke.ts` | Pruebas reales U1–U8 contra el 0G Router (saldo, catálogo, llave efímera, inferencia con `verify_tee`, historial de uso, decisiones, revocación). Revoca la llave siempre, aunque algo falle. |
-| `scripts/inspect-openapi.ts` | Extrae del OpenAPI oficial los schemas exactos (campo de límite por llave, `/v1/decisions`, etc.). |
-| `scripts/merkle-vector.ts` | Genera el vector de prueba de hojas de Merkle en TypeScript. |
-| `contracts/src/ShiftLedger.sol` | Contrato final de anclaje y donaciones. |
-| `contracts/test/ShiftLedger.t.sol` | 7 tests, incluido el de **paridad TS ↔ Solidity** del hash de hoja (ya pasan). |
-| `contracts/script/Deploy.s.sol` | Despliegue en 0G Chain. |
-| `docs/spike/merkle-vector.json` | Vector usado por el test de paridad. |
+| `scripts/smoke.ts` | Real checks U1–U8 against the 0G Router (balance, catalog, ephemeral key, inference with `verify_tee`, usage history, decisions, revocation). Always revokes the key, even if something fails. |
+| `scripts/inspect-openapi.ts` | Extracts the exact schemas from the official OpenAPI spec (per-key limit field, `/v1/decisions`, etc.). |
+| `scripts/merkle-vector.ts` | Generates the TypeScript Merkle leaf test vector. |
+| `contracts/src/ShiftLedger.sol` | Final anchoring and donations contract. |
+| `contracts/test/ShiftLedger.t.sol` | 7 tests, including the **TS ↔ Solidity parity** test for the leaf hash (already passing). |
+| `contracts/script/Deploy.s.sol` | Deployment to 0G Chain. |
+| `docs/spike/merkle-vector.json` | Vector used by the parity test. |
 
-Todos los scripts compilan con TypeScript estricto y los tests del contrato pasan (`7 passed`).
+All scripts compile with strict TypeScript and the contract tests pass (`7 passed`).
 
-## Pasos
+## Steps
 
-### 1. Instalar
+### 1. Install
 ```bash
 npm install
 cp .env.example .env
 ```
 
-### 2. Llave de gestión del equipo
-En `https://pc.0g.ai` → Settings → Management Keys → preset **Custom** → marcar `account:read`, `keys:create`, `keys:manage`. Pegarla en `ZG_MK_KEY` del `.env`. La cuenta necesita créditos: pídanlos en el Telegram de builders de 0G.
+### 2. Team management key
+At `https://pc.0g.ai` → Settings → Management Keys → preset **Custom** → tick `account:read`, `keys:create`, `keys:manage`. Paste it into `ZG_MK_KEY` in `.env`. The account needs credits: ask for them in the 0G builders Telegram.
 
-### 3. OpenAPI (antes de la prueba de llaves)
-Descarga la especificación desde `https://0gfoundation.github.io/0g-router/` (botón "Download OpenAPI specification"), guárdala en `docs/spike/openapi.json` y ejecuta:
+### 3. OpenAPI (before the key check)
+Download the specification from `https://0gfoundation.github.io/0g-router/` ("Download OpenAPI specification" button; the raw file is `openapi.yaml` next to the page), save it as `docs/spike/openapi.yaml` (or `.json`) and run:
 ```bash
-npm run inspect-openapi -- docs/spike/openapi.json
+npm run inspect-openapi -- docs/spike/openapi.yaml
 ```
-Revisa `docs/spike/openapi-excerpt.md`. Pon el nombre real del campo de límite por llave en `SMOKE_KEY_LIMIT_FIELD` y un valor pequeño en `SMOKE_KEY_LIMIT_VALUE` (en la unidad que indique el spec).
+Review `docs/spike/openapi-excerpt.md`. Put the real per-key limit field name in `SMOKE_KEY_LIMIT_FIELD` and a small value in `SMOKE_KEY_LIMIT_VALUE` (in the unit the spec indicates).
 
-### 4. Prueba real
+### 4. Real check
 ```bash
 npm run smoke
 ```
-- Resumen en consola con ✅ / ❌ por cada prueba.
-- Resultados completos sin secretos en `docs/spike/SPIKE_RESULTS.json` y catálogo en `docs/spike/models.json`.
-- Gasto: una llamada de chat de 5 tokens y una de decisión. Imagen y audio solo si activas `SMOKE_IMAGE=1` o `SMOKE_AUDIO_FILE`.
-- Si **U4** (revocación) falla, revoca la llave a mano en pc.0g.ai → API Keys.
+- Console summary with ✅ / ❌ per check.
+- Full results without secrets in `docs/spike/SPIKE_RESULTS.json` and the catalog in `docs/spike/models.json`.
+- Spend: one 5-token chat call and one decision call. Image and audio only if you enable `SMOKE_IMAGE=1` or `SMOKE_AUDIO_FILE`.
+- If **U4** (revocation) fails, revoke the key by hand at pc.0g.ai → API Keys.
 
-### 5. Contratos
+### 5. Contracts
 ```bash
 cd contracts
 git clone --depth 1 --branch v1.9.4 https://github.com/foundry-rs/forge-std lib/forge-std
 forge test
 ```
-Si `forge` no puede descargar el compilador, baja el binario `solc-static-linux` v0.8.24 de los releases de `ethereum/solidity` y usa `forge test --use /ruta/al/solc`.
+If `forge` cannot download the compiler, download the `solc-static-linux` v0.8.24 binary from the `ethereum/solidity` releases and use `forge test --use /path/to/solc`.
 
-Despliegue (cuando U10 confirme chain ID y RPC):
+Deployment (once U10 confirms chain ID and RPC):
 ```bash
 forge script script/Deploy.s.sol --rpc-url zg_mainnet --broadcast --private-key $OPERATOR_PRIVATE_KEY
 ```
-Guarda la dirección en `LEDGER_CONTRACT_ADDRESS`.
+Save the address in `LEDGER_CONTRACT_ADDRESS`.
 
-## Cómo leer los resultados
+## How to read the results
 
-| Resultado | Qué decidir |
+| Result | What to decide |
 |---|---|
-| U1 ✅ y U3 ✅ con `credit_used` | Modo iAI confirmado: el presupuesto usa solo `credit_balance`. |
-| U1 o U3 ❌ | Fallback: modo presupuesto como principal (plan, sección 21). |
-| U2 ✅ con campo de límite | Doble tope activo (llave + optimizador). |
-| U2 ✅ sin campo de límite | Control de gasto propio con lectura de saldo cada 5 llamadas. |
-| U4 ❌ | Bloqueante: no lanzar hasta resolver la revocación. |
-| U7 ❌ | Usar el cuerpo del error y el extracto del OpenAPI para corregir el schema; si no se resuelve, fallback con chat JSON estricto. |
+| U1 ✅ and U3 ✅ with `credit_used` | iAI mode confirmed: the budget uses only `credit_balance`. |
+| U1 or U3 ❌ | Fallback: budget mode as the primary mode (plan, section 21). |
+| U2 ✅ with a limit field | Double cap active (key + optimizer). |
+| U2 ✅ without a limit field | Own spend control, reading the balance every 5 calls. |
+| U4 ❌ | Blocker: do not launch until revocation is resolved. |
+| U7 ❌ | Use the error body and the OpenAPI excerpt to fix the schema; if unresolved, fall back to strict-JSON chat. |
 
-Copia el resumen a `docs/SPIKE_RESULTS.md` y compártelo con el equipo: con eso se arranca la Fase 1.
+Copy the summary to `docs/SPIKE_RESULTS.md` and share it with the team: that starts Phase 1.

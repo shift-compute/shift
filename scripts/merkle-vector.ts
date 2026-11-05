@@ -1,7 +1,7 @@
 /**
- * Genera un vector de prueba para verificar que el hash de hoja en TypeScript
- * (StandardMerkleTree de OpenZeppelin) coincide con la verificación en Solidity.
- * El resultado se pega en contracts/test/ShiftLedger.t.sol.
+ * Generates a test vector to verify that the leaf hash in TypeScript
+ * (OpenZeppelin StandardMerkleTree) matches the verification in Solidity.
+ * The output is pasted into contracts/test/ShiftLedger.t.sol.
  */
 import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
 import { keccak256, toUtf8Bytes } from "./lib/hash";

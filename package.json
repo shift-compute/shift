@@ -1,7 +1,7 @@
 {
   "name": "shift-phase0",
   "version": "0.1.0",
-  "description": "Shift — Fase 0: verificación real del 0G Router + contrato ShiftLedger",
+  "description": "Shift — Phase 0: real verification of the 0G Router + ShiftLedger contract",
   "scripts": {
     "smoke": "tsx scripts/smoke.ts",
     "inspect-openapi": "tsx scripts/inspect-openapi.ts",

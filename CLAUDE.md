@@ -7,7 +7,7 @@ Shift turns 0G compute credits that would expire at 00:00 UTC into useful, verif
 Built for ETHGlobal Mumbai 2026 (0G "Build with 0G PC" prize + ETHGlobal finalist).
 
 ## Read before working
-1. `docs/SHIFT_PLAN.md` — the full plan (source of truth for scope, architecture and rules). Spanish.
+1. `docs/SHIFT_PLAN.md` — the full plan (source of truth for scope, architecture and rules).
 2. `PROGRESS.md` — what is done, what is next. Always work on the next unchecked item unless the user says otherwise.
 3. `docs/STRUCTURE.md` — where every file goes.
 4. `docs/PHASE0_KIT.md` — how to run the Phase 0 verification kit.
@@ -43,9 +43,8 @@ When a phase starts, re-read its section in `docs/SHIFT_PLAN.md` before writing 
 - Commit steadily as work progresses; never batch a day of work into one commit.
 
 ## Language
-- Code, comments, commit messages, `README.md`, `PROGRESS.md`: **English** (public, judges read them).
+- **Everything in the repo is written in English**: code, comments, log/console strings, `.env.example`, commit messages, and every Markdown file (`README.md`, `PROGRESS.md`, `CLAUDE.md`, all of `docs/`, including `docs/SHIFT_PLAN.md`). No Spanish anywhere in tracked files.
 - Conversation with the user: **Spanish**.
-- `docs/SHIFT_PLAN.md`: Spanish (internal plan).
 
 ## Definition of done for the project
 See section 25 of `docs/SHIFT_PLAN.md` (submission checklist) and the final phase in `PROGRESS.md`.

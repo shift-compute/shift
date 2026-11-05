@@ -5,7 +5,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {ShiftLedger} from "../src/ShiftLedger.sol";
 
 /// forge script script/Deploy.s.sol --rpc-url zg_mainnet --broadcast --private-key $OPERATOR_PRIVATE_KEY
-/// (añadir --legacy si la red rechaza transacciones EIP-1559)
+/// (add --legacy if the network rejects EIP-1559 transactions)
 contract Deploy is Script {
     function run() external {
         vm.startBroadcast();
