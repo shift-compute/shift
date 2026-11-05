@@ -4,8 +4,8 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F1 — Structure and account connection (F0 closed with open items, see Blockers)
-**Next item:** F1.6
-**Commits so far:** 14 (target for the project: 50–90)
+**Next item:** F1.7
+**Commits so far:** 15 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -39,7 +39,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
   - `createRouterClient` (mk-/sk- methods), `RouterError` with kind/action/retryable per plan §7.5, secret redaction, response schemas limited to shapes verified in Phase 0. 18 tests use real captured bodies as fixtures; verified live against the Router (account, balance, funds, usage history, create and revoke key). `x_0g_trace` parsing stays tolerant until U8 is verified with a paid call. Findings: `X-Request-ID` arrives as `<gateway id>, <uuid>` and the UUID is the Router request ID; usage history rows do carry `credit_used` / `deposit_used` for 0G accounts.
 - [x] F1.5 AES-256-GCM vault for mk- keys — `feat(core): add encrypted vault for management keys`
   - `sealSecret` / `openSecret` in `packages/core/src/crypto/vault.ts`: 12-byte random IV, 16-byte tag, optional authenticated context (the account address) so a ciphertext copied to another user's row fails to open. 9 tests (tampering, wrong key, context binding, no secret in errors).
-- [ ] F1.6 Ephemeral key lifecycle: create, revoke, sweep helper — `feat(core): add ephemeral key lifecycle`
+- [x] F1.6 Ephemeral key lifecycle: create, revoke, sweep helper — `feat(core): add ephemeral key lifecycle`
+  - `withEphemeralKey` (create → persist id → use → revoke with retries, original errors never masked) and `sweepOrphanedKeys` (only keys older than 2 h) in `packages/core/src/zg/ephemeral-keys.ts`. 10 tests; also run live against the Router (key created with `credit_limit`, id persisted before use, then revoked).
 - [ ] F1.7 Prisma schema + first migration (§16) — `feat(db): add prisma schema and initial migration`
 - [ ] F1.8 Web shell: Next.js app, design tokens, fonts (§18.2) — `feat(web): add app shell and design tokens`
 - [ ] F1.9 Connect API: scope validation + probe key (§8.1) — `feat(web): add connect endpoint with scope checks`

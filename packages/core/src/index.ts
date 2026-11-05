@@ -6,3 +6,4 @@ export * from "./zg/errors";
 export * from "./zg/router";
 export * from "./zg/schemas";
 export * from "./crypto/vault";
+export * from "./zg/ephemeral-keys";
