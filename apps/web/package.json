@@ -8,6 +8,7 @@
     "@fontsource/atkinson-hyperlegible": "^5.3.0",
     "@next/env": "^16.4.5",
     "@shift/core": "workspace:*",
+    "iron-session": "^9.0.1",
     "next": "^15.5.29",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

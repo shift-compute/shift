@@ -2,6 +2,7 @@ import { connectAccount, createRateLimiter, RouterError } from "@shift/core";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { getConfig, getDb, getRouter } from "../../../lib/server";
+import { getSession } from "../../../lib/session";
 
 export const runtime = "nodejs";
 
@@ -44,6 +45,10 @@ export async function POST(req: NextRequest) {
       create: { accountAddress: account.address.toLowerCase(), ...secret },
       update: secret,
     });
+
+    const session = await getSession();
+    session.userId = user.id;
+    await session.save();
 
     return NextResponse.json({
       connected: true,

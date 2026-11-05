@@ -60,6 +60,9 @@ importers:
       '@shift/core':
         specifier: workspace:*
         version: link:../../packages/core
+      iron-session:
+        specifier: ^9.0.1
+        version: 9.0.1
       next:
         specifier: ^15.5.29
         version: 15.5.29(@types/node@22.9.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -1359,6 +1362,10 @@ packages:
   confbox@0.3.2:
     resolution: {integrity: sha512-ZUAKhKlkCOrIGKc8cj7zek9s9z1mveHif/25nUshI2BzCRzF7KH7KHa+Lnh2ubq+e1tIlaFuP763mzW4qVoehg==}
 
+  cookie@2.0.1:
+    resolution: {integrity: sha512-yuToqVvRrj6pfDXREyQAAv8SkAEk/8GS3jQRTiUMm66TVtBYmqQeoEjL2Lmq8Rpo6271vH76InTChTitEAm65w==}
+    engines: {node: '>=22'}
+
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
@@ -1678,6 +1685,13 @@ packages:
   internmap@2.0.3:
     resolution: {integrity: sha512-5Hh7Y1wQbvY5ooGgPbDaL5iYLAPzMTUrjMulskHLH6wnv/A+1q5rgEaiuqEjB+oxGXIVZs1FF+R/KPN3ZSQYYg==}
     engines: {node: '>=12'}
+
+  iron-session@9.0.1:
+    resolution: {integrity: sha512-ELSZdcLvA0AMhxUCY+rwKCh42UV88SqEb1ia/bHLF9G+6kScikO6mShtlIq+OtF2UlkZP0dmI2dMdG9vh4rebA==}
+    engines: {node: '>=22.13.0'}
+
+  iron-webcrypto@2.0.0:
+    resolution: {integrity: sha512-rtffZKDUHciZElM8mjFCufBC7nVhCxHYyWHESqs89OioEDz4parOofd8/uhrejh/INhQFfYQfByS22LlezR9sQ==}
 
   is-property@1.0.2:
     resolution: {integrity: sha512-Ks/IoX00TtClbGQr4TWXemAnktAQvYB7HzcCxDGqEZU6oCmb2INHuOoKxbtR+HFkmYWBKv/dOZtGRiAjDhj92g==}
@@ -2186,6 +2200,10 @@ packages:
     resolution: {integrity: sha512-hjcS1mhfuyi4WW8IWtjP7brDrG2cuDZukyrYrSauoXGNgx0S7zceP07adYkJycEr56BOUTNPzbInooiN3fn1qw==}
     engines: {node: '>=14.17'}
     hasBin: true
+
+  uint8array-extras@1.6.0:
+    resolution: {integrity: sha512-8iAasVS4wUx0gPLjH8Xtz2PeDzTSiy8QiLGu2DT3X5GU+egFEQhpnbtkehbAwjvDcxIERmCYcysiODFmE3Ud0Q==}
+    engines: {node: '>=18'}
 
   undici-types@6.19.8:
     resolution: {integrity: sha512-ve2KP6f/JnbPBFyobGHuerC9g1FYGn/F8n1LWTwNxCEzd6IfqTwUQcNXgEtmmQ6DlRrC1hrSrBnCZPokRrDHjw==}
@@ -3415,6 +3433,8 @@ snapshots:
 
   confbox@0.3.2: {}
 
+  cookie@2.0.1: {}
+
   cross-spawn@7.0.6:
     dependencies:
       path-key: 3.1.1
@@ -3783,6 +3803,15 @@ snapshots:
   inherits@2.0.4: {}
 
   internmap@2.0.3: {}
+
+  iron-session@9.0.1:
+    dependencies:
+      cookie: 2.0.1
+      iron-webcrypto: 2.0.0
+
+  iron-webcrypto@2.0.0:
+    dependencies:
+      uint8array-extras: 1.6.0
 
   is-property@1.0.2: {}
 
@@ -4250,6 +4279,8 @@ snapshots:
       is-typedarray: 1.0.0
 
   typescript@5.6.3: {}
+
+  uint8array-extras@1.6.0: {}
 
   undici-types@6.19.8: {}
 
