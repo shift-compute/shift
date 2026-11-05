@@ -11,3 +11,4 @@ export * from "./connect/connect-account";
 export * from "./db/client";
 export * from "./rate-limit";
 export * from "./settings/spending-settings";
+export * from "./tasks/task-input";
