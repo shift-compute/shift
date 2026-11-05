@@ -22,7 +22,7 @@ All scripts compile with strict TypeScript and the contract tests pass (`7 passe
 
 ### 1. Install
 ```bash
-npm install
+pnpm install
 cp .env.example .env
 ```
 
@@ -32,13 +32,13 @@ At `https://pc.0g.ai` → Settings → Management Keys → preset **Custom** →
 ### 3. OpenAPI (before the key check)
 Download the specification from `https://0gfoundation.github.io/0g-router/` ("Download OpenAPI specification" button; the raw file is `openapi.yaml` next to the page), save it as `docs/spike/openapi.yaml` (or `.json`) and run:
 ```bash
-npm run inspect-openapi -- docs/spike/openapi.yaml
+pnpm inspect-openapi docs/spike/openapi.yaml
 ```
 Review `docs/spike/openapi-excerpt.md`. Put the real per-key limit field name in `SMOKE_KEY_LIMIT_FIELD` and a small value in `SMOKE_KEY_LIMIT_VALUE` (in the unit the spec indicates).
 
 ### 4. Real check
 ```bash
-npm run smoke
+pnpm smoke
 ```
 - Console summary with ✅ / ❌ per check.
 - Full results without secrets in `docs/spike/SPIKE_RESULTS.json` and the catalog in `docs/spike/models.json`.

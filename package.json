@@ -1,16 +1,21 @@
 {
-  "name": "shift-phase0",
+  "name": "shift",
   "version": "0.1.0",
-  "description": "Shift — Phase 0: real verification of the 0G Router + ShiftLedger contract",
+  "description": "Shift — turns expiring 0G compute credits into useful, verifiable work",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "packageManager": "pnpm@11.8.0",
   "scripts": {
     "smoke": "tsx scripts/smoke.ts",
     "inspect-openapi": "tsx scripts/inspect-openapi.ts",
     "merkle-vector": "tsx scripts/merkle-vector.ts",
     "storage-check": "tsx scripts/storage-check.ts",
-    "typecheck": "tsc -p tsconfig.json",
+    "build": "pnpm -r --if-present build",
+    "typecheck": "tsc -p tsconfig.json && pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
     "test:contracts": "cd contracts && forge test"
   },
-  "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.9.0",
     "tsx": "^4.19.2",
@@ -23,7 +28,5 @@
     "ethers": "^6.13.1",
     "solc": "^0.8.24",
     "yaml": "^2.6.0"
-  },
-  "private": true,
-  "type": "module"
+  }
 }

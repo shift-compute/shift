@@ -21,7 +21,7 @@ The Router stays on mainnet because iAI and builder credits live there. Chain an
 |---|---|---|---|
 | U1 | Credits visible as `credit_balance` | ✅ | `GET /v1/account/balance` returns `credit_balance`, `deposit_balance`, `pending_charge`, `total_balance` and `currency` (`"0g"` for this account). The team account balance is 0, so no spending could be observed. |
 | U2 | Key creation fields | ✅ | `POST /v1/api-keys` accepts `trust_mode` and `credit_limit` (a **string**, in 0G units; a JSON number is rejected with `invalid_json`). The response includes `key_id`, `key` (the only usable secret, shown once), `key_preview` (truncated, not usable), `used`, `currency`. |
-| U3 | Inference spends credit, not deposit | ⏳ | A chat call returned `402 insufficient_balance` because the account has no balance. Re-run `npm run smoke` once credits arrive. |
+| U3 | Inference spends credit, not deposit | ⏳ | A chat call returned `402 insufficient_balance` because the account has no balance. Re-run `pnpm smoke` once credits arrive. |
 | U4 | Immediate revocation | ✅ | `DELETE /v1/api-keys/:id` returns 200; the next call with that key returns `401`. |
 | U5 | `GET /v1/account` | ✅ | Returns `address`, `created_at`, `onboarded_at`, `og_mode_available`. It does not return the currency: read it from `/v1/account/balance`. |
 | U6 | Model catalog | ✅ | 124 models, 9 with `TeeML`: `0gm-1.0-35b-a3b`, `0gm-1.0-35b-a3b-sia`, `glm-5.3`, `laya`, `vela-2.0-9b`, `whisper-large-v3`, `z-image-turbo` and two embedding models. Prices come in `pricing_usd` (per token; images per image). |
@@ -43,5 +43,5 @@ The Router stays on mainnet because iAI and builder credits live there. Chain an
 
 ## Still open before relying on iAI mode
 
-- Obtain Router credits for the team account, then re-run `npm run smoke` to close U3 and U8 (and optionally `SMOKE_IMAGE=1` and `SMOKE_AUDIO_FILE` for image and audio traces).
+- Obtain Router credits for the team account, then re-run `pnpm smoke` to close U3 and U8 (and optionally `SMOKE_IMAGE=1` and `SMOKE_AUDIO_FILE` for image and audio traces).
 - Confirm U11 and U12.

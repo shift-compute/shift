@@ -1,6 +1,6 @@
 # Repository structure
 
-The repo starts as the **Phase 0 kit** and becomes a **pnpm monorepo** in the first Phase 1 commit (`PROGRESS.md` → F1.1). Every new file must go where this document says.
+The repo started as the **Phase 0 kit** and became a **pnpm monorepo** in F1.1 (`PROGRESS.md`). The "Today" tree below describes the Phase 0 layout and the "Target" tree is the layout being filled in; every new file must go where this document says.
 
 ## Today (Phase 0 kit)
 

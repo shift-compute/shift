@@ -6,7 +6,7 @@
  *
  * Usage:
  *   cp .env.example .env   # fill in ZG_MK_KEY (scopes: account:read, keys:create, keys:manage)
- *   npm run smoke
+ *   pnpm smoke
  *
  * Output: docs/spike/SPIKE_RESULTS.json (no secrets) + console summary.
  */

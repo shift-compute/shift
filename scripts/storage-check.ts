@@ -4,7 +4,7 @@
  * Uploads a tiny JSON from memory, downloads it back by root hash and compares SHA-256.
  * Needs a funded operator wallet (OPERATOR_PRIVATE_KEY) on the chosen network. No mocks: any failure is reported as is.
  *
- * Usage: npm run storage-check
+ * Usage: pnpm storage-check
  * Output: docs/spike/STORAGE_RESULTS.json (no secrets)
  */
 import { createHash } from "node:crypto";

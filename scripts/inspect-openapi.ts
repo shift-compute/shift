@@ -4,7 +4,7 @@
  * 1. Download the spec from https://0gfoundation.github.io/0g-router/openapi.yaml
  *    (the "Download OpenAPI specification" button on the docs page).
  * 2. Save it as docs/spike/openapi.yaml (or .json).
- * 3. npm run inspect-openapi -- docs/spike/openapi.yaml
+ * 3. pnpm inspect-openapi docs/spike/openapi.yaml
  *
  * Output: docs/spike/openapi-excerpt.md with the request/response of each relevant endpoint.
  * Use it to set SMOKE_KEY_LIMIT_FIELD and the /v1/decisions schema.
