@@ -4,8 +4,8 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F1 — Structure and account connection (F0 closed with open items, see Blockers)
-**Next item:** F1.8
-**Commits so far:** 16 (target for the project: 50–90)
+**Next item:** F1.9
+**Commits so far:** 17 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -43,7 +43,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
   - `withEphemeralKey` (create → persist id → use → revoke with retries, original errors never masked) and `sweepOrphanedKeys` (only keys older than 2 h) in `packages/core/src/zg/ephemeral-keys.ts`. 10 tests; also run live against the Router (key created with `credit_limit`, id persisted before use, then revoked).
 - [x] F1.7 Prisma schema + first migration (§16) — `feat(db): add prisma schema and initial migration`
   - Schema from plan §16 adapted to Prisma 7 (connection URL moved to `prisma.config.ts`; new `prisma-client` generator writing to `packages/core/src/db/generated`, gitignored, built with `pnpm db:generate`). Added two indexes. Migration `20261105000000_init` was applied to a real local PostgreSQL 17 (6 tables, no drift against the schema). Scripts: `pnpm db:generate | db:migrate | db:deploy | db:validate`. Pinned the Prisma CLI to the stable 7.10.1 (the default install resolved an 8.0 release candidate).
-- [ ] F1.8 Web shell: Next.js app, design tokens, fonts (§18.2) — `feat(web): add app shell and design tokens`
+- [x] F1.8 Web shell: Next.js app, design tokens, fonts (§18.2) — `feat(web): add app shell and design tokens`
+  - Next.js 15 + React 19 + Tailwind 4 in `apps/web`. Design tokens live in `apps/web/styles/globals.css` (`@theme`). Fonts come from `@fontsource` packages (Familjen Grotesk Variable, Atkinson Hyperlegible) instead of `next/font/google`, so builds do not need network access to Google. Production build verified and served: page, tokens and fonts load. `@shift/core` is transpiled for server use only; client components must never import it. `pnpm dev` starts the web app.
 - [ ] F1.9 Connect API: scope validation + probe key (§8.1) — `feat(web): add connect endpoint with scope checks`
 - [ ] F1.10 Connect wizard page — `feat(web): add connect wizard`
 - [ ] F1.11 Session + account balance endpoint — `feat(web): add session and balance endpoint`

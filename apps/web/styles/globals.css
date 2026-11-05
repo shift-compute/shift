@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens (plan §18.2): an early-morning shift in Mumbai. A 4 AM sky with sodium streetlight glow,
+ * brightening toward first light when the nightly batch finishes.
+ */
+@theme {
+  --color-sky: #1d2550; /* background */
+  --color-night: #28316b; /* surfaces */
+  --color-sodium: #f3a33c; /* primary action, budget */
+  --color-light: #f7d9c4; /* completed states, sunrise */
+  --color-haze: #c9d1e8; /* secondary text */
+  --color-paper: #f6f7fb; /* primary text */
+
+  --font-display: "Familjen Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-sky);
+    color: var(--color-paper);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+
+  a {
+    color: var(--color-sodium);
+    text-underline-offset: 0.2em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-sodium);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}

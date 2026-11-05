@@ -1,0 +1,29 @@
+import type { Metadata } from "next";
+import type { ReactNode } from "react";
+import "@fontsource-variable/familjen-grotesk";
+import "@fontsource/atkinson-hyperlegible/400.css";
+import "@fontsource/atkinson-hyperlegible/700.css";
+import "../styles/globals.css";
+
+export const metadata: Metadata = {
+  title: "Shift",
+  description: "Shift turns the 0G compute credits that would expire at 00:00 UTC into useful, verifiable work.",
+};
+
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en">
+      <body className="min-h-screen">
+        <header className="border-b border-night">
+          <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+            <a href="/" className="font-display text-xl font-semibold text-paper no-underline">
+              Shift
+            </a>
+            <span className="text-sm text-haze">0G Galileo testnet</span>
+          </div>
+        </header>
+        <main className="mx-auto max-w-5xl px-6 py-10">{children}</main>
+      </body>
+    </html>
+  );
+}

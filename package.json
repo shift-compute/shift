@@ -19,7 +19,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:validate": "prisma validate"
+    "db:validate": "prisma validate",
+    "dev": "pnpm --filter @shift/web dev"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
