@@ -4,8 +4,8 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F2 — Execution (F0 closed with open items, see Blockers)
-**Next item:** F2.1
-**Commits so far:** 26 (target for the project: 50–90)
+**Next item:** F2.7
+**Commits so far:** 37 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -60,12 +60,12 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
   - [x] 1/2 `apps/web/lib/countdown.ts`: next 00:00 UTC, `HH:MM:SS` (rounded up so the reset is never shown early), the 05:30 IST equivalent and the nightly phase (day / window / after the hard stop). 10 tests including midnight, month and year boundaries.
 
 ## F2 — Execution (plan §9, §11, §13)
-- [ ] F2.1 Tasks API with uploads and validation — `feat(web): add tasks api with uploads`
-- [ ] F2.2 Queue page — `feat(web): add queue page`
-- [ ] F2.3 AUDIO_SUMMARY executor — `feat(core): add audio summary executor`
-- [ ] F2.4 DOC_ANALYSIS executor — `feat(core): add document analysis executor`
-- [ ] F2.5 IMAGE_FROM_PROMPT executor — `feat(core): add image from prompt executor`
-- [ ] F2.6 0G Storage client for outputs — `feat(core): add 0G Storage client`
+- [x] F2.1 Tasks API with uploads and validation — `feat(web): add tasks api with uploads`
+- [x] F2.2 Queue page — `feat(web): add queue page`
+- [x] F2.3 AUDIO_SUMMARY executor — `feat(core): add audio summary executor` *(executors take injected models; real calls pending credits, see Blockers)*
+- [x] F2.4 DOC_ANALYSIS executor — `feat(core): add document analysis executor` *(executors take injected models; real calls pending credits, see Blockers)*
+- [x] F2.5 IMAGE_FROM_PROMPT executor — `feat(core): add image from prompt executor` *(executors take injected models; real calls pending credits, see Blockers)*
+- [x] F2.6 0G Storage client for outputs — `feat(core): add 0G Storage client`
 - [ ] F2.7 Worker: cron, night lock, runUser pipeline *(2 commits)* — `feat(worker): add scheduler and night lock` / `feat(worker): add per-user night pipeline`
 - [ ] F2.8 Key sweeper — `feat(worker): add ephemeral key sweeper`
 - [ ] F2.9 Run-now endpoint using the real pipeline — `feat(web): add run now endpoint`
