@@ -1,8 +1,9 @@
-import { connectAccount, createRateLimiter, RouterError } from "@shift/core";
+import { connectAccount, createRateLimiter, RouterError, sweepOrphanedKeys } from "@shift/core";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { getConfig, getDb, getRouter } from "../../../lib/server";
-import { getSession } from "../../../lib/session";
+import { getCurrentUser, getSession } from "../../../lib/session";
+import { openUserKey } from "../../../lib/user-key";
 
 export const runtime = "nodejs";
 
@@ -64,4 +65,38 @@ export async function POST(req: NextRequest) {
     console.error("connect failed:", err instanceof Error ? err.name : "unknown error");
     return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
+}
+
+/**
+ * Disconnects the signed-in user: revokes any ephemeral key still alive (it cannot be revoked once the management key is gone),
+ * deletes the encrypted management key and ends the session. The user is reminded to revoke the key in the 0G console too.
+ */
+export async function DELETE() {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "not_signed_in" }, { status: 401 });
+
+  const db = getDb();
+  const mk = openUserKey(user);
+  let unrevokedKeyIds: string[] = [];
+  if (mk) {
+    const alive = await db.nightRun.findMany({ where: { userId: user.id, ephemeralKeyId: { not: null }, keyRevokedAt: null } });
+    const report = await sweepOrphanedKeys(
+      getRouter(),
+      alive.map((r) => ({ keyId: r.ephemeralKeyId as string, mk, createdAt: r.keyCreatedAt ?? new Date(0) })),
+      { minAgeMs: 0 },
+    );
+    if (report.revoked.length > 0) {
+      await db.nightRun.updateMany({ where: { userId: user.id, ephemeralKeyId: { in: report.revoked } }, data: { keyRevokedAt: new Date() } });
+    }
+    unrevokedKeyIds = report.failed.map((f) => f.keyId);
+  }
+
+  await db.user.update({ where: { id: user.id }, data: { mkCiphertext: null, mkIv: null, mkAuthTag: null, mkConnectedAt: null } });
+  (await getSession()).destroy();
+
+  return NextResponse.json({
+    disconnected: true,
+    unrevokedKeyIds,
+    reminder: "Shift no longer stores your management key. Revoke it under Settings → Management Keys in the 0G console to finish.",
+  });
 }
