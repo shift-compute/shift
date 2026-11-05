@@ -1,0 +1,10 @@
+{
+  "chainId": 16602,
+  "rpc": "https://evmrpc-testnet.0g.ai",
+  "indexer": "https://indexer-storage-testnet-turbo.0g.ai",
+  "bytes": 60,
+  "rootHash": "0x35eb71f233c5020c97ddacd04435d0021a696633c5d1b6278a7fd296d135d589",
+  "txHash": "0xdd4c935f2dd3b2a0048f558b3e904fe855c9987be6f9c5ff90b0129d72a7afc6",
+  "matched": true,
+  "at": "2026-11-05T18:39:04.779Z"
+}

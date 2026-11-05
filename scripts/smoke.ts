@@ -13,16 +13,10 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { basename } from "node:path";
 import { makeClient, printable, deepFind, deepContains, type HttpResult } from "./lib/http";
+import { loadDotEnv } from "./lib/env";
 import { redact } from "./lib/redact";
 
 // ---------- configuration ----------
-function loadDotEnv(path = ".env"): void {
-  if (!existsSync(path)) return;
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (m && m[1] && process.env[m[1]] === undefined) process.env[m[1]] = (m[2] ?? "").replace(/^["']|["']$/g, "");
-  }
-}
 loadDotEnv();
 
 const BASE = process.env.ZG_ROUTER_BASE_URL ?? "https://router-api.0g.ai/v1";
