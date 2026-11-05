@@ -1,8 +1,8 @@
 import { PDFParse } from "pdf-parse";
+import { MAX_DOC_CHARS } from "./doc-limits";
 import { ExecutorOutputError } from "./json-output";
 
-/** Characters sent to the model. Longer documents are cut and flagged, never silently. */
-export const MAX_DOC_CHARS = 24_000;
+export { MAX_DOC_CHARS } from "./doc-limits";
 
 export interface DocText {
   text: string;
