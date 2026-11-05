@@ -26,6 +26,9 @@ export const fundsSchema = z.looseObject({
   address: z.string(),
   currency: z.string(),
   total: z.string(),
+  router: z.looseObject({ deposit: z.string(), credit: z.string(), pending_charge: z.string() }).optional(),
+  /** The vault shared across 0G products. Spendable on 0G accounts but not part of the Router ledger balance. */
+  payment_layer: z.looseObject({ balance: z.string() }).optional(),
 });
 
 /** `key` is the only usable secret and is returned once; `key_preview` is truncated and unusable. */
