@@ -4,8 +4,8 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F1 — Structure and account connection (F0 closed with open items, see Blockers)
-**Next item:** F1.2
-**Commits so far:** 10 (target for the project: 50–90)
+**Next item:** F1.3
+**Commits so far:** 11 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -31,7 +31,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
 ## F1 — Structure and account connection (plan §6, §7, §8)
 - [x] F1.1 Monorepo migration per `docs/STRUCTURE.md` — `chore: restructure into pnpm monorepo`
   - pnpm 11.8.0 workspace (`apps/*`, `packages/*`) with `@shift/core`, `@shift/worker` and an `@shift/web` placeholder (Next.js arrives in F1.8). Shared strict `tsconfig.base.json`. Dependency versions were imported from the npm lockfile (no upgrades). Only `esbuild` may run install scripts (`allowBuilds`). `pnpm smoke`, `pnpm typecheck` and `forge test` (7 passed) work as before.
-- [ ] F1.2 Env config with zod (plan §20) — `feat(core): add validated env config`
+- [x] F1.2 Env config with zod (plan §20) — `feat(core): add validated env config`
+  - `loadWebConfig` / `loadWorkerConfig` in `packages/core/src/config.ts`: the web config never includes `OPERATOR_PRIVATE_KEY`; errors name variables but never echo values; empty strings count as missing. 10 unit tests (vitest). `.env.example` now lists every variable. `ZG_CHAIN_ID` is required (testnet `16602` in the example) instead of the plan's mainnet `16661`.
 - [ ] F1.3 Generated Router types from OpenAPI — `feat(core): generate 0G Router types from OpenAPI`
 - [ ] F1.4 Router client: sk-/mk-, errors (§7.5), trace capture — `feat(core): add 0G Router client with error mapping`
 - [ ] F1.5 AES-256-GCM vault for mk- keys — `feat(core): add encrypted vault for management keys`
