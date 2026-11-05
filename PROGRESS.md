@@ -4,8 +4,8 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F0 — Verification spike
-**Next item:** F0.3
-**Commits so far:** 4 (target for the project: 50–90)
+**Next item:** F0.4
+**Commits so far:** 5 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -17,7 +17,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
 - [x] F0.1 Initial repo: Phase 0 kit, plan, project rules — `chore: initial repo with phase 0 kit, plan and project rules`
 - [x] F0.2 OpenAPI excerpt: key limit field, `/v1/decisions` schema (U2, U7) — `docs(spike): add OpenAPI excerpt for keys and decisions`
   - Spec downloaded from `https://0gfoundation.github.io/0g-router/openapi.yaml` (kept local, gitignored). Per-key limit field is `credit_limit` (string, "0G units; nil = unlimited"; responses carry `currency`). The `/v1/decisions` schema in the spec is loose (`questions`/`state` typed as integer arrays), so U7 must be confirmed with a real call in F0.3.
-- [ ] F0.3 Run smoke tests U1–U8 and save results — `test(spike): run router smoke tests and record results`
+- [~] F0.3 Run smoke tests U1–U8 and save results — `test(spike): run router smoke tests and record results`
+  - Real run against the Router. U1, U2, U4, U5, U6, U7 verified. **U3 and U8 are blocked: the account has 0 balance (HTTP 402 `insufficient_balance`)**; re-run `npm run smoke` once credits arrive. Fixed three kit bugs found by the real run (empty env override, `credit_limit` must be a string, `key_preview` mistaken for the secret) and added pre-send retries for flaky DNS/connect errors.
 - [ ] F0.4 Contract tests green with forge — `test(contracts): verify ShiftLedger tests and merkle parity`
 - [ ] F0.5 0G Storage upload/download check (U9) — `test(spike): verify 0G Storage upload and download`
 - [ ] F0.6 Deploy ShiftLedger (U10) — `feat(contracts): deploy ShiftLedger to 0G`
@@ -90,14 +91,14 @@ Planned commits: ~58 + a few `fix:` commits = within the 50–90 target.
 ## Phase 0 results (filled in F0.3–F0.7)
 | ID | Check | Result | Decision / fallback |
 |---|---|---|---|
-| U1 | Credits visible as `credit_balance` | | |
-| U2 | Key create fields (limit, `trust_mode`) | | |
-| U3 | Inference spends credit, not deposit | | |
-| U4 | Revocation is immediate | | |
-| U5 | `GET /v1/account` address + currency | | |
-| U6 | Catalog: TeeML models, pricing units | | |
-| U7 | `/v1/decisions` schema + model IDs | | |
-| U8 | `x_0g_trace` with `verify_tee` | | |
+| U1 | Credits visible as `credit_balance` | ✅ | `GET /v1/account/balance` returns `credit_balance`, `deposit_balance`, `pending_charge`, `total_balance`, `currency: "0g"`. Account balance is currently 0 (no credits yet). |
+| U2 | Key create fields (limit, `trust_mode`) | ✅ | `POST /v1/api-keys` accepts `trust_mode` and `credit_limit` (string, 0G units). Response has `key_id`, `key` (shown once), `key_preview` (truncated, not usable), `used`, `currency`. Double cap is possible. |
+| U3 | Inference spends credit, not deposit | ⏳ | Blocked by 0 balance (402). Re-run after credits arrive. |
+| U4 | Revocation is immediate | ✅ | `DELETE /v1/api-keys/:id` → 200; next call with the key → 401. |
+| U5 | `GET /v1/account` address + currency | ✅ | Returns `address`, `created_at`, `onboarded_at`, `og_mode_available`. No currency here: read it from `/account/balance` (`"0g"`). |
+| U6 | Catalog: TeeML models, pricing units | ✅ | 124 models, 9 TeeML: `0gm-1.0-35b-a3b`, `0gm-1.0-35b-a3b-sia`, `glm-5.3`, `laya`, `vela-2.0-9b`, `whisper-large-v3`, `z-image-turbo`, 2 embeddings. Prices are in `pricing_usd` per token (image: per image). Full list in `docs/spike/models.json`. |
+| U7 | `/v1/decisions` schema + model IDs | ✅ | `questions` is an object keyed by name; each needs `type`, `instructions`, `criteria`. Response: `answers.<name>.probabilities` + `choice`. `laya` priced at 0. Plan §10.2/§12.2 updated. |
+| U8 | `x_0g_trace` with `verify_tee` | ⏳ | Blocked by 0 balance (402). Re-run after credits arrive. |
 | U9 | 0G Storage upload/download | | |
 | U10 | Chain ID, RPC, deploy | | |
 | U11 | Submission deadline | | |
@@ -112,7 +113,8 @@ Planned commits: ~58 + a few `fix:` commits = within the 50–90 target.
 Short entries: date — decision — reason. Example: `2026-11-06 — budget mode is primary — U1 failed (credits not separable)`.
 
 - 2026-11-05 — all tracked files, including the plan, are written in English — project owner requirement; recorded in `CLAUDE.md`.
+- 2026-11-05 — decision-model questions use `{type, instructions, criteria}` objects, not arrays — verified with a real call (U7).
 - 2026-11-05 — `SMOKE_KEY_LIMIT_FIELD=credit_limit` (value in 0G units, as a string) — taken from the official OpenAPI spec (F0.2).
 
 ## Blockers
-- None yet.
+- Team account has 0 balance (`credit_balance` and `deposit_balance`): U3 and U8 cannot be verified. Request builder credits in the 0G builders Telegram.

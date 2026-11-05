@@ -415,14 +415,18 @@ For each text task, one call to `POST /v1/decisions` with Vela (or Laya if the t
 {
   "model": "<Vela id from /v1/models>",
   "state": "<short task description + first ~1500 characters of the input>",
-  "questions": [
-    { "id": "complexity", "type": "choice",
-      "text": "How much reasoning does this task need?",
-      "options": ["simple", "standard", "complex"] }
-  ]
+  "questions": {
+    "complexity": {
+      "type": "choice",
+      "instructions": "How much reasoning does this task need?",
+      "criteria": { "simple": "a quick answer is enough",
+                    "standard": "some reasoning is needed",
+                    "complex": "deep multi-step reasoning is needed" }
+    }
+  }
 }
 ```
-[VERIFY exact schema in OpenAPI.] Mapping: `simple → minimum quality 1`, `standard → 2`, `complex → 3`. If the maximum probability < 0.5, use `standard`. The cost of this call is deducted from the budget.
+[VERIFIED in Phase 0 (F0.3) with a real call: `questions` is an object keyed by question name; each needs `type` (`choice` | `score` | `noul`), `instructions` and `criteria`. The response is `answers.<name>.probabilities` plus `choice`.] Mapping: `simple → minimum quality 1`, `standard → 2`, `complex → 3`. If the maximum probability < 0.5, use `standard`. The cost of this call is deducted from the budget.
 
 > This replicates what Gathin described in the workshop: using decision models to choose between a quick answer and deep reasoning.
 
@@ -481,7 +485,7 @@ Common rules:
 2. **Translation B:** chat with a different model B (e.g. GLM-5.3, private).
 3. **Quality gate:** `POST /v1/decisions` with a multilingual decision model:
    - `state`: source text + translation A + translation B (short enough to fit the context; multilingual Laya ≈ 1024 tokens; if it does not fit, use Vela 2.0 9B).
-   - `choice` question: "Do translation A and translation B convey the same meaning as the source?" options `["yes", "no"]`.
+   - `choice` question (`instructions`: "Do translation A and translation B convey the same meaning as the source?", `criteria`: `["yes", "no"]`; see the verified schema in section 10.2).
 4. Accept **translation A** if `P(yes) ≥ 0.75`; otherwise `REJECTED` with the probability recorded. Rejected items are also shown (proof that the filter works).
 5. Upload the accepted item (source, translation, models, request IDs, probability) to 0G Storage.
 6. Add the real cost of the 3 steps to the user's donation for that night.

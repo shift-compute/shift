@@ -17,6 +17,8 @@ export interface RequestOptions {
   timeoutMs?: number;
 }
 
+const PRE_SEND_ERRORS = new Set(["UND_ERR_CONNECT_TIMEOUT", "ENOTFOUND", "EAI_AGAIN"]);
+
 export function makeClient(baseUrl: string) {
   const base = baseUrl.replace(/\/+$/, "");
   return async function request(method: string, path: string, opts: RequestOptions = {}): Promise<HttpResult> {
@@ -29,12 +31,23 @@ export function makeClient(baseUrl: string) {
       body = JSON.stringify(opts.body);
     }
     const started = Date.now();
-    const res = await fetch(`${base}${path}`, {
-      method,
-      headers,
-      body,
-      signal: AbortSignal.timeout(opts.timeoutMs ?? 120_000),
-    });
+    let res: Response | undefined;
+    // Connect timeouts and DNS failures happen before the request is sent, so retrying is safe even for POST (no duplicate keys or charges).
+    for (let attempt = 1; !res; attempt++) {
+      try {
+        res = await fetch(`${base}${path}`, {
+          method,
+          headers,
+          body,
+          signal: AbortSignal.timeout(opts.timeoutMs ?? 120_000),
+        });
+      } catch (err) {
+        const code = (err as { cause?: { code?: string } }).cause?.code;
+        if (!code || !PRE_SEND_ERRORS.has(code) || attempt >= 6) throw err;
+        console.warn(`${code} on ${method} ${path}, retrying (${attempt}/5)`);
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      }
+    }
     const text = await res.text();
     let parsed: unknown = text;
     try {

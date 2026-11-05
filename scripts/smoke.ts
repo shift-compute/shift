@@ -98,8 +98,8 @@ async function main(): Promise<void> {
   mkdirSync("docs/spike", { recursive: true });
   writeFileSync("docs/spike/models.json", JSON.stringify(redact(models), null, 2));
   const tee = models.filter((m) => deepContains(m, "TeeML"));
-  const chatModel = CHAT_MODEL_OVERRIDE ?? (tee.find((m) => /chat/i.test(lc(m.type)) || /0gm|glm/.test(lc(m.id)))?.id as string | undefined);
-  const decisionModel = DECISION_MODEL_OVERRIDE ?? (models.find((m) => /laya|vela/.test(lc(m.id)))?.id as string | undefined);
+  const chatModel = CHAT_MODEL_OVERRIDE || (tee.find((m) => /chat/i.test(lc(m.type)) || /0gm|glm/.test(lc(m.id)))?.id as string | undefined);
+  const decisionModel = DECISION_MODEL_OVERRIDE || (models.find((m) => /laya|vela/.test(lc(m.id)))?.id as string | undefined);
   const imageModel = tee.find((m) => /image/.test(lc(m.type)) || /z-image/.test(lc(m.id)))?.id as string | undefined;
   const whisperModel = models.find((m) => /whisper/.test(lc(m.id)))?.id as string | undefined;
   check("U6", "Model catalog", models.length ? "PASS" : "FAIL",
@@ -112,13 +112,19 @@ async function main(): Promise<void> {
 
   // U2 — create ephemeral sk- key
   const keyBody: Record<string, unknown> = { name: `shift-smoke-${Date.now()}`, trust_mode: TRUST };
-  if (LIMIT_FIELD && LIMIT_VALUE) keyBody[LIMIT_FIELD] = isNaN(Number(LIMIT_VALUE)) ? LIMIT_VALUE : Number(LIMIT_VALUE);
+  if (LIMIT_FIELD && LIMIT_VALUE) keyBody[LIMIT_FIELD] = LIMIT_VALUE; // the spec types credit_limit as a string (0G units)
   const created = record(await request("POST", "/api-keys", { key: MK, body: keyBody }));
-  const secret = deepFind(created.body, (_k, v) => typeof v === "string" && v.startsWith("sk-")) as string | undefined;
+  // The response also carries `key_preview` ("sk-0c5ee…"), which is not a usable key: take the full `key` field.
+  const secret = deepFind(created.body, (k, v) => k === "key" && typeof v === "string" && v.startsWith("sk-") && !v.includes("…")) as string | undefined;
   const keyId = deepFind(created.body, (k, v) => /^(id|key_id|api_key_id)$/.test(k) && (typeof v === "string" || typeof v === "number")) as string | number | undefined;
   check("U2", "POST /v1/api-keys", secret && keyId !== undefined ? "PASS" : "FAIL",
     `HTTP ${created.status} id=${keyId} sent body=${JSON.stringify(Object.keys(keyBody))}${LIMIT_FIELD ? "" : " (no limit field: set SMOKE_KEY_LIMIT_FIELD after inspect-openapi)"}`,
     created.body);
+  if (keyId !== undefined && !secret) {
+    // A key was created but its secret was not found: never leave it active.
+    const del = record(await request("DELETE", `/api-keys/${encodeURIComponent(String(keyId))}`, { key: MK }));
+    check("U4", "Revoke key without usable secret", del.status >= 200 && del.status < 300 ? "PASS" : "FAIL", `DELETE HTTP ${del.status}`, del.body);
+  }
   if (!secret || keyId === undefined) return;
 
   try {
@@ -155,7 +161,14 @@ async function main(): Promise<void> {
         body: {
           model: decisionModel,
           state: "Task: summarize a 2-minute voice note about a grocery list.",
-          questions: [{ id: "complexity", type: "choice", text: "How much reasoning does this task need?", options: ["simple", "standard", "complex"] }],
+          // Verified shape (F0.3): `questions` is an object keyed by question name; a choice question needs `instructions` and `criteria`.
+          questions: {
+            complexity: {
+              type: "choice",
+              instructions: "How much reasoning does this task need?",
+              criteria: { simple: "a quick answer is enough", standard: "some reasoning is needed", complex: "deep multi-step reasoning is needed" },
+            },
+          },
         },
       }));
       check("U7", "POST /v1/decisions", dec.status === 200 ? "PASS" : "FAIL",
@@ -193,12 +206,16 @@ async function main(): Promise<void> {
   } finally {
     // U4 — revocation (always runs)
     const del = record(await request("DELETE", `/api-keys/${encodeURIComponent(String(keyId))}`, { key: MK }));
-    const probe = record(await request("POST", "/chat/completions", {
-      key: secret,
-      body: { model: chatModel, messages: [{ role: "user", content: "ok" }], max_tokens: 1 },
-    }));
-    check("U4", "Immediate revocation", (del.status >= 200 && del.status < 300) && probe.status === 401 ? "PASS" : "FAIL",
-      `DELETE HTTP ${del.status}; follow-up call HTTP ${probe.status} (expected 401 api_key_revoked)`, probe.body);
+    try {
+      const probe = record(await request("POST", "/chat/completions", {
+        key: secret,
+        body: { model: chatModel, messages: [{ role: "user", content: "ok" }], max_tokens: 1 },
+      }));
+      check("U4", "Immediate revocation", (del.status >= 200 && del.status < 300) && probe.status === 401 ? "PASS" : "FAIL",
+        `DELETE HTTP ${del.status}; follow-up call HTTP ${probe.status} (expected 401 api_key_revoked)`, probe.body);
+    } catch (err) {
+      check("U4", "Immediate revocation", "FAIL", `DELETE HTTP ${del.status}; follow-up call threw: ${String(err)}`);
+    }
   }
 }
 
