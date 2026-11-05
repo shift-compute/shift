@@ -8,4 +8,4 @@ export * from "./generated/enums";
 export function createDb(connectionString: string): PrismaClient {
   return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 }
-export type { User } from "./generated/client";
+export type { Task, User } from "./generated/client";
