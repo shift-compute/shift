@@ -106,9 +106,15 @@ importers:
 
   packages/core:
     dependencies:
+      '@0gfoundation/0g-ts-sdk':
+        specifier: ^1.2.8
+        version: 1.2.8(bufferutil@4.1.0)(ethers@6.13.1(bufferutil@4.1.0)(utf-8-validate@5.0.10))(utf-8-validate@5.0.10)
       '@prisma/adapter-pg':
         specifier: ^7.10.1
         version: 7.10.1
+      ethers:
+        specifier: ^6.13.1
+        version: 6.13.1(bufferutil@4.1.0)(utf-8-validate@5.0.10)
       pdf-parse:
         specifier: ^2.4.5
         version: 2.4.5
@@ -2501,7 +2507,7 @@ snapshots:
 
   '@emnapi/runtime@1.11.3':
     dependencies:
-      tslib: 2.4.0
+      tslib: 2.9.1
     optional: true
 
   '@esbuild/aix-ppc64@0.23.1':

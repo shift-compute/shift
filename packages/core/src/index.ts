@@ -16,6 +16,5 @@ export * from "./executors/types";
 export * from "./executors/json-output";
 export * from "./executors/step";
 export * from "./executors/audio-summary";
-export * from "./executors/doc-text";
 export * from "./executors/doc-analysis";
 export * from "./executors/image-from-prompt";
