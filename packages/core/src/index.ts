@@ -25,3 +25,5 @@ export * from "./night/tick";
 export * from "./catalog/catalog";
 export * from "./catalog/estimator";
 export * from "./optimizer/complexity";
+export * from "./optimizer/quality";
+export * from "./optimizer/optimizer";
