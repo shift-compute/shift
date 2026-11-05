@@ -20,7 +20,8 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:validate": "prisma validate",
-    "dev": "pnpm --filter @shift/web dev"
+    "dev": "pnpm --filter @shift/web dev",
+    "postinstall": "prisma generate"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

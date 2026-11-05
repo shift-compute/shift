@@ -7,3 +7,6 @@ export * from "./zg/router";
 export * from "./zg/schemas";
 export * from "./crypto/vault";
 export * from "./zg/ephemeral-keys";
+export * from "./connect/connect-account";
+export * from "./db/client";
+export * from "./rate-limit";

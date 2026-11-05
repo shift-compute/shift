@@ -4,8 +4,8 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F1 — Structure and account connection (F0 closed with open items, see Blockers)
-**Next item:** F1.9
-**Commits so far:** 17 (target for the project: 50–90)
+**Next item:** F1.10
+**Commits so far:** 18 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -45,7 +45,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
   - Schema from plan §16 adapted to Prisma 7 (connection URL moved to `prisma.config.ts`; new `prisma-client` generator writing to `packages/core/src/db/generated`, gitignored, built with `pnpm db:generate`). Added two indexes. Migration `20261105000000_init` was applied to a real local PostgreSQL 17 (6 tables, no drift against the schema). Scripts: `pnpm db:generate | db:migrate | db:deploy | db:validate`. Pinned the Prisma CLI to the stable 7.10.1 (the default install resolved an 8.0 release candidate).
 - [x] F1.8 Web shell: Next.js app, design tokens, fonts (§18.2) — `feat(web): add app shell and design tokens`
   - Next.js 15 + React 19 + Tailwind 4 in `apps/web`. Design tokens live in `apps/web/styles/globals.css` (`@theme`). Fonts come from `@fontsource` packages (Familjen Grotesk Variable, Atkinson Hyperlegible) instead of `next/font/google`, so builds do not need network access to Google. Production build verified and served: page, tokens and fonts load. `@shift/core` is transpiled for server use only; client components must never import it. `pnpm dev` starts the web app.
-- [ ] F1.9 Connect API: scope validation + probe key (§8.1) — `feat(web): add connect endpoint with scope checks`
+- [x] F1.9 Connect API: scope validation + probe key (§8.1) — `feat(web): add connect endpoint with scope checks`
+  - `POST /api/connect` (`apps/web/app/api/connect/route.ts`) on top of `connectAccount` in `packages/core`: format check → account and balance reads → probe of `keys:create` / `keys:manage` by creating and revoking a throwaway key (a failed revocation is blamed on the user only for a permission error) → AES-GCM encryption bound to the account address → upsert. Rate limit 5/min per IP (in-memory, single process). Verified end to end against the real Router and a real PostgreSQL: valid key connects, the stored ciphertext decrypts to the original key and not with another account, the probe spent nothing. Session cookie and `DELETE /api/connect` come with F1.11. **Finding:** the Router rejects a `credit_limit` below 100000000000000 wei (0.0001 0G), so every ephemeral key, including the optimizer's budget keys, needs at least that cap.
 - [ ] F1.10 Connect wizard page — `feat(web): add connect wizard`
 - [ ] F1.11 Session + account balance endpoint — `feat(web): add session and balance endpoint`
 - [ ] F1.12 Home page with live countdown to 00:00 UTC — `feat(web): add home with reset countdown`
@@ -126,6 +127,7 @@ Short entries: date — decision — reason. Example: `2026-11-06 — budget mod
 
 - 2026-11-05 — all tracked files, including the plan, are written in English — project owner requirement; recorded in `CLAUDE.md`.
 - 2026-11-05 — the whole project runs on the 0G Galileo testnet (chain ID 16602), including Storage and the contract — project owner decision; to be declared in the README. Operator wallet is a dedicated one funded from the faucet.
+- 2026-11-05 — minimum `credit_limit` for an ephemeral key is 0.0001 0G (`invalid_credit_limit` below it) — found while building F1.9; budgets smaller than that cannot be capped on the key.
 - 2026-11-05 — decision-model questions use `{type, instructions, criteria}` objects, not arrays — verified with a real call (U7).
 - 2026-11-05 — `SMOKE_KEY_LIMIT_FIELD=credit_limit` (value in 0G units, as a string) — taken from the official OpenAPI spec (F0.2).
 
