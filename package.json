@@ -1,0 +1,26 @@
+{
+  "name": "shift-phase0",
+  "version": "0.1.0",
+  "description": "Shift — Fase 0: verificación real del 0G Router + contrato ShiftLedger",
+  "scripts": {
+    "smoke": "tsx scripts/smoke.ts",
+    "inspect-openapi": "tsx scripts/inspect-openapi.ts",
+    "merkle-vector": "tsx scripts/merkle-vector.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test:contracts": "cd contracts && forge test"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.1.0",
+    "@openzeppelin/merkle-tree": "^1.0.7",
+    "solc": "^0.8.24",
+    "yaml": "^2.6.0"
+  },
+  "private": true,
+  "type": "module"
+}

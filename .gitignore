@@ -1,0 +1,20 @@
+node_modules/
+.env
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+docs/spike/openapi.json
+
+# Foundry deps (clone forge-std as described in docs/PHASE0_KIT.md)
+contracts/lib/
+
+# Local env and OS files
+.env.*
+!.env.example
+.DS_Store
+
+# Uploads and build output
+uploads/
+.next/
+dist/
+coverage/

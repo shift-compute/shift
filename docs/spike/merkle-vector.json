@@ -1,0 +1,35 @@
+{
+  "root": "0xf2886163a1a52848ca79761fae2dd697241212a0b8cabf850a20081ab985ec4c",
+  "leaf0": {
+    "values": [
+      "0x96a5c1060e037d5b27f6664b0627d6c5b1d27611e214cf521788d911c462fd1c",
+      "0x1111111111111111111111111111111111111111",
+      "0xa48d4955fc8d2b9b4db01452af27d26bd30ca536fabafe34b0aeac4d32942f4f",
+      "0xabababababababababababababababababababababababababababababababab",
+      "0x7175d6bb67d912381a134ba7761f7e12ec4fa487021956dcfce14807718d07a9",
+      "2",
+      "1234",
+      "false"
+    ],
+    "hash": "0x7c4c1f4f6cb7969b54cea93af5d1365e69183245974064d8b40a8068b70f2ede",
+    "proof": [
+      "0xd6092256f51b7a5c850a9e7511c220748c3b611a490c51029773d9d46e369243"
+    ]
+  },
+  "leaf1": {
+    "values": [
+      "0xceba588ab2e9420b67eb45fa23dac3f39bcf0cce5384fa769bbdbe3f578c56ef",
+      "0x2222222222222222222222222222222222222222",
+      "0x1737a731f8c125ac103387d4744314bf5abedc135bb5e1e7bd5c94be102e3469",
+      "0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+      "0x1125a5e4cc6d2592878c0498f3e69b293bc43718b5b92377c10c1f3defb7d1ba",
+      "2",
+      "5678",
+      "true"
+    ],
+    "hash": "0xd6092256f51b7a5c850a9e7511c220748c3b611a490c51029773d9d46e369243",
+    "proof": [
+      "0x7c4c1f4f6cb7969b54cea93af5d1365e69183245974064d8b40a8068b70f2ede"
+    ]
+  }
+}
