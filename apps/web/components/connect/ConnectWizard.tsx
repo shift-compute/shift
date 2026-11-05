@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { describeConnectError, shortAddress, type ConnectErrorBody, type ErrorMessage } from "./messages";
+import { SpendingForm } from "./SpendingForm";
 
 interface Connected {
   address: string;
@@ -54,6 +55,7 @@ export function ConnectWizard({ consoleUrl }: { consoleUrl: string }) {
           <dt className="text-haze">Deposit balance</dt>
           <dd>{a.depositBalance} {a.currency}</dd>
         </dl>
+        <SpendingForm />
       </section>
     );
   }
