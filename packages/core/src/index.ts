@@ -22,3 +22,4 @@ export * from "./executors/store-output";
 export * from "./night/schedule";
 export * from "./night/night-lock";
 export * from "./night/tick";
+export * from "./catalog/catalog";
