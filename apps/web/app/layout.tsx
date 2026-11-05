@@ -19,7 +19,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <a href="/" className="font-display text-xl font-semibold text-paper no-underline">
               Shift
             </a>
-            <span className="text-sm text-haze">0G Galileo testnet</span>
+            <nav className="flex items-center gap-6 text-sm">
+              <a href="/connect">Connect</a>
+              <span className="text-haze">0G Galileo testnet</span>
+            </nav>
           </div>
         </header>
         <main className="mx-auto max-w-5xl px-6 py-10">{children}</main>

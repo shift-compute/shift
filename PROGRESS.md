@@ -4,8 +4,8 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F1 — Structure and account connection (F0 closed with open items, see Blockers)
-**Next item:** F1.10
-**Commits so far:** 18 (target for the project: 50–90)
+**Next item:** F1.11
+**Commits so far:** 19 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -47,7 +47,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
   - Next.js 15 + React 19 + Tailwind 4 in `apps/web`. Design tokens live in `apps/web/styles/globals.css` (`@theme`). Fonts come from `@fontsource` packages (Familjen Grotesk Variable, Atkinson Hyperlegible) instead of `next/font/google`, so builds do not need network access to Google. Production build verified and served: page, tokens and fonts load. `@shift/core` is transpiled for server use only; client components must never import it. `pnpm dev` starts the web app.
 - [x] F1.9 Connect API: scope validation + probe key (§8.1) — `feat(web): add connect endpoint with scope checks`
   - `POST /api/connect` (`apps/web/app/api/connect/route.ts`) on top of `connectAccount` in `packages/core`: format check → account and balance reads → probe of `keys:create` / `keys:manage` by creating and revoking a throwaway key (a failed revocation is blamed on the user only for a permission error) → AES-GCM encryption bound to the account address → upsert. Rate limit 5/min per IP (in-memory, single process). Verified end to end against the real Router and a real PostgreSQL: valid key connects, the stored ciphertext decrypts to the original key and not with another account, the probe spent nothing. Session cookie and `DELETE /api/connect` come with F1.11. **Finding:** the Router rejects a `credit_limit` below 100000000000000 wei (0.0001 0G), so every ephemeral key, including the optimizer's budget keys, needs at least that cap.
-- [ ] F1.10 Connect wizard page — `feat(web): add connect wizard`
+- [~] F1.10 Connect wizard page — `feat(web): add connect wizard`
+  - `/connect` with the three console steps and the paste form (password field, show/hide, key cleared from the page after success, errors mapped per API response, console link chosen by network). Error copy and the console URL are pure functions with 8 tests. Checked: production build, server-rendered page, screenshot in headless Edge, and no server-only code in the client bundle. **Limitations:** the form submission itself was not driven in a real browser (the API behind it was verified in F1.9), and the plan's step 4 (choose iAI or budget mode) moves to F1.11 because saving it needs the session.
 - [ ] F1.11 Session + account balance endpoint — `feat(web): add session and balance endpoint`
 - [ ] F1.12 Home page with live countdown to 00:00 UTC — `feat(web): add home with reset countdown`
 
