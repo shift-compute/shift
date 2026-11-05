@@ -103,6 +103,13 @@ importers:
       '@shift/core':
         specifier: workspace:*
         version: link:../../packages/core
+      node-cron:
+        specifier: ^4.6.0
+        version: 4.6.0
+    devDependencies:
+      tsx:
+        specifier: ^4.19.2
+        version: 4.19.2
 
   packages/core:
     dependencies:
@@ -1961,6 +1968,10 @@ packages:
         optional: true
       sass:
         optional: true
+
+  node-cron@4.6.0:
+    resolution: {integrity: sha512-Si/bzYiKRHOB8/a99T2+SDGN582ONDMSTlJr5oCkT6GtnqPjZ2s10eoQRYkW9ZHwjVxONL+W8Fb+qR0AHMQsdg==}
+    engines: {node: '>=20'}
 
   node-gyp-build@4.8.4:
     resolution: {integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==}
@@ -4093,6 +4104,8 @@ snapshots:
       - '@babel/core'
       - '@types/node'
       - babel-plugin-macros
+
+  node-cron@4.6.0: {}
 
   node-gyp-build@4.8.4: {}
 

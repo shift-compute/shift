@@ -50,11 +50,11 @@ describe("acquireNight", () => {
     expect(await acquireNight(store(0).db, 20261106n)).toBe(false);
   });
 
-  it("may only take over a RUNNING night that is stale, and never a DONE one", async () => {
+  it("may only take over a RUNNING night that is stale, and never a DONE or FAILED one", async () => {
     const { db, updateMany } = store(1);
     const now = at("2026-11-06T23:00:00Z");
     await acquireNight(db, 20261106n, now);
     const where = updateMany.mock.calls[0]![0].where;
-    expect(where.OR).toEqual([{ status: "PENDING" }, { status: "FAILED" }, { status: "RUNNING", startedAt: { lt: new Date(now.getTime() - STALE_RUNNING_MS) } }]);
+    expect(where.OR).toEqual([{ status: "PENDING" }, { status: "RUNNING", startedAt: { lt: new Date(now.getTime() - STALE_RUNNING_MS) } }]);
   });
 });
