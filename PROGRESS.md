@@ -4,8 +4,8 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F0 — Verification spike
-**Next item:** F0.2
-**Commits so far:** 1 (target for the project: 50–90)
+**Next item:** F0.3
+**Commits so far:** 4 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -15,7 +15,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
 
 ## F0 — Verification spike (plan §21)
 - [x] F0.1 Initial repo: Phase 0 kit, plan, project rules — `chore: initial repo with phase 0 kit, plan and project rules`
-- [ ] F0.2 OpenAPI excerpt: key limit field, `/v1/decisions` schema (U2, U7) — `docs(spike): add OpenAPI excerpt for keys and decisions`
+- [x] F0.2 OpenAPI excerpt: key limit field, `/v1/decisions` schema (U2, U7) — `docs(spike): add OpenAPI excerpt for keys and decisions`
+  - Spec downloaded from `https://0gfoundation.github.io/0g-router/openapi.yaml` (kept local, gitignored). Per-key limit field is `credit_limit` (string, "0G units; nil = unlimited"; responses carry `currency`). The `/v1/decisions` schema in the spec is loose (`questions`/`state` typed as integer arrays), so U7 must be confirmed with a real call in F0.3.
 - [ ] F0.3 Run smoke tests U1–U8 and save results — `test(spike): run router smoke tests and record results`
 - [ ] F0.4 Contract tests green with forge — `test(contracts): verify ShiftLedger tests and merkle parity`
 - [ ] F0.5 0G Storage upload/download check (U9) — `test(spike): verify 0G Storage upload and download`
@@ -109,6 +110,9 @@ Planned commits: ~58 + a few `fix:` commits = within the 50–90 target.
 
 ## Decisions log
 Short entries: date — decision — reason. Example: `2026-11-06 — budget mode is primary — U1 failed (credits not separable)`.
+
+- 2026-11-05 — all tracked files, including the plan, are written in English — project owner requirement; recorded in `CLAUDE.md`.
+- 2026-11-05 — `SMOKE_KEY_LIMIT_FIELD=credit_limit` (value in 0G units, as a string) — taken from the official OpenAPI spec (F0.2).
 
 ## Blockers
 - None yet.
