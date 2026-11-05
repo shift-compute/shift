@@ -3,9 +3,9 @@
 Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
-**Current phase:** F0 — Verification spike
-**Next item:** F0.7
-**Commits so far:** 8 (target for the project: 50–90)
+**Current phase:** F1 — Structure and account connection (F0 closed with open items, see Blockers)
+**Next item:** F1.1
+**Commits so far:** 9 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -25,7 +25,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
   - Real upload and download on the Galileo testnet with `@0gfoundation/0g-ts-sdk` (turbo indexer); SHA-256 matches. Evidence in `docs/spike/STORAGE_RESULTS.json`. Run with `npm run storage-check`.
 - [x] F0.6 Deploy ShiftLedger (U10) — `feat(contracts): deploy ShiftLedger to 0G`
   - Deployed to the Galileo testnet (chain 16602) at `0xA3B6664b487FC01c4264977c9B92058A89C31Ed7`, owner = operator wallet `0x3E7E6733f1E0Fbb55035d6791a77e596ab11aD07`. Tx: https://chainscan-galileo.0g.ai/tx/0x4a2bd7c707056195ef102420a6e3e3ebed0442e2399d91eef49bdd495d0f7117
-- [ ] F0.7 `docs/SPIKE_RESULTS.md` + decisions from U1–U12 — `docs(spike): summarize results and decisions`
+- [~] F0.7 `docs/SPIKE_RESULTS.md` + decisions from U1–U12 — `docs(spike): summarize results and decisions`
+  - Summary and decisions written. U3 and U8 are blocked by the 0 Router balance; U11 and U12 need external answers (ETHGlobal dashboard, 0G).
 
 ## F1 — Structure and account connection (plan §6, §7, §8)
 - [ ] F1.1 Monorepo migration per `docs/STRUCTURE.md` — `chore: restructure into pnpm monorepo`
@@ -104,8 +105,8 @@ Planned commits: ~58 + a few `fix:` commits = within the 50–90 target.
 | U8 | `x_0g_trace` with `verify_tee` | ⏳ | Blocked by 0 balance (402). Re-run after credits arrive. |
 | U9 | 0G Storage upload/download | ✅ | Package is `@0gfoundation/0g-ts-sdk` (not `@0glabs`). Testnet indexer `https://indexer-storage-testnet-turbo.0g.ai`; `indexer.upload(MemData, rpc, signer)` returns `rootHash` + `txHash` (0x + 64 hex); `indexer.download(rootHash, path, true)` verified proofs and matched. Root `0x35eb71f2…d589`. |
 | U10 | Chain ID, RPC, deploy | ✅ | Galileo testnet: chain ID 16602, RPC `https://evmrpc-testnet.0g.ai`, explorer `https://chainscan-galileo.0g.ai`, faucet `https://faucet.0g.ai`. `ShiftLedger` at `0xA3B6664b487FC01c4264977c9B92058A89C31Ed7` (code present, `owner()` = operator). Used `--use <solc>` because forge could not download solc. Mainnet is not used. |
-| U11 | Submission deadline | | |
-| U12 | 0G OK with delegated iAI credit use | | |
+| U11 | Submission deadline | ❓ | Check the ETHGlobal dashboard. |
+| U12 | 0G OK with delegated iAI credit use | ❓ | Ask Gathin at the 0G booth; until then budget mode is primary. |
 
 ## Real runs (evidence for judges)
 | Date (UTC) | Night ID | Tasks | Request IDs (sample) | Anchor tx | Manifest root |
@@ -121,4 +122,5 @@ Short entries: date — decision — reason. Example: `2026-11-06 — budget mod
 - 2026-11-05 — `SMOKE_KEY_LIMIT_FIELD=credit_limit` (value in 0G units, as a string) — taken from the official OpenAPI spec (F0.2).
 
 ## Blockers
+- U11 (deadline) and U12 (iAI delegation OK) are unanswered.
 - Team account has 0 balance (`credit_balance` and `deposit_balance`): U3 and U8 cannot be verified. Request builder credits in the 0G builders Telegram.
