@@ -45,3 +45,7 @@ The Router stays on mainnet because iAI and builder credits live there. Chain an
 
 - Obtain Router credits for the team account, then re-run `pnpm smoke` to close U3 and U8 (and optionally `SMOKE_IMAGE=1` and `SMOKE_AUDIO_FILE` for image and audio traces).
 - Confirm U11 and U12.
+
+## Later finding: the catalog changed
+
+The U6 and U7 results above were true when measured (about 16:30 UTC on November 5, 2026). Later that day `GET /v1/models` returned 79 models with no `verifiability` field and without any of the 0G models (`0gm-*`, `glm-5.3`, `laya`, `vela-2.0-9b`, `whisper-large-v3`, `z-image-turbo`, embeddings), regardless of key or trust-mode header. A decision call to `laya` then failed with `404 model_not_found`. Until 0G confirms whether this is temporary, the decision models, speech-to-text and private (TeeML) mode must be treated as unavailable. `docs/spike/models.json` keeps the earlier catalog as evidence.

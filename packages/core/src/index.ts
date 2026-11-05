@@ -1,3 +1,7 @@
 // Shared logic used by both the web app and the worker. Modules are added item by item (see PROGRESS.md).
 export * from "./config";
 export type { paths as RouterPaths, components as RouterComponents } from "./zg/generated/router";
+export * from "./redact";
+export * from "./zg/errors";
+export * from "./zg/router";
+export * from "./zg/schemas";

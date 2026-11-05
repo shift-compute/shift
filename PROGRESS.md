@@ -4,8 +4,8 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F1 — Structure and account connection (F0 closed with open items, see Blockers)
-**Next item:** F1.4
-**Commits so far:** 12 (target for the project: 50–90)
+**Next item:** F1.5
+**Commits so far:** 13 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -35,7 +35,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
   - `loadWebConfig` / `loadWorkerConfig` in `packages/core/src/config.ts`: the web config never includes `OPERATOR_PRIVATE_KEY`; errors name variables but never echo values; empty strings count as missing. 10 unit tests (vitest). `.env.example` now lists every variable. `ZG_CHAIN_ID` is required (testnet `16602` in the example) instead of the plan's mainnet `16661`.
 - [x] F1.3 Generated Router types from OpenAPI — `feat(core): generate 0G Router types from OpenAPI`
   - `pnpm gen:router-types` (openapi-typescript 7) writes `packages/core/src/zg/generated/router.ts` from the official spec. Some schemas are loose in the spec (`/v1/decisions`), so the client validates the shapes verified in Phase 0 with zod.
-- [ ] F1.4 Router client: sk-/mk-, errors (§7.5), trace capture — `feat(core): add 0G Router client with error mapping`
+- [~] F1.4 Router client: sk-/mk-, errors (§7.5), trace capture — `feat(core): add 0G Router client with error mapping`
+  - `createRouterClient` (mk-/sk- methods), `RouterError` with kind/action/retryable per plan §7.5, secret redaction, response schemas limited to shapes verified in Phase 0. 18 tests use real captured bodies as fixtures; verified live against the Router (account, balance, funds, usage history, create and revoke key). `x_0g_trace` parsing stays tolerant until U8 is verified with a paid call. Findings: `X-Request-ID` arrives as `<gateway id>, <uuid>` and the UUID is the Router request ID; usage history rows do carry `credit_used` / `deposit_used` for 0G accounts.
 - [ ] F1.5 AES-256-GCM vault for mk- keys — `feat(core): add encrypted vault for management keys`
 - [ ] F1.6 Ephemeral key lifecycle: create, revoke, sweep helper — `feat(core): add ephemeral key lifecycle`
 - [ ] F1.7 Prisma schema + first migration (§16) — `feat(db): add prisma schema and initial migration`
@@ -125,5 +126,6 @@ Short entries: date — decision — reason. Example: `2026-11-06 — budget mod
 - 2026-11-05 — `SMOKE_KEY_LIMIT_FIELD=credit_limit` (value in 0G units, as a string) — taken from the official OpenAPI spec (F0.2).
 
 ## Blockers
+- **The Router catalog changed after Phase 0.** At ~16:30 UTC on 2026-11-05 `GET /v1/models` returned 124 models, 9 of them TeeML (`0gm-1.0-35b-a3b`, `glm-5.3`, `laya`, `vela-2.0-9b`, `whisper-large-v3`, `z-image-turbo`, embeddings). Later the same day, with or without a key and with any trust-mode header, it returns 79 models, no `verifiability` field and none of those: no decision models, no speech-to-text, no private (TeeML) models. Shift's core (decision models, Whisper, private trust mode) depends on them. Ask 0G at the booth whether this is an outage or a permanent change; re-run `pnpm smoke` to refresh `docs/spike/models.json` (the committed copy is the earlier catalog).
 - U11 (deadline) and U12 (iAI delegation OK) are unanswered.
 - Team account has 0 balance (`credit_balance` and `deposit_balance`): U3 and U8 cannot be verified. Request builder credits in the 0G builders Telegram.
