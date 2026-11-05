@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cutoffInIst, formatCountdown, msUntilCutoff, nextCutoff, nightPhase } from "./countdown";
+import { cutoffInIst, formatCountdown, msUntilCutoff, nextCutoff, nightPhase, utcTimeInIst } from "./countdown";
 
 const at = (iso: string) => new Date(iso);
 
@@ -56,5 +56,14 @@ describe("nightPhase", () => {
 
   it("respects a custom window", () => {
     expect(nightPhase(at("2026-11-06T20:30:00Z"), "20:00", "21:00")).toBe("window");
+  });
+});
+
+describe("utcTimeInIst", () => {
+  it("shifts by 5h30 and wraps past midnight", () => {
+    expect(utcTimeInIst("23:00")).toBe("04:30");
+    expect(utcTimeInIst("23:50")).toBe("05:20");
+    expect(utcTimeInIst("00:00")).toBe("05:30");
+    expect(utcTimeInIst("19:00")).toBe("00:30");
   });
 });

@@ -3,9 +3,9 @@
 Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
-**Current phase:** F1 — Structure and account connection (F0 closed with open items, see Blockers)
-**Next item:** F1.12 (commit 2 of 2: home page)
-**Commits so far:** 25 (target for the project: 50–90)
+**Current phase:** F2 — Execution (F0 closed with open items, see Blockers)
+**Next item:** F2.1
+**Commits so far:** 26 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -55,7 +55,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
   - [x] 3/5 `PATCH /api/settings`: mode (iAI or budget), nightly cap and donate-leftover, validated by `spendingSettingsSchema` in core (budget required in budget mode, 0.01–100 USD, stored as exact micro-USD, cleared when switching to iAI). Verified live: validation errors, persistence, clearing. Note: the cap is in USD while the account settles in 0G, so converting it to the account currency is still open (F3.1).
   - [x] 2/5 `GET /api/account`: decrypts the management key only in memory (`lib/user-key.ts`), reads balance and funds live from the Router and returns numbers only; a dead key answers `connection_invalid` so the UI can ask to reconnect. Verified live with and without a session.
   - [x] 1/5 `iron-session` cookie (`HttpOnly`, `SameSite=Lax`, `Secure` in production, 30 days) holding only the user id; `POST /api/connect` signs the user in; `GET /api/session` reports who is connected. Verified live: cookie flags, no key in the cookie, a tampered cookie is rejected.
-- [ ] F1.12 Home page with live countdown to 00:00 UTC *(2 commits)* — `feat(web): add reset countdown logic` / `feat(web): add home with reset countdown and balance`
+- [x] F1.12 Home page with live countdown to 00:00 UTC *(2 commits)* — `feat(web): add reset countdown logic` / `feat(web): add home with reset countdown and balance`
+  - [x] 2/2 Home: live countdown (client-only clock, so no hydration mismatch), the nightly phase message with IST times, and an account panel that reads `/api/account` + `/api/session` (connect button when signed out, reconnect prompt when the key is gone, credits that expire vs. deposit). Amounts are formatted from strings, truncating, never through floats (4 tests). Checked in a headless-browser screenshot (countdown matched the clock); the signed-in panel was verified through its APIs, not visually. The queue status from the plan arrives with the tasks API in F2.1.
   - [x] 1/2 `apps/web/lib/countdown.ts`: next 00:00 UTC, `HH:MM:SS` (rounded up so the reset is never shown early), the 05:30 IST equivalent and the nightly phase (day / window / after the hard stop). 10 tests including midnight, month and year boundaries.
 
 ## F2 — Execution (plan §9, §11, §13)

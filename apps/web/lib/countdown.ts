@@ -44,3 +44,9 @@ export function nightPhase(now: Date, startUtc = DEFAULT_NIGHT_START_UTC, hardSt
   if (minute < minutesOfDay(startUtc)) return "day";
   return minute < minutesOfDay(hardStopUtc) ? "window" : "after_hard_stop";
 }
+
+/** A "HH:MM" time given in UTC as the same moment in India Standard Time, e.g. "23:00" -> "04:30". */
+export function utcTimeInIst(hhmm: string): string {
+  const total = (minutesOfDay(hhmm) + 330) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
