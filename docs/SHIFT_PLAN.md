@@ -1,205 +1,205 @@
-# Shift — Documentación completa y plan de implementación
+# Shift — Full documentation and implementation plan
 
-> Proyecto para **ETHGlobal Mumbai 2026** (presencial, 5–7 de noviembre de 2026, Jio World Centre).
-> Premio principal: **0G — "Build with 0G PC"** + bonus iAI. Objetivo secundario: top 10 finalistas de ETHGlobal.
-> Acceso a créditos del usuario: **Plan A — delegación con llave de gestión (`mk-`) y llaves `sk-` efímeras.**
-
----
-
-## 0. Instrucciones para la IA que va a programar esto
-
-Lee este documento completo antes de escribir código. Reglas obligatorias:
-
-1. **Cero ejecuciones simuladas.** El DevRel de 0G (Gathin, workshop del 5 de noviembre) dijo explícitamente que no quieren "mock execution": si algo no funciona, debe quedar así, pero real. Nunca generes respuestas falsas, saldos inventados, request IDs ficticios ni transacciones simuladas. No hay "modo demo" con datos falsos.
-2. **Etiquetas de certeza.** Cada dato técnico de este documento está marcado como:
-   - **[VERIFICADO]**: confirmado en documentación oficial de 0G o fuentes revisadas.
-   - **[VERIFICAR]**: muy probable pero no confirmado; debe comprobarse en la Fase 0 antes de construir encima. Si la comprobación falla, usa el fallback indicado.
-3. **Fuente de verdad del API de 0G:** la especificación OpenAPI del Router (`https://0gfoundation.github.io/0g-router/`, botón "Download OpenAPI specification"). Descárgala al inicio y genera tipos con `openapi-typescript`. Si algo de este documento contradice la especificación, **gana la especificación**.
-4. **Nunca envíes llaves `sk-` ni `mk-` al navegador.** Todo uso de llaves ocurre en el servidor.
-5. **Commits ordenados: entre 50 y 90 en todo el proyecto.** Un commit por ítem de `PROGRESS.md`, sin commits gigantes ni cientos de commits mínimos. Reglas completas en la sección 27 y en `CLAUDE.md`.
-6. **TypeScript estricto** en todo el proyecto (`"strict": true`). Valida toda entrada externa con `zod`.
-7. **Orden del repo:** cada archivo va donde dice `docs/STRUCTURE.md`, y `PROGRESS.md` se actualiza en el mismo commit que el trabajo que describe.
+> Project for **ETHGlobal Mumbai 2026** (in person, November 5–7, 2026, Jio World Centre).
+> Main prize: **0G — "Build with 0G PC"** + iAI bonus. Secondary goal: ETHGlobal top 10 finalists.
+> Access to user credits: **Plan A — delegation with a management key (`mk-`) and ephemeral `sk-` keys.**
 
 ---
 
-## 1. Resumen del producto
+## 0. Instructions for the AI that will code this
 
-**Shift convierte los créditos diarios de IA de 0G que se perderían cada noche en trabajo útil y verificable: primero para el usuario y, lo que sobre, para un bien común.**
+Read this whole document before writing code. Mandatory rules:
 
-### Problema
-- Los créditos de iAI se renuevan a las **00:00 UTC** y **lo no usado expira, sin acumularse** [VERIFICADO — blog oficial de iAI].
-- Cada iAI en staking recibe **1.271 créditos/día** (valor declarado > $1/día) [VERIFICADO].
-- Casi nadie usa su cuota completa todos los días → valor desperdiciado → tener iAI parece menos valioso.
+1. **Zero mocked execution.** 0G's DevRel (Gathin, November 5 workshop) said explicitly that they do not want "mock execution": if something does not work, it should stay that way, but real. Never generate fake responses, invented balances, fictitious request IDs or simulated transactions. There is no "demo mode" with fake data.
+2. **Certainty labels.** Every technical fact in this document is marked as:
+   - **[VERIFIED]**: confirmed in official 0G documentation or reviewed sources.
+   - **[VERIFY]**: very likely but unconfirmed; it must be checked in Phase 0 before building on top of it. If the check fails, use the indicated fallback.
+3. **Source of truth for the 0G API:** the Router's OpenAPI specification (`https://0gfoundation.github.io/0g-router/`, "Download OpenAPI specification" button). Download it at the start and generate types with `openapi-typescript`. If anything in this document contradicts the specification, **the specification wins**.
+4. **Never send `sk-` or `mk-` keys to the browser.** All key usage happens on the server.
+5. **Tidy commits: between 50 and 90 across the whole project.** One commit per `PROGRESS.md` item, no giant commits and no hundreds of tiny ones. Full rules in section 27 and in `CLAUDE.md`.
+6. **Strict TypeScript** across the project (`"strict": true`). Validate all external input with `zod`.
+7. **Repo order:** every file goes where `docs/STRUCTURE.md` says, and `PROGRESS.md` is updated in the same commit as the work it describes.
 
-### Solución (flujo del usuario)
-1. **Durante el día**, el usuario deja tareas en una cola (audio para transcribir y resumir, documento para analizar, idea para generar una imagen).
-2. **Antes del corte** (ventana 23:00–23:50 UTC = 04:30–05:20 IST), un **optimizador** reparte el saldo sobrante entre las tareas, eligiendo para cada una el modelo más barato que cumpla la calidad necesaria, usando los **modelos de decisión de 0G** (Laya / Vela).
-3. **Lo que sobra** se dona a una **cola común** (traducir documentación pública de Ethereum al hindi y marathi), con **control de calidad de doble modelo**.
-4. **Procedencia verificable:** cada resultado guarda su request ID y traza de 0G; el lote nocturno se ancla en **0G Chain** como capa de **atribución y curaduría** (qué resultado pertenece a qué usuario, cuánto donó cada quien, qué entró al dataset), complementando la prueba nativa de inferencia de 0G.
+---
 
-### Ajuste clave (pedido implícitamente por 0G)
-iAI es un **bonus**, no el criterio principal (Gathin). Por eso Shift funciona con **cualquier cuenta de 0G Private Computer**:
-- **Modo iAI:** gasta solo `credit_balance` sobrante (créditos que expiran).
-- **Modo presupuesto:** el usuario define un tope nocturno en USD; se gasta hasta ese tope.
+## 1. Product summary
 
-### Frase "qué se rompe si quitas 0G" (requisito de entrega de 0G)
+**Shift turns the daily 0G AI credits that would be lost every night into useful, verifiable work: first for the user and, with whatever is left, for a public good.**
+
+### Problem
+- iAI credits renew at **00:00 UTC** and **unused credits expire without accumulating** [VERIFIED — official iAI blog].
+- Each staked iAI receives **1.271 credits/day** (declared value > $1/day) [VERIFIED].
+- Almost nobody uses their full quota every day → wasted value → holding iAI looks less valuable.
+
+### Solution (user flow)
+1. **During the day**, the user leaves tasks in a queue (audio to transcribe and summarize, a document to analyze, an idea to turn into an image).
+2. **Before the cutoff** (window 23:00–23:50 UTC = 04:30–05:20 IST), an **optimizer** splits the leftover balance across the tasks, choosing for each the cheapest model that meets the required quality, using **0G's decision models** (Laya / Vela).
+3. **Whatever is left** is donated to a **commons queue** (translating public Ethereum documentation into Hindi and Marathi), with **dual-model quality control**.
+4. **Verifiable provenance:** every result stores its request ID and 0G trace; the nightly batch is anchored on **0G Chain** as a layer of **attribution and curation** (which result belongs to which user, how much each person donated, what entered the dataset), complementing 0G's native inference proof.
+
+### Key adjustment (implicitly requested by 0G)
+iAI is a **bonus**, not the main criterion (Gathin). That is why Shift works with **any 0G Private Computer account**:
+- **iAI mode:** spends only the leftover `credit_balance` (credits that are about to expire).
+- **Budget mode:** the user sets a nightly cap in USD; spending goes up to that cap.
+
+### "What breaks if you remove 0G" sentence (0G submission requirement)
 > "Without 0G, there are no expiring daily credits to rescue, no TEE-verified receipts proving which model produced each result, and no on-chain record of who donated compute to the commons."
 
 ---
 
-## 2. Contexto de la hackathon y criterios de evaluación
+## 2. Hackathon context and evaluation criteria
 
-### Premio objetivo: 0G "Build with 0G PC" — $5,000 (1.º $2,500 / 2.º $1,500 / 3.º $1,000) [VERIFICADO]
-**Debe mostrar** (texto del brief de 0G):
-- Inferencia en **0G Private Computer en el flujo principal, con request IDs**.
-- Una app funcional que el juez pueda probar, con una razón clara para volver mañana.
-- Una frase sobre qué se rompe si se quita 0G.
-- **Bonus iAI:** un usuario conectando su cuenta de 0G y su saldo de créditos bajando mientras usa la app.
+### Target prize: 0G "Build with 0G PC" — $5,000 (1st $2,500 / 2nd $1,500 / 3rd $1,000) [VERIFIED]
+**Must show** (text of 0G's brief):
+- Inference on **0G Private Computer in the main flow, with request IDs**.
+- A working app that the judge can try, with a clear reason to come back tomorrow.
+- One sentence about what breaks if 0G is removed.
+- **iAI bonus:** a user connecting their 0G account and their credit balance dropping while they use the app.
 
-**No quieren:** wrappers de chat genéricos; apps donde la IA se puede quitar sin que nadie lo note.
+**They do not want:** generic chat wrappers; apps where the AI can be removed without anyone noticing.
 
-**Entregables de 0G** [VERIFICADO]:
-- Nombre y descripción corta.
-- Repo público de GitHub (README + instrucciones de instalación).
-- Video demo **menor a 3 minutos** + enlace a demo en vivo.
-- Direcciones de contratos desplegados.
-- Nombres de integrantes y contacto (Telegram y X).
+**0G deliverables** [VERIFIED]:
+- Name and short description.
+- Public GitHub repo (README + setup instructions).
+- Demo video **under 3 minutes** + live demo link.
+- Deployed contract addresses.
+- Team member names and contact (Telegram and X).
 
-### Consejos del DevRel de 0G (workshop, 5 nov)
-- Construir algo con **profundidad** en el uso de IA: usar la complejidad del stack, **los modelos de decisión**, o usar el flujo completo **de forma más eficiente** que otras apps. → Es exactamente nuestro optimizador.
-- Su propio caso de uso de los modelos de decisión: elegir entre respuesta rápida y pensamiento profundo según la tarea. → Lo mismo que hace nuestro optimizador.
-- **Compartir request IDs / recibos como prueba** de uso de 0G Compute.
-- Créditos de mainnet para construir: se piden en el **grupo de Telegram de builders de 0G** en ETHGlobal.
+### Tips from 0G's DevRel (workshop, Nov 5)
+- Build something with **depth** in the use of AI: use the complexity of the stack, **the decision models**, or use the full flow **more efficiently** than other apps. → This is exactly our optimizer.
+- Their own use case for decision models: choosing between a quick answer and deep thinking depending on the task. → The same thing our optimizer does.
+- **Share request IDs / receipts as proof** of 0G Compute usage.
+- Mainnet credits for building: ask in the **0G builders Telegram group** at ETHGlobal.
 
-### Finalistas ETHGlobal
-- Todos los proyectos pasan por evaluación general. Para destacar: ejecución real demostrable (ciclos nocturnos reales con transacciones y request IDs), interfaz pulida, pitch más amplio que un solo sponsor: *"cómputo de IA que se iba a desperdiciar, convertido en bienes públicos con procedencia verificable"*.
+### ETHGlobal finalists
+- All projects go through general evaluation. To stand out: demonstrable real execution (real nightly cycles with transactions and request IDs), polished interface, a pitch broader than a single sponsor: *"AI compute that was going to be wasted, turned into public goods with verifiable provenance"*.
 
-### Fechas
-- Cortes reales de créditos durante el evento: **00:00 UTC = 05:30 IST** del 6, 7 y 8 de noviembre.
-- **Meta:** ciclo nocturno real completo en el corte del **7 de noviembre (ventana 04:30–05:20 IST)**; segundo ciclo el 8 si la fecha límite lo permite.
-- Fecha límite de entrega: una fuente indica **8 de noviembre 09:00 IST** [VERIFICAR en el dashboard de ETHGlobal].
+### Dates
+- Real credit cutoffs during the event: **00:00 UTC = 05:30 IST** on November 6, 7 and 8.
+- **Goal:** a complete real nightly cycle at the **November 7 cutoff (window 04:30–05:20 IST)**; a second cycle on the 8th if the deadline allows.
+- Submission deadline: one source says **November 8, 09:00 IST** [VERIFY on the ETHGlobal dashboard].
 
 ---
 
-## 3. Alcance (MoSCoW)
+## 3. Scope (MoSCoW)
 
-### Must (núcleo, sin esto no se entrega)
-- M1. Conexión de cuenta 0G con llave `mk-` (Plan A), validación de permisos y lectura de saldo.
-- M2. Ciclo de vida de llaves `sk-` efímeras: crear → usar → revocar, con límite de gasto.
-- M3. Cola de tareas con 3 tipos: `AUDIO_SUMMARY`, `DOC_ANALYSIS`, `IMAGE_FROM_PROMPT`.
-- M4. Optimizador de presupuesto con clasificación de complejidad vía modelo de decisión.
-- M5. Worker nocturno real (ventana 23:00–23:50 UTC) + botón "Ejecutar ahora" que corre **el mismo pipeline real**.
-- M6. Resultados subidos a **0G Storage**; traza (`x_0g_trace`, `X-Request-ID`) guardada por tarea.
-- M7. Contrato `ShiftLedger` en 0G Chain + árbol de Merkle del lote nocturno anclado.
-- M8. Página de verificación pública.
-- M9. Panel de gasto: cuánto se pagó con crédito vs depósito (si el API lo expone).
+### Must (core, nothing ships without it)
+- M1. 0G account connection with an `mk-` key (Plan A), permission validation and balance reading.
+- M2. Ephemeral `sk-` key lifecycle: create → use → revoke, with a spending limit.
+- M3. Task queue with 3 types: `AUDIO_SUMMARY`, `DOC_ANALYSIS`, `IMAGE_FROM_PROMPT`.
+- M4. Budget optimizer with complexity classification via a decision model.
+- M5. Real nightly worker (window 23:00–23:50 UTC) + a "Run now" button that runs **the same real pipeline**.
+- M6. Results uploaded to **0G Storage**; trace (`x_0g_trace`, `X-Request-ID`) stored per task.
+- M7. `ShiftLedger` contract on 0G Chain + the nightly batch's Merkle tree anchored.
+- M8. Public verification page.
+- M9. Spending panel: how much was paid with credit vs deposit (if the API exposes it).
 
 ### Should
-- S1. Cola común (traducción EN→HI/MR) con control de calidad de doble modelo + modelo de decisión.
-- S2. Registro on-chain de donaciones por usuario + tabla de donantes.
+- S1. Commons queue (EN→HI/MR translation) with dual-model quality control + decision model.
+- S2. On-chain donation record per user + donors table.
 
-### Could (solo si el núcleo está listo en la hora 20)
-- C1. Cifrado de resultados personales con llave pública del navegador (sealed box).
-- C2. Integración con Arkiv para la cola efímera (ver Apéndice A).
-- C3. Custodia de llaves `mk-` dentro de un TEE (dstack / Phala Cloud).
+### Could (only if the core is ready by hour 20)
+- C1. Encryption of personal results with the browser's public key (sealed box).
+- C2. Arkiv integration for the ephemeral queue (see Appendix A).
+- C3. Custody of `mk-` keys inside a TEE (dstack / Phala Cloud).
 
-### Won't (fuera de alcance)
-- Bóveda de iAI (custodia de tokens), app móvil, E2EE sellado (`_e2ee`), múltiples idiomas fuera de HI/MR, pagos.
+### Won't (out of scope)
+- iAI vault (token custody), mobile app, sealed E2EE (`_e2ee`), languages beyond HI/MR, payments.
 
 ---
 
-## 4. Arquitectura
+## 4. Architecture
 
 ```
                          ┌──────────────────────────────────────────┐
-                         │               Navegador                  │
-                         │ Next.js UI (sin llaves, solo sesión)     │
+                         │                 Browser                  │
+                         │ Next.js UI (no keys, session only)       │
                          └───────────────┬──────────────────────────┘
-                                         │ HTTPS (cookie de sesión)
+                                         │ HTTPS (session cookie)
                          ┌───────────────▼──────────────────────────┐
                          │        apps/web  (Next.js 15, API)       │
-                         │ - Onboarding mk- (cifra y guarda)        │
-                         │ - CRUD de tareas, uploads                │
-                         │ - Vista previa del plan (precios reales) │
-                         │ - Verificador (lee contrato + proofs)    │
+                         │ - mk- onboarding (encrypts and stores)   │
+                         │ - Task CRUD, uploads                     │
+                         │ - Plan preview (real prices)             │
+                         │ - Verifier (reads contract + proofs)     │
                          └───────┬───────────────────┬──────────────┘
                                  │ Postgres (Prisma) │
                          ┌───────▼───────────────────▼──────────────┐
                          │        apps/worker (Node, cron)          │
-                         │ 1. Lee saldo (mk-)                       │
-                         │ 2. Crea sk- efímera con tope             │
-                         │ 3. Optimiza (decision models)            │
-                         │ 4. Ejecuta tareas → 0G Router            │
-                         │ 5. Cola común + control de calidad       │
-                         │ 6. Sube resultados → 0G Storage          │
-                         │ 7. Revoca sk-                            │
+                         │ 1. Reads balance (mk-)                   │
+                         │ 2. Creates ephemeral sk- with a cap      │
+                         │ 3. Optimizes (decision models)           │
+                         │ 4. Runs tasks → 0G Router                │
+                         │ 5. Commons queue + quality control       │
+                         │ 6. Uploads results → 0G Storage          │
+                         │ 7. Revokes sk-                           │
                          │ 8. Merkle + anchor → 0G Chain            │
                          └───┬──────────────┬──────────────┬────────┘
                              │              │              │
              ┌───────────────▼───┐  ┌───────▼───────┐  ┌───▼──────────────┐
              │ 0G Router (PC)    │  │ 0G Storage    │  │ 0G Chain (EVM)   │
-             │ router-api.0g.ai  │  │ (SDK TS)      │  │ ShiftLedger │
+             │ router-api.0g.ai  │  │ (TS SDK)      │  │ ShiftLedger      │
              │ chat/audio/image/ │  │ root hashes   │  │ roots + donations│
              │ decisions/account │  │               │  │                  │
              └───────────────────┘  └───────────────┘  └──────────────────┘
 ```
 
-**Decisión de diseño importante:** 0G ya asienta una prueba por cada interacción con modelos (dicho en el workshop). **No duplicamos esa prueba.** Nuestro Merkle ancla **atribución y curaduría**: pertenencia de cada resultado al lote del usuario, montos donados y aprobación de la cola común. El verificador enlaza cada resultado a su request ID nativo de 0G.
+**Important design decision:** 0G already settles a proof for every model interaction (stated in the workshop). **We do not duplicate that proof.** Our Merkle tree anchors **attribution and curation**: membership of each result in the user's batch, donated amounts and approval for the commons queue. The verifier links each result to its native 0G request ID.
 
 ---
 
-## 5. Stack técnico
+## 5. Technical stack
 
-| Capa | Tecnología | Notas |
+| Layer | Technology | Notes |
 |---|---|---|
 | Monorepo | pnpm workspaces | `apps/web`, `apps/worker`, `packages/core`, `contracts` |
-| Lenguaje | TypeScript 5.x estricto | Node 20 LTS o 22 LTS |
-| Frontend + API | Next.js 15 (App Router), React 19 | Route handlers para la API interna |
-| Estilos | Tailwind CSS 4 + shadcn/ui | Ver sección 18 para dirección visual |
-| Wallet (opcional) | wagmi v2 + viem v2 + RainbowKit + `siwe` | Solo para iniciar sesión con wallet; no se firman pagos |
-| Sesión | `iron-session` | Cookie cifrada, httpOnly, sameSite=lax |
-| Base de datos | PostgreSQL 16 + Prisma ORM | Railway o Neon |
-| Validación | `zod` | Toda entrada externa |
-| Cliente 0G Router | `openai` SDK (baseURL del Router) + `fetch` tipado | Endpoints no estándar (`/v1/decisions`, `/v1/account/*`, `/v1/api-keys`) con fetch + tipos de OpenAPI |
-| Tipos del API | `openapi-typescript` | Generados desde la spec oficial |
-| Worker | Node + `node-cron` + `p-limit` | Un solo proceso, lock en DB |
-| PDF | `pdf-parse` | Extraer texto de documentos |
-| Merkle | `@openzeppelin/merkle-tree` (StandardMerkleTree) | Compatible con `MerkleProof` de OZ |
-| Contratos | Foundry (forge) + OpenZeppelin Contracts v5 | Solidity ^0.8.24 |
-| 0G Storage | SDK TypeScript oficial de 0G Storage + `ethers` v6 | Nombre exacto del paquete [VERIFICAR en docs.0g.ai/…/storage/sdk] |
-| Cifrado en reposo | `node:crypto` AES-256-GCM | Para llaves `mk-` |
-| Cifrado de resultados (Could) | `libsodium-wrappers` (crypto_box_seal) | Llave privada solo en el navegador |
-| Logs | `pino` con redacción de secretos | Redactar `authorization`, `mk-`, `sk-` |
+| Language | Strict TypeScript 5.x | Node 20 LTS or 22 LTS |
+| Frontend + API | Next.js 15 (App Router), React 19 | Route handlers for the internal API |
+| Styling | Tailwind CSS 4 + shadcn/ui | See section 18 for visual direction |
+| Wallet (optional) | wagmi v2 + viem v2 + RainbowKit + `siwe` | Only for wallet sign-in; no payments are signed |
+| Session | `iron-session` | Encrypted cookie, httpOnly, sameSite=lax |
+| Database | PostgreSQL 16 + Prisma ORM | Railway or Neon |
+| Validation | `zod` | All external input |
+| 0G Router client | `openai` SDK (Router baseURL) + typed `fetch` | Non-standard endpoints (`/v1/decisions`, `/v1/account/*`, `/v1/api-keys`) via fetch + OpenAPI types |
+| API types | `openapi-typescript` | Generated from the official spec |
+| Worker | Node + `node-cron` + `p-limit` | A single process, lock in the DB |
+| PDF | `pdf-parse` | Extract text from documents |
+| Merkle | `@openzeppelin/merkle-tree` (StandardMerkleTree) | Compatible with OZ `MerkleProof` |
+| Contracts | Foundry (forge) + OpenZeppelin Contracts v5 | Solidity ^0.8.24 |
+| 0G Storage | Official 0G Storage TypeScript SDK + `ethers` v6 | Exact package name [VERIFY in docs.0g.ai/…/storage/sdk] |
+| Encryption at rest | `node:crypto` AES-256-GCM | For `mk-` keys |
+| Result encryption (Could) | `libsodium-wrappers` (crypto_box_seal) | Private key only in the browser |
+| Logs | `pino` with secret redaction | Redact `authorization`, `mk-`, `sk-` |
 | Tests | `vitest` + `forge test` | |
-| Hosting | Railway (web + worker + Postgres) | Necesario proceso persistente para el worker; Vercel no sirve para el worker |
+| Hosting | Railway (web + worker + Postgres) | A persistent process is needed for the worker; Vercel does not work for the worker |
 
-> Fija versiones exactas en el lockfile. No uses rangos sin lockfile.
+> Pin exact versions in the lockfile. Do not use ranges without a lockfile.
 
 ---
 
-## 6. Estructura del repositorio
+## 6. Repository structure
 
-> El repo arranca con el kit de la Fase 0 (`scripts/`, `contracts/`, `docs/`) y se convierte en este monorepo en el ítem F1.1 de `PROGRESS.md`. El detalle de qué va en cada carpeta, y las reglas de ubicación, están en `docs/STRUCTURE.md`.
+> The repo starts with the Phase 0 kit (`scripts/`, `contracts/`, `docs/`) and becomes this monorepo in item F1.1 of `PROGRESS.md`. The detail of what goes in each folder, and the placement rules, are in `docs/STRUCTURE.md`.
 
 ```
 shift/
 ├── apps/
-│   ├── web/                         # Next.js (UI + API interna)
+│   ├── web/                         # Next.js (UI + internal API)
 │   │   ├── app/
-│   │   │   ├── page.tsx             # Inicio: cuenta regresiva al corte + estado
-│   │   │   ├── connect/page.tsx     # Asistente de conexión mk-
-│   │   │   ├── queue/page.tsx       # Cola de tareas + vista previa del plan
-│   │   │   ├── nights/[id]/page.tsx # Resultados de una noche
-│   │   │   ├── commons/page.tsx     # Dataset común + donantes
-│   │   │   ├── verify/page.tsx      # Verificador público
+│   │   │   ├── page.tsx             # Home: countdown to the cutoff + status
+│   │   │   ├── connect/page.tsx     # mk- connection wizard
+│   │   │   ├── queue/page.tsx       # Task queue + plan preview
+│   │   │   ├── nights/[id]/page.tsx # Results of a night
+│   │   │   ├── commons/page.tsx     # Commons dataset + donors
+│   │   │   ├── verify/page.tsx      # Public verifier
 │   │   │   └── api/
 │   │   │       ├── session/route.ts
-│   │   │       ├── connect/route.ts         # POST mk-, DELETE desconectar
-│   │   │       ├── account/route.ts         # saldo actual (vía mk-)
+│   │   │       ├── connect/route.ts         # POST mk-, DELETE disconnect
+│   │   │       ├── account/route.ts         # current balance (via mk-)
 │   │   │       ├── tasks/route.ts           # GET/POST
 │   │   │       ├── tasks/[id]/route.ts      # GET/DELETE
-│   │   │       ├── plan/preview/route.ts    # estimación real con precios reales
-│   │   │       ├── runs/now/route.ts        # dispara pipeline real para el usuario
+│   │   │       ├── plan/preview/route.ts    # real estimate with real prices
+│   │   │       ├── runs/now/route.ts        # triggers the real pipeline for the user
 │   │   │       ├── nights/[id]/route.ts
 │   │   │       ├── commons/route.ts
 │   │   │       └── verify/[requestId]/route.ts
@@ -207,214 +207,214 @@ shift/
 │   └── worker/
 │       └── src/
 │           ├── index.ts             # cron + lock
-│           ├── pipeline/runNight.ts # orquestación por usuario
+│           ├── pipeline/runNight.ts # per-night orchestration
 │           ├── pipeline/runUser.ts
 │           ├── pipeline/commons.ts
 │           ├── pipeline/anchor.ts
-│           └── sweeper.ts           # revoca llaves huérfanas
+│           └── sweeper.ts           # revokes orphaned keys
 ├── packages/
 │   └── core/
 │       └── src/
-│           ├── zg/router.ts         # cliente 0G Router (sk- y mk-)
-│           ├── zg/types.ts          # generado desde OpenAPI
-│           ├── zg/models.ts         # catálogo, precios, tiers
+│           ├── zg/router.ts         # 0G Router client (sk- and mk-)
+│           ├── zg/types.ts          # generated from OpenAPI
+│           ├── zg/models.ts         # catalog, prices, tiers
 │           ├── zg/decisions.ts      # /v1/decisions
 │           ├── zg/storage.ts        # 0G Storage upload/download
-│           ├── zg/chain.ts          # viem client + contrato
-│           ├── optimizer/           # estimación de costos + asignación
-│           ├── tasks/               # ejecutores por tipo
-│           ├── crypto/vault.ts      # AES-256-GCM para mk-
-│           ├── merkle/              # construcción de hojas y pruebas
-│           └── config.ts            # env validado con zod
+│           ├── zg/chain.ts          # viem client + contract
+│           ├── optimizer/           # cost estimation + allocation
+│           ├── tasks/               # executors per type
+│           ├── crypto/vault.ts      # AES-256-GCM for mk-
+│           ├── merkle/              # leaf construction and proofs
+│           └── config.ts            # env validated with zod
 ├── contracts/
 │   ├── src/ShiftLedger.sol
 │   ├── test/ShiftLedger.t.sol
 │   └── script/Deploy.s.sol
 ├── prisma/schema.prisma
 ├── scripts/
-│   ├── smoke.ts                     # Fase 0: verificación de supuestos
-│   └── seed-commons.ts              # carga textos fuente de la cola común
-├── data/commons/                    # textos fuente (licencia compatible)
-├── docs/ (este archivo)
+│   ├── smoke.ts                     # Phase 0: assumption verification
+│   └── seed-commons.ts              # loads the commons queue source texts
+├── data/commons/                    # source texts (compatible license)
+├── docs/ (this file)
 └── README.md
 ```
 
 ---
 
-## 7. Integración con 0G Router (Private Computer)
+## 7. 0G Router integration (Private Computer)
 
-### 7.1 URLs base [VERIFICADO]
-| Red | UI | API |
+### 7.1 Base URLs [VERIFIED]
+| Network | UI | API |
 |---|---|---|
 | Mainnet | `https://pc.0g.ai` | `https://router-api.0g.ai/v1` |
 | Testnet | `https://pc.testnet.0g.ai` | `https://router-api-testnet.integratenetwork.work/v1` |
 
-Mainnet y testnet tienen saldos y llaves separados. **Usamos mainnet**, porque los créditos de iAI y los créditos de builders de 0G son de mainnet.
+Mainnet and testnet have separate balances and keys. **We use mainnet**, because iAI credits and 0G builder credits are mainnet.
 
-### 7.2 Autenticación [VERIFICADO]
-| Tipo | Prefijo | Para qué |
+### 7.2 Authentication [VERIFIED]
+| Type | Prefix | Purpose |
 |---|---|---|
-| API key | `sk-` | Inferencia (`/v1/chat/completions`, etc.). Se cobra contra el saldo. **No puede** leer `/v1/account/*`. |
-| Management key | `mk-` | Administrar cuenta: leer saldo/uso, listar/crear/revocar `sk-`. **No se cobra. No puede hacer inferencia.** |
+| API key | `sk-` | Inference (`/v1/chat/completions`, etc.). Charged against the balance. **Cannot** read `/v1/account/*`. |
+| Management key | `mk-` | Account administration: read balance/usage, list/create/revoke `sk-`. **Not charged. Cannot run inference.** |
 
-Ambas van en `Authorization: Bearer <key>`. No existe OAuth ni "Sign in with 0G" para terceros.
+Both go in `Authorization: Bearer <key>`. There is no OAuth or "Sign in with 0G" for third parties.
 
-**Permisos (scopes) de `mk-`** [VERIFICADO]:
-| Acción | Endpoint | Scope |
+**`mk-` permissions (scopes)** [VERIFIED]:
+| Action | Endpoint | Scope |
 |---|---|---|
-| Leer saldo / uso / historial | `GET /v1/account/*` | `account:read` |
-| Listar `sk-` | `GET /v1/api-keys` | `keys:read` |
-| Crear `sk-` | `POST /v1/api-keys` | `keys:create` |
-| Editar / revocar `sk-` | `PATCH` / `DELETE /v1/api-keys/:id` | `keys:manage` |
-| Gestionar otras `mk-` | `/v1/management-keys/*` | Imposible con `mk-` (requiere sesión de wallet) |
+| Read balance / usage / history | `GET /v1/account/*` | `account:read` |
+| List `sk-` | `GET /v1/api-keys` | `keys:read` |
+| Create `sk-` | `POST /v1/api-keys` | `keys:create` |
+| Edit / revoke `sk-` | `PATCH` / `DELETE /v1/api-keys/:id` | `keys:manage` |
+| Manage other `mk-` | `/v1/management-keys/*` | Impossible with `mk-` (requires a wallet session) |
 
-**Scopes que pedimos al usuario:** `account:read`, `keys:create`, `keys:manage` (modo "Custom" en pc.0g.ai → Settings → Management Keys). No pedimos `keys:read`: guardamos el `id` de cada llave que creamos y revocamos por id.
+**Scopes we ask the user for:** `account:read`, `keys:create`, `keys:manage` ("Custom" mode at pc.0g.ai → Settings → Management Keys). We do not ask for `keys:read`: we store the `id` of every key we create and revoke by id.
 
-### 7.3 Endpoints que usamos
-| Uso | Método y ruta | Llave | Estado |
+### 7.3 Endpoints we use
+| Use | Method and path | Key | Status |
 |---|---|---|---|
-| Datos de la cuenta (dirección, moneda) | `GET /v1/account` | `mk-` | Endpoint [VERIFICADO]; campos exactos [VERIFICAR] |
-| Saldo del ledger del Router | `GET /v1/account/balance` | `mk-` | [VERIFICADO]: devuelve `deposit_balance + credit_balance` (y `pending_charge`) |
-| Saldo combinado para mostrar | `GET /v1/account/funds` | `mk-` | [VERIFICADO] |
-| Historial de uso | `GET /v1/account/usage/history` | `mk-` | [VERIFICADO]; `credit_used` / `deposit_used` por solicitud documentado para cuentas USD [VERIFICAR para cuentas 0G] |
-| Crear llave efímera | `POST /v1/api-keys` | `mk-` | [VERIFICADO] acepta `"trust_mode": "private"`; nombre del campo de límite de crédito [VERIFICAR] |
-| Revocar llave | `DELETE /v1/api-keys/:id` | `mk-` | [VERIFICADO] |
-| Catálogo y precios | `GET /v1/models` | ninguna/`sk-` | [VERIFICADO] (incluye `pricing`, `pricing_usd`, `e2ee`, capacidades) |
-| Chat | `POST /v1/chat/completions` | `sk-` | [VERIFICADO], compatible OpenAI |
-| Transcripción | `POST /v1/audio/transcriptions` | `sk-` | [VERIFICADO]; usar `response_format: json` o `verbose_json`; **no** `stream`, **no** `text/srt/vtt` |
-| Imagen | `POST /v1/images/generations` | `sk-` | [VERIFICADO]; respetar `image_capabilities` (`max_n`, tamaños) |
-| Decisiones | `POST /v1/decisions` | `sk-` | Endpoint [VERIFICADO]; forma: `model`, `state`, `questions` con respuestas tipificadas `choice` / `score` / `noul` y probabilidades calibradas [VERIFICAR schema exacto] |
+| Account data (address, currency) | `GET /v1/account` | `mk-` | Endpoint [VERIFIED]; exact fields [VERIFY] |
+| Router ledger balance | `GET /v1/account/balance` | `mk-` | [VERIFIED]: returns `deposit_balance + credit_balance` (and `pending_charge`) |
+| Combined balance for display | `GET /v1/account/funds` | `mk-` | [VERIFIED] |
+| Usage history | `GET /v1/account/usage/history` | `mk-` | [VERIFIED]; per-request `credit_used` / `deposit_used` documented for USD accounts [VERIFY for 0G accounts] |
+| Create ephemeral key | `POST /v1/api-keys` | `mk-` | [VERIFIED] accepts `"trust_mode": "private"`; name of the credit limit field [VERIFY] |
+| Revoke key | `DELETE /v1/api-keys/:id` | `mk-` | [VERIFIED] |
+| Catalog and prices | `GET /v1/models` | none/`sk-` | [VERIFIED] (includes `pricing`, `pricing_usd`, `e2ee`, capabilities) |
+| Chat | `POST /v1/chat/completions` | `sk-` | [VERIFIED], OpenAI-compatible |
+| Transcription | `POST /v1/audio/transcriptions` | `sk-` | [VERIFIED]; use `response_format: json` or `verbose_json`; **no** `stream`, **no** `text/srt/vtt` |
+| Image | `POST /v1/images/generations` | `sk-` | [VERIFIED]; respect `image_capabilities` (`max_n`, sizes) |
+| Decisions | `POST /v1/decisions` | `sk-` | Endpoint [VERIFIED]; shape: `model`, `state`, `questions` with typed answers `choice` / `score` / `noul` and calibrated probabilities [VERIFY exact schema] |
 
-### 7.4 Encabezados y campos importantes
-- `X-0G-Provider-Trust-Mode: private | verified | standard` [VERIFICADO]. Si no hay proveedor para ese nivel: **`503 no_provider_for_trust_mode`**, nunca baja de nivel en silencio.
-- Body `verify_tee: true` → la traza reporta `tee_verified` [VERIFICADO]. Interpretación: `true` = firma verificada; `false` = atestación mala; **ausente = sin veredicto (no es fallo)**.
-- Respuesta: encabezado **`X-Request-ID`** (id oficial del Router, el mismo de `x_0g_trace.request_id` y del historial de uso) [VERIFICADO]. **Guardarlo siempre.**
-- Respuesta: objeto **`x_0g_trace`** con `request_id`, `provider`, `provider_identity`, `tee_verified` (si se pidió) y `billing` (`input_cost`, `output_cost`, `total_cost`, `currency` = `"0g"` (wei) o `"usd"` (micro-USD), y `total_cost_usd_micro` [beta]) [VERIFICADO].
-- Encabezado de solicitud **`X-Client-Request-Id`** (≤ 512 ASCII) para rastrear solicitudes abandonadas [VERIFICADO, beta]. Usar el id de intento de nuestra tarea.
-- **Una solicitud abandonada se cobra igual** [VERIFICADO]: no cancelar a ciegas; siempre registrar.
+### 7.4 Important headers and fields
+- `X-0G-Provider-Trust-Mode: private | verified | standard` [VERIFIED]. If no provider exists for that level: **`503 no_provider_for_trust_mode`**, it never silently downgrades.
+- Body `verify_tee: true` → the trace reports `tee_verified` [VERIFIED]. Interpretation: `true` = signature verified; `false` = bad attestation; **absent = no verdict (not a failure)**.
+- Response: **`X-Request-ID`** header (the Router's official id, the same as `x_0g_trace.request_id` and the usage history) [VERIFIED]. **Always store it.**
+- Response: **`x_0g_trace`** object with `request_id`, `provider`, `provider_identity`, `tee_verified` (if requested) and `billing` (`input_cost`, `output_cost`, `total_cost`, `currency` = `"0g"` (wei) or `"usd"` (micro-USD), and `total_cost_usd_micro` [beta]) [VERIFIED].
+- Request header **`X-Client-Request-Id`** (≤ 512 ASCII) to track abandoned requests [VERIFIED, beta]. Use our task's attempt id.
+- **An abandoned request is still charged** [VERIFIED]: do not cancel blindly; always record.
 
-### 7.5 Errores que hay que manejar
-| Código | Significado | Acción |
+### 7.5 Errors to handle
+| Code | Meaning | Action |
 |---|---|---|
-| `402 insufficient_balance` | Sin saldo para la solicitud | Detener el lote del usuario |
-| `402 pay_no_balance` / `pay_insufficient_spendable` / `pay_debt_threshold` | Variantes de saldo (cuentas USD) | Detener |
-| `429 credit_limit_exceeded` | La llave efímera alcanzó su tope | **Fin normal del presupuesto**: detener y pasar a revocar |
-| `429 fair_share_exceeded` / `429` con `Retry-After` | Capacidad del proveedor | Reintentar tras `Retry-After`, máx. 3 veces |
-| `401 api_key_revoked` | Llave revocada | Esperado tras revocar |
-| `403 insufficient_scope` | Falta permiso en `mk-` | Mostrar al usuario qué scope falta |
-| `503 no_provider_for_trust_mode` | No hay proveedor en ese nivel | Cambiar a otro modelo del mismo tipo con ese nivel |
-| `503 vault_unavailable` / `pay_gate_unavailable` | Lectura de saldo falló | Reintentar con backoff |
-| `400 model_not_capable` / `model_format_mismatch` | Modelo no sirve esa operación | Excluir el modelo y replanificar |
+| `402 insufficient_balance` | Not enough balance for the request | Stop the user's batch |
+| `402 pay_no_balance` / `pay_insufficient_spendable` / `pay_debt_threshold` | Balance variants (USD accounts) | Stop |
+| `429 credit_limit_exceeded` | The ephemeral key hit its cap | **Normal end of the budget**: stop and move on to revoking |
+| `429 fair_share_exceeded` / `429` with `Retry-After` | Provider capacity | Retry after `Retry-After`, max. 3 times |
+| `401 api_key_revoked` | Key revoked | Expected after revoking |
+| `403 insufficient_scope` | Missing permission on `mk-` | Show the user which scope is missing |
+| `503 no_provider_for_trust_mode` | No provider at that level | Switch to another model of the same type at that level |
+| `503 vault_unavailable` / `pay_gate_unavailable` | Balance read failed | Retry with backoff |
+| `400 model_not_capable` / `model_format_mismatch` | Model cannot serve that operation | Exclude the model and replan |
 
-### 7.6 Modelo de saldo [VERIFICADO]
-- `/v1/account/balance` = ledger del Router (`deposit_balance + credit_balance`), **excluye** la bóveda compartida (Payment Layer) en cuentas 0G.
-- Cuentas en USD: montos en micro-USD. Cuentas en 0G: en wei.
-- El crédito promocional **expirado o de otro servicio de 0G no cuenta** como gastable.
-- **Nuestra unidad interna: micro-USD.** Convertir usando `x_0g_trace.billing.total_cost_usd_micro` para costos reales y `pricing_usd` del catálogo para estimaciones. Si la cuenta es en 0G, convertir el saldo con la tasa implícita del catálogo [VERIFICAR] o trabajar en wei para esa cuenta (el optimizador acepta ambas unidades con un adaptador).
+### 7.6 Balance model [VERIFIED]
+- `/v1/account/balance` = Router ledger (`deposit_balance + credit_balance`), **excludes** the shared vault (Payment Layer) on 0G accounts.
+- USD accounts: amounts in micro-USD. 0G accounts: in wei.
+- Promotional credit that is **expired or from another 0G service does not count** as spendable.
+- **Our internal unit: micro-USD.** Convert using `x_0g_trace.billing.total_cost_usd_micro` for real costs and the catalog's `pricing_usd` for estimates. If the account is in 0G, convert the balance with the catalog's implied rate [VERIFY] or work in wei for that account (the optimizer accepts both units through an adapter).
 
-### 7.7 Modelos con privacidad en enclave (TeeML) — octubre 2026 [VERIFICADO, puede cambiar]
-| Modelo | Tipo |
+### 7.7 Models with enclave privacy (TeeML) — October 2026 [VERIFIED, may change]
+| Model | Type |
 |---|---|
-| 0GM-1.0-35B-A3B | chat (cifrado extremo a extremo disponible) |
+| 0GM-1.0-35B-A3B | chat (end-to-end encryption available) |
 | GLM-5.3 | chat |
-| Laya | modelo de decisión (contexto 512 tokens inglés / 1024 multilingüe) |
-| Vela 2.0 9B | modelo de decisión (contexto ~16k) |
-| Whisper Large v3 | voz a texto |
-| Z-Image-Turbo | texto a imagen |
+| Laya | decision model (context 512 tokens English / 1024 multilingual) |
+| Vela 2.0 9B | decision model (context ~16k) |
+| Whisper Large v3 | speech to text |
+| Z-Image-Turbo | text to image |
 | Qwen3 Embedding 0.6B / 8B | embeddings |
 
-**Los IDs exactos de modelo se leen de `GET /v1/models` en tiempo de ejecución; nunca se escriben a mano.** Filtrar por `verifiability: "TeeML"` para privado.
+**Exact model IDs are read from `GET /v1/models` at runtime; they are never hand-written.** Filter by `verifiability: "TeeML"` for private.
 
 ---
 
-## 8. Plan A — Delegación con llave de gestión (especificación completa)
+## 8. Plan A — Delegation with a management key (full specification)
 
-### 8.1 Onboarding (una sola vez por usuario)
-1. El usuario abre `/connect`. Se muestra un asistente con 4 pasos y enlace directo a `https://pc.0g.ai` → **Settings → Management Keys**.
-2. Instrucciones exactas en pantalla:
-   - Crear llave con preset **Custom**.
-   - Marcar **solo**: `account:read`, `keys:create`, `keys:manage`.
-   - Nombre sugerido: `shift`.
-   - Copiar la llave (se muestra una sola vez).
-3. El usuario pega la llave. El servidor:
-   1. Valida formato (`^mk-` + longitud mínima).
-   2. Llama `GET /v1/account` y `GET /v1/account/balance`. Si `403 insufficient_scope`, responde qué scope falta.
-   3. **Prueba de `keys:create` y `keys:manage` sin gastar:** crea una `sk-` con nombre `shift-probe-<ts>` y la revoca de inmediato. Si falla, indica qué scope falta.
-   4. Cifra la `mk-` con AES-256-GCM (llave maestra del servidor) y guarda `ciphertext`, `iv`, `authTag`. **Nunca** se guarda en texto plano, nunca se registra en logs, nunca vuelve al navegador.
-   5. Guarda `accountAddress`, `currency` y el saldo inicial.
-4. El usuario elige el modo: **iAI (solo créditos)** o **Presupuesto (tope en USD)**.
-5. Botón **"Desconectar"**: borra la `mk-` cifrada y recuerda al usuario revocarla en pc.0g.ai.
+### 8.1 Onboarding (once per user)
+1. The user opens `/connect`. A 4-step wizard is shown with a direct link to `https://pc.0g.ai` → **Settings → Management Keys**.
+2. Exact on-screen instructions:
+   - Create a key with the **Custom** preset.
+   - Tick **only**: `account:read`, `keys:create`, `keys:manage`.
+   - Suggested name: `shift`.
+   - Copy the key (it is shown only once).
+3. The user pastes the key. The server:
+   1. Validates the format (`^mk-` + minimum length).
+   2. Calls `GET /v1/account` and `GET /v1/account/balance`. On `403 insufficient_scope`, it responds which scope is missing.
+   3. **Tests `keys:create` and `keys:manage` without spending:** creates an `sk-` named `shift-probe-<ts>` and revokes it immediately. If it fails, it says which scope is missing.
+   4. Encrypts the `mk-` with AES-256-GCM (server master key) and stores `ciphertext`, `iv`, `authTag`. It is **never** stored in plaintext, never logged, never returned to the browser.
+   5. Stores `accountAddress`, `currency` and the initial balance.
+4. The user chooses the mode: **iAI (credits only)** or **Budget (USD cap)**.
+5. **"Disconnect"** button: deletes the encrypted `mk-` and reminds the user to revoke it at pc.0g.ai.
 
-### 8.2 Ciclo de vida de la llave efímera (cada noche, por usuario)
+### 8.2 Ephemeral key lifecycle (every night, per user)
 ```
-leer saldo (mk-)
-  → calcular presupuesto = gastable − margen de seguridad
-  → si presupuesto < mínimo útil: saltar usuario
-  → crear sk- {name: "shift-<YYYYMMDD>-<runId>", trust_mode: "private",
-               <campo de límite>: presupuesto}           // [VERIFICAR nombre del campo]
-  → guardar keyId + createdAt en NightRun (ANTES de usarla)
-  → ejecutar tareas con sk- (optimizador)
-  → finally: DELETE /v1/api-keys/:keyId  → guardar revokedAt
-  → leer historial de uso y saldo final → calcular creditUsed / depositUsed
+read balance (mk-)
+  → compute budget = spendable − safety margin
+  → if budget < useful minimum: skip user
+  → create sk- {name: "shift-<YYYYMMDD>-<runId>", trust_mode: "private",
+               <limit field>: budget}                    // [VERIFY field name]
+  → store keyId + createdAt in NightRun (BEFORE using it)
+  → run tasks with sk- (optimizer)
+  → finally: DELETE /v1/api-keys/:keyId  → store revokedAt
+  → read usage history and final balance → compute creditUsed / depositUsed
 ```
 
-### 8.3 Invariantes de seguridad (no negociables)
-1. **Presupuesto en modo iAI = `credit_balance` − 10 %** (margen configurable). Nunca incluir `deposit_balance`.
-2. **Doble tope:** límite en la propia llave (si el API lo soporta) **y** contabilidad propia del optimizador que detiene la ejecución antes de llegar al presupuesto.
-3. **Toda llave creada se revoca** en un bloque `finally`. Además, un **sweeper** cada 10 minutos revoca cualquier llave con `revokedAt = null` y antigüedad > 2 horas.
-4. Ventana dura: nada se ejecuta después de **23:50 UTC**.
-5. Tras cada solicitud se acumula el costo real (`x_0g_trace.billing`). Si el gasto real supera la estimación en > 20 %, se replanifica.
-6. Si el API **no** permite límite por llave (fallback de U2): en modo iAI se lee `/v1/account/balance` cada 5 solicitudes y se detiene cuando `credit_balance` ≤ margen. Documentarlo en el README con honestidad.
+### 8.3 Security invariants (non-negotiable)
+1. **Budget in iAI mode = `credit_balance` − 10 %** (configurable margin). Never include `deposit_balance`.
+2. **Double cap:** limit on the key itself (if the API supports it) **and** the optimizer's own accounting, which stops execution before reaching the budget.
+3. **Every created key is revoked** in a `finally` block. In addition, a **sweeper** every 10 minutes revokes any key with `revokedAt = null` older than 2 hours.
+4. Hard window: nothing runs after **23:50 UTC**.
+5. After every request the real cost (`x_0g_trace.billing`) is accumulated. If real spend exceeds the estimate by > 20 %, replan.
+6. If the API does **not** allow a per-key limit (U2 fallback): in iAI mode, read `/v1/account/balance` every 5 requests and stop when `credit_balance` ≤ margin. Document this honestly in the README.
 
-### 8.4 Prueba de "solo créditos"
-- Tras el lote: `GET /v1/account/usage/history` filtrado por los request IDs del lote. Mostrar `credit_used` vs `deposit_used` por solicitud y totales en la UI.
-- Si el historial no trae esa división para cuentas 0G (fallback de U3): mostrar `credit_balance` antes y después y `deposit_balance` antes y después.
+### 8.4 "Credits only" proof
+- After the batch: `GET /v1/account/usage/history` filtered by the batch's request IDs. Show `credit_used` vs `deposit_used` per request and in totals in the UI.
+- If the history does not include that split for 0G accounts (U3 fallback): show `credit_balance` before and after, and `deposit_balance` before and after.
 
 ---
 
-## 9. Pipeline nocturno (worker)
+## 9. Nightly pipeline (worker)
 
-### 9.1 Programación
-- `node-cron` revisa cada minuto. Ventana de ejecución: `NIGHT_START_UTC` (default `23:00`) a `NIGHT_HARD_STOP_UTC` (default `23:50`).
-- `nightId` = fecha UTC en formato `YYYYMMDD` del día que termina en ese corte.
-- **Lock** en DB (`Night.status = RUNNING` con `UPDATE ... WHERE status = 'PENDING'`) para que solo una instancia corra.
-- Botón **"Ejecutar ahora"** (`POST /api/runs/now`): ejecuta `runUser()` real para el usuario actual con `nightId = "manual-<timestamp>"`. Mismo código, mismas llamadas reales, mismo anclaje (en un lote manual). **No es una simulación.**
+### 9.1 Scheduling
+- `node-cron` checks every minute. Execution window: `NIGHT_START_UTC` (default `23:00`) to `NIGHT_HARD_STOP_UTC` (default `23:50`).
+- `nightId` = UTC date in `YYYYMMDD` format of the day that ends at that cutoff.
+- **Lock** in the DB (`Night.status = RUNNING` with `UPDATE ... WHERE status = 'PENDING'`) so that only one instance runs.
+- **"Run now"** button (`POST /api/runs/now`): runs the real `runUser()` for the current user with `nightId = "manual-<timestamp>"`. Same code, same real calls, same anchoring (in a manual batch). **It is not a simulation.**
 
 ### 9.2 `runNight(nightId)`
-1. Seleccionar usuarios conectados con tareas `QUEUED` o con modo de donación activo.
-2. Para cada usuario (secuencial entre usuarios, concurrencia interna `MAX_CONCURRENCY = 3`): `runUser(user, nightId)`.
-3. `anchorNight(nightId)`: construir Merkle con todas las hojas del lote, subir manifiesto a 0G Storage, llamar `anchorNight` y `recordDonations` en el contrato.
-4. Marcar `Night.status = DONE`.
+1. Select connected users with `QUEUED` tasks or with donation mode active.
+2. For each user (sequential across users, internal concurrency `MAX_CONCURRENCY = 3`): `runUser(user, nightId)`.
+3. `anchorNight(nightId)`: build the Merkle tree with all of the batch's leaves, upload the manifest to 0G Storage, call `anchorNight` and `recordDonations` on the contract.
+4. Mark `Night.status = DONE`.
 
 ### 9.3 `runUser(user, nightId)`
-1. Descifrar `mk-` en memoria (nunca a disco).
-2. Leer saldo → presupuesto (sección 8).
-3. Crear `sk-` efímera (registrar en `NightRun`).
-4. Cargar catálogo `GET /v1/models` (cache 10 min).
-5. **Planificar** con el optimizador (sección 10).
-6. **Ejecutar** tareas del plan: por cada tarea → ejecutor por tipo (sección 11) → subir salida a 0G Storage → guardar traza y costo real → crear hoja de Merkle.
-7. Con el presupuesto restante → **cola común** (sección 12), atribuyendo el costo como donación del usuario.
-8. `finally`: revocar `sk-`, borrar `mk-` de memoria, leer historial de uso, guardar resumen en `NightRun`.
+1. Decrypt `mk-` in memory (never to disk).
+2. Read balance → budget (section 8).
+3. Create the ephemeral `sk-` (record it in `NightRun`).
+4. Load the catalog `GET /v1/models` (10-minute cache).
+5. **Plan** with the optimizer (section 10).
+6. **Execute** the plan's tasks: for each task → executor by type (section 11) → upload the output to 0G Storage → store trace and real cost → create the Merkle leaf.
+7. With the remaining budget → **commons queue** (section 12), attributing the cost as the user's donation.
+8. `finally`: revoke `sk-`, wipe `mk-` from memory, read usage history, store the summary in `NightRun`.
 
-### 9.4 Tolerancia a fallos
-- Una tarea que falla queda `FAILED` con el error real; **no se reintenta indefinidamente** (máx. 2 reintentos solo para `429`/`5xx`).
-- Si se cae el worker a mitad de lote, al reiniciar el sweeper revoca la llave y las tareas `RUNNING` vuelven a `QUEUED` si no tienen request ID.
+### 9.4 Fault tolerance
+- A task that fails stays `FAILED` with the real error; it is **not retried indefinitely** (max. 2 retries, only for `429`/`5xx`).
+- If the worker crashes mid-batch, on restart the sweeper revokes the key and `RUNNING` tasks go back to `QUEUED` if they have no request ID.
 
 ---
 
-## 10. Optimizador de presupuesto
+## 10. Budget optimizer
 
-### 10.1 Entradas
-- `budget` (micro-USD), `deadline` (23:50 UTC), lista de tareas (`type`, `priority 1–3`, tamaño de entrada).
-- Catálogo filtrado por tipo y nivel de confianza (preferir `private`; si el tipo no tiene modelo privado, `verified`).
-- Tabla de **calidad relativa** por modelo (config en `packages/core/optimizer/quality.ts`, editable): p. ej. chat → `0GM-1.0 = 2`, `GLM-5.3 = 3`. Valores iniciales razonables; documentar que son heurísticos.
+### 10.1 Inputs
+- `budget` (micro-USD), `deadline` (23:50 UTC), list of tasks (`type`, `priority 1–3`, input size).
+- Catalog filtered by type and trust level (prefer `private`; if the type has no private model, `verified`).
+- **Relative quality** table per model (config in `packages/core/optimizer/quality.ts`, editable): e.g. chat → `0GM-1.0 = 2`, `GLM-5.3 = 3`. Reasonable initial values; document that they are heuristic.
 
-### 10.2 Clasificación de complejidad con modelo de decisión
-Por cada tarea de texto, una llamada a `POST /v1/decisions` con Vela (o Laya si el texto cabe en 512 tokens):
+### 10.2 Complexity classification with a decision model
+For each text task, one call to `POST /v1/decisions` with Vela (or Laya if the text fits in 512 tokens):
 ```json
 {
-  "model": "<id de Vela desde /v1/models>",
-  "state": "<descripción breve de la tarea + primeros ~1500 caracteres de la entrada>",
+  "model": "<Vela id from /v1/models>",
+  "state": "<short task description + first ~1500 characters of the input>",
   "questions": [
     { "id": "complexity", "type": "choice",
       "text": "How much reasoning does this task need?",
@@ -422,114 +422,114 @@ Por cada tarea de texto, una llamada a `POST /v1/decisions` con Vela (o Laya si 
   ]
 }
 ```
-[VERIFICAR schema exacto en OpenAPI.] Mapeo: `simple → calidad mínima 1`, `standard → 2`, `complex → 3`. Si la probabilidad máxima < 0.5, usar `standard`. El costo de esta llamada se descuenta del presupuesto.
+[VERIFY exact schema in OpenAPI.] Mapping: `simple → minimum quality 1`, `standard → 2`, `complex → 3`. If the maximum probability < 0.5, use `standard`. The cost of this call is deducted from the budget.
 
-> Esto replica lo que Gathin describió en el workshop: usar modelos de decisión para elegir entre respuesta rápida y razonamiento profundo.
+> This replicates what Gathin described in the workshop: using decision models to choose between a quick answer and deep reasoning.
 
-### 10.3 Estimación de costo por opción (tarea × modelo)
-- **Chat:** `tokens_in ≈ ceil(chars / 4)`; `tokens_out` por tipo (resumen 400, análisis 700). `costo = tokens_in × pricing_usd.prompt + tokens_out × pricing_usd.completion`.
-- **Transcripción:** `duración (s) × precio por segundo` del catálogo [VERIFICAR unidad del precio de Whisper]. Duración leída del archivo en el upload (`music-metadata`).
-- **Imagen:** precio por imagen del tier de tamaño (`pricing_usd.variants`) o por tokens si el modelo cobra por tokens.
-- **Decisión:** precio del catálogo.
-- Factor de seguridad: multiplicar estimación × 1.15.
+### 10.3 Cost estimation per option (task × model)
+- **Chat:** `tokens_in ≈ ceil(chars / 4)`; `tokens_out` by type (summary 400, analysis 700). `cost = tokens_in × pricing_usd.prompt + tokens_out × pricing_usd.completion`.
+- **Transcription:** `duration (s) × price per second` from the catalog [VERIFY Whisper price unit]. Duration read from the file at upload (`music-metadata`).
+- **Image:** price per image of the size tier (`pricing_usd.variants`) or per tokens if the model charges per tokens.
+- **Decision:** catalog price.
+- Safety factor: multiply the estimate × 1.15.
 
-### 10.4 Asignación (mochila de elección múltiple, greedy)
+### 10.4 Allocation (multiple-choice knapsack, greedy)
 ```
-opciones(t) = modelos válidos para t con calidad ≥ minCalidad(t), ordenados por costo
+options(t) = valid models for t with quality ≥ minQuality(t), sorted by cost
 plan = {}
-restante = budget
-// Paso 1: base barata, por prioridad
-para t en tareas ordenadas por (prioridad desc, createdAt asc):
-    o = opción más barata de t
-    si o.costo ≤ restante: plan[t] = o; restante -= o.costo
-    si no: t queda para la próxima noche (status DEFERRED)
-// Paso 2: mejoras por mejor (Δcalidad × peso_prioridad) / Δcosto
-mientras exista mejora con Δcosto ≤ restante:
-    elegir mejora con mayor ratio; aplicarla; restante -= Δcosto
-// Paso 3: reservar margen de cola común
-commonsBudget = restante
+remaining = budget
+// Step 1: cheap base, by priority
+for t in tasks sorted by (priority desc, createdAt asc):
+    o = cheapest option of t
+    if o.cost ≤ remaining: plan[t] = o; remaining -= o.cost
+    else: t is left for the next night (status DEFERRED)
+// Step 2: upgrades by best (Δquality × priority_weight) / Δcost
+while an upgrade exists with Δcost ≤ remaining:
+    pick the upgrade with the highest ratio; apply it; remaining -= Δcost
+// Step 3: reserve commons-queue margin
+commonsBudget = remaining
 ```
-- **Replanificación:** tras cada tarea ejecutada, si `costo_real > 1.2 × estimado`, recalcular con el presupuesto real restante.
-- **Vista previa:** `/api/plan/preview` corre el mismo optimizador con saldo y precios **reales** y lo muestra como "estimación de esta noche". Es un cálculo real, no una ejecución simulada.
+- **Replanning:** after each executed task, if `real_cost > 1.2 × estimated`, recompute with the real remaining budget.
+- **Preview:** `/api/plan/preview` runs the same optimizer with **real** balance and prices and shows it as "tonight's estimate". It is a real calculation, not a simulated execution.
 
 ---
 
-## 11. Tipos de tarea (MVP)
+## 11. Task types (MVP)
 
-| Tipo | Entrada | Pasos (llamadas reales) | Salida |
+| Type | Input | Steps (real calls) | Output |
 |---|---|---|---|
-| `AUDIO_SUMMARY` | audio ≤ 10 MB (mp3, m4a, wav) | 1) `/v1/audio/transcriptions` (Whisper, `verbose_json`) 2) `/v1/chat/completions`: resumen + puntos clave | JSON `{transcript, summary, keyPoints[]}` |
-| `DOC_ANALYSIS` | PDF/TXT/MD ≤ 5 MB | 1) extraer texto (`pdf-parse`) en servidor 2) chat: resumen, acciones, riesgos | JSON `{summary, actionItems[], risks[]}` |
-| `IMAGE_FROM_PROMPT` | texto (idea) | 1) chat: mejorar prompt 2) `/v1/images/generations` (`b64_json`) | PNG + JSON `{prompt, revisedPrompt}` |
+| `AUDIO_SUMMARY` | audio ≤ 10 MB (mp3, m4a, wav) | 1) `/v1/audio/transcriptions` (Whisper, `verbose_json`) 2) `/v1/chat/completions`: summary + key points | JSON `{transcript, summary, keyPoints[]}` |
+| `DOC_ANALYSIS` | PDF/TXT/MD ≤ 5 MB | 1) extract text (`pdf-parse`) on the server 2) chat: summary, actions, risks | JSON `{summary, actionItems[], risks[]}` |
+| `IMAGE_FROM_PROMPT` | text (idea) | 1) chat: improve prompt 2) `/v1/images/generations` (`b64_json`) | PNG + JSON `{prompt, revisedPrompt}` |
 
-Reglas comunes:
-- Todas las llamadas con `X-0G-Provider-Trust-Mode` según el nivel elegido, `verify_tee: true` en el body de chat/imagen/audio cuando el endpoint lo acepte [VERIFICAR por endpoint], y `X-Client-Request-Id = <taskId>-<attempt>-<step>`.
-- Guardar **cada** `X-Request-ID` y `x_0g_trace` de cada paso en `Task.steps[]`.
-- Prompts de sistema en inglés; la salida en el idioma del usuario si se detecta.
-- Archivos de entrada: guardados en un volumen persistente (`UPLOAD_DIR`) hasta procesarse; se borran 24 h después.
+Common rules:
+- All calls with `X-0G-Provider-Trust-Mode` according to the chosen level, `verify_tee: true` in the chat/image/audio body when the endpoint accepts it [VERIFY per endpoint], and `X-Client-Request-Id = <taskId>-<attempt>-<step>`.
+- Store **every** `X-Request-ID` and `x_0g_trace` of each step in `Task.steps[]`.
+- System prompts in English; output in the user's language if detected.
+- Input files: stored on a persistent volume (`UPLOAD_DIR`) until processed; deleted 24 h later.
 
 ---
 
-## 12. Cola común con control de calidad
+## 12. Commons queue with quality control
 
-### 12.1 Fuente
-- Párrafos cortos (≤ 120 palabras) de documentación pública de Ethereum con licencia compatible. Opción sugerida: contenido de ethereum.org (repo público) [VERIFICAR licencia antes de usar y citarla en el README].
-- `scripts/seed-commons.ts` carga ~200 párrafos en `CommonsItem` con `status = PENDING`, idioma destino `hi` o `mr`.
+### 12.1 Source
+- Short paragraphs (≤ 120 words) of public Ethereum documentation under a compatible license. Suggested option: ethereum.org content (public repo) [VERIFY license before using it and cite it in the README].
+- `scripts/seed-commons.ts` loads ~200 paragraphs into `CommonsItem` with `status = PENDING`, target language `hi` or `mr`.
 
-### 12.2 Proceso por ítem (con el presupuesto restante del usuario donante)
-1. **Traducción A:** chat con modelo A (p. ej. 0GM-1.0, privado).
-2. **Traducción B:** chat con modelo B distinto (p. ej. GLM-5.3, privado).
-3. **Compuerta de calidad:** `POST /v1/decisions` con un modelo de decisión multilingüe:
-   - `state`: texto fuente + traducción A + traducción B (cortos para caber en el contexto; Laya multilingüe ≈ 1024 tokens; si no cabe, usar Vela 2.0 9B).
-   - Pregunta `choice`: "Do translation A and translation B convey the same meaning as the source?" opciones `["yes", "no"]`.
-4. Aceptar **traducción A** si `P(yes) ≥ 0.75`; si no, `REJECTED` con la probabilidad registrada. Los rechazados también se muestran (prueba de que el filtro funciona).
-5. Subir el ítem aceptado (fuente, traducción, modelos, request IDs, probabilidad) a 0G Storage.
-6. Sumar el costo real de los 3 pasos a la donación del usuario para esa noche.
+### 12.2 Process per item (with the donor user's remaining budget)
+1. **Translation A:** chat with model A (e.g. 0GM-1.0, private).
+2. **Translation B:** chat with a different model B (e.g. GLM-5.3, private).
+3. **Quality gate:** `POST /v1/decisions` with a multilingual decision model:
+   - `state`: source text + translation A + translation B (short enough to fit the context; multilingual Laya ≈ 1024 tokens; if it does not fit, use Vela 2.0 9B).
+   - `choice` question: "Do translation A and translation B convey the same meaning as the source?" options `["yes", "no"]`.
+4. Accept **translation A** if `P(yes) ≥ 0.75`; otherwise `REJECTED` with the probability recorded. Rejected items are also shown (proof that the filter works).
+5. Upload the accepted item (source, translation, models, request IDs, probability) to 0G Storage.
+6. Add the real cost of the 3 steps to the user's donation for that night.
 
 ---
 
 ## 13. 0G Storage
 
-- Usar el SDK TypeScript oficial de 0G Storage (ver `docs.0g.ai` → Building on 0G → 0G Storage → SDK). Nombre del paquete, URL del indexer y red [VERIFICAR en Fase 0].
-- **Qué se sube:**
-  - Por tarea: un JSON `TaskOutput` (salida + metadatos + request IDs + trazas) y, si aplica, la imagen.
-  - Por ítem común aceptado: JSON `CommonsOutput`.
-  - Por noche: `NightManifest.json` con todas las hojas, sus datos y pruebas de Merkle.
-- Guardar el **root hash** (bytes32) y el hash de transacción de cada subida.
-- La cuenta que paga las subidas es la wallet del operador (`OPERATOR_PRIVATE_KEY`) con 0G para gas.
-- Fallback si mainnet de Storage da problemas: usar testnet de Storage y declararlo en el README (sin ocultarlo).
+- Use the official 0G Storage TypeScript SDK (see `docs.0g.ai` → Building on 0G → 0G Storage → SDK). Package name, indexer URL and network [VERIFY in Phase 0].
+- **What is uploaded:**
+  - Per task: a `TaskOutput` JSON (output + metadata + request IDs + traces) and, if applicable, the image.
+  - Per accepted commons item: `CommonsOutput` JSON.
+  - Per night: `NightManifest.json` with all leaves, their data and Merkle proofs.
+- Store the **root hash** (bytes32) and the transaction hash of every upload.
+- The account that pays for uploads is the operator wallet (`OPERATOR_PRIVATE_KEY`) with 0G for gas.
+- Fallback if Storage mainnet gives problems: use Storage testnet and declare it in the README (without hiding it).
 
 ---
 
-## 14. Contrato `ShiftLedger` y árbol de Merkle
+## 14. `ShiftLedger` contract and Merkle tree
 
-### 14.1 Red
-| Red | Chain ID | RPC | Explorador |
+### 14.1 Network
+| Network | Chain ID | RPC | Explorer |
 |---|---|---|---|
-| 0G Mainnet | `16661` [VERIFICAR] | `https://evmrpc.0g.ai` [VERIFICAR] | `https://chainscan.0g.ai` [VERIFICADO] |
-| 0G Galileo Testnet | [VERIFICAR en docs] | `https://evmrpc-testnet.0g.ai` [VERIFICAR] | explorador de testnet [VERIFICAR] |
+| 0G Mainnet | `16661` [VERIFY] | `https://evmrpc.0g.ai` [VERIFY] | `https://chainscan.0g.ai` [VERIFIED] |
+| 0G Galileo Testnet | [VERIFY in docs] | `https://evmrpc-testnet.0g.ai` [VERIFY] | testnet explorer [VERIFY] |
 
-- **Desplegar en mainnet** (el gas es mínimo y es coherente con usar créditos de mainnet). Fallback: Galileo testnet (faucet `https://faucet.0g.ai` [VERIFICADO]), declarado en el README.
-- La wallet del operador necesita algo de 0G para gas (pedir al equipo de 0G o comprar una cantidad mínima).
+- **Deploy on mainnet** (gas is minimal and it is consistent with using mainnet credits). Fallback: Galileo testnet (faucet `https://faucet.0g.ai` [VERIFIED]), declared in the README.
+- The operator wallet needs some 0G for gas (ask the 0G team or buy a minimal amount).
 
-### 14.2 Hojas del árbol (una por solicitud de inferencia)
-Usar `StandardMerkleTree` de `@openzeppelin/merkle-tree` con esta codificación exacta:
+### 14.2 Tree leaves (one per inference request)
+Use `StandardMerkleTree` from `@openzeppelin/merkle-tree` with this exact encoding:
 
 ```ts
 const LEAF_TYPES = [
   "bytes32", // requestIdHash   = keccak256(utf8(X-Request-ID))
-  "address", // owner           = dirección de la cuenta 0G del usuario (o donante en la cola común)
-  "bytes32", // taskIdHash      = keccak256(utf8(taskId o commonsItemId))
-  "bytes32", // outputRoot      = root hash de 0G Storage de la salida
+  "address", // owner           = address of the user's 0G account (or donor in the commons queue)
+  "bytes32", // taskIdHash      = keccak256(utf8(taskId or commonsItemId))
+  "bytes32", // outputRoot      = 0G Storage root hash of the output
   "bytes32", // modelHash       = keccak256(utf8(modelId))
   "uint8",   // trustTier       = 0 standard, 1 verified, 2 private
-  "uint64",  // costUsdMicro    = costo real en micro-USD
+  "uint64",  // costUsdMicro    = real cost in micro-USD
   "bool",    // isCommons
 ] as const;
 ```
-`StandardMerkleTree` hace doble hash: `leaf = keccak256(bytes.concat(keccak256(abi.encode(values...))))`. El contrato verifica con `MerkleProof.verify` sobre ese `leaf`. **Escribir un test que compare el hash calculado en TS con el calculado en Solidity.**
+`StandardMerkleTree` double-hashes: `leaf = keccak256(bytes.concat(keccak256(abi.encode(values...))))`. The contract verifies with `MerkleProof.verify` over that `leaf`. **Write a test that compares the hash computed in TS with the one computed in Solidity.**
 
-### 14.3 Código del contrato
+### 14.3 Contract code
 ```solidity
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
@@ -598,30 +598,30 @@ contract ShiftLedger is Ownable {
 }
 ```
 
-> **Versión final del contrato:** la del kit de la Fase 0 (`contracts/src/ShiftLedger.sol`), que añade la validación `EmptyRoot` y la función `leafHash` para el test de paridad TS ↔ Solidity (7 tests pasando). Si difiere de este bloque, gana la del kit.
+> **Final contract version:** the one in the Phase 0 kit (`contracts/src/ShiftLedger.sol`), which adds the `EmptyRoot` validation and the `leafHash` function for the TS ↔ Solidity parity test (7 tests passing). If it differs from this block, the kit's version wins.
 
-### 14.4 `anchorNight` en el worker
-1. Reunir todas las hojas del lote (tareas + cola común).
-2. Construir `StandardMerkleTree.of(values, LEAF_TYPES)`; guardar root y prueba de cada hoja en DB.
-3. Generar `NightManifest.json` (`nightId`, `root`, hojas con valores y pruebas, metadatos legibles) → subir a 0G Storage → `manifestRoot`.
-4. `anchorNight(nightId, root, manifestRoot, count)` → esperar recibo → guardar `anchorTx`.
-5. `recordDonations(nightId, donantes, montos)` → guardar `donationsTx`.
-6. Si el lote está vacío, no anclar.
-
----
-
-## 15. Verificador público (`/verify`)
-1. El usuario pega un **request ID** (o abre `/verify?rid=...`).
-2. `GET /api/verify/[requestId]` devuelve: valores de la hoja, prueba, `nightId`, `manifestRoot`, `x_0g_trace` guardada (proveedor, `provider_identity`, `tee_verified`, nivel), root de la salida en 0G Storage.
-3. **En el navegador** (no confiar en nuestro servidor para el veredicto):
-   - Recalcular el hash de la hoja con `StandardMerkleTree.leafHash` / `verify`.
-   - Leer `nights(nightId)` y llamar `verifyLeaf` en 0G Chain vía RPC público con `viem`.
-4. Mostrar: ✔ pertenece al lote anclado en el bloque X (enlace a chainscan), modelo, nivel de confianza, resultado de `tee_verified` (con su significado correcto: ausente ≠ fallo), y enlace a la salida en 0G Storage.
-5. Botón opcional: "Verify from the manifest": descarga el manifiesto desde 0G Storage por `manifestRoot` y verifica sin usar nuestra base de datos.
+### 14.4 `anchorNight` in the worker
+1. Gather all the batch's leaves (tasks + commons queue).
+2. Build `StandardMerkleTree.of(values, LEAF_TYPES)`; store the root and each leaf's proof in the DB.
+3. Generate `NightManifest.json` (`nightId`, `root`, leaves with values and proofs, human-readable metadata) → upload to 0G Storage → `manifestRoot`.
+4. `anchorNight(nightId, root, manifestRoot, count)` → wait for the receipt → store `anchorTx`.
+5. `recordDonations(nightId, donors, amounts)` → store `donationsTx`.
+6. If the batch is empty, do not anchor.
 
 ---
 
-## 16. Base de datos (Prisma)
+## 15. Public verifier (`/verify`)
+1. The user pastes a **request ID** (or opens `/verify?rid=...`).
+2. `GET /api/verify/[requestId]` returns: leaf values, proof, `nightId`, `manifestRoot`, the stored `x_0g_trace` (provider, `provider_identity`, `tee_verified`, tier), and the output's 0G Storage root.
+3. **In the browser** (do not trust our server for the verdict):
+   - Recompute the leaf hash with `StandardMerkleTree.leafHash` / `verify`.
+   - Read `nights(nightId)` and call `verifyLeaf` on 0G Chain via public RPC with `viem`.
+4. Show: ✔ belongs to the batch anchored in block X (chainscan link), model, trust level, `tee_verified` result (with its correct meaning: absent ≠ failure), and a link to the output in 0G Storage.
+5. Optional button: "Verify from the manifest": downloads the manifest from 0G Storage by `manifestRoot` and verifies without using our database.
+
+---
+
+## 16. Database (Prisma)
 
 ```prisma
 generator client {
@@ -641,16 +641,16 @@ enum CommonsStatus { PENDING RUNNING ACCEPTED REJECTED FAILED }
 
 model User {
   id               String   @id @default(cuid())
-  accountAddress   String   @unique          // dirección de la cuenta 0G (desde GET /v1/account)
+  accountAddress   String   @unique          // 0G account address (from GET /v1/account)
   currency         String                    // "usd" | "0g"
   mode             Mode     @default(IAI_CREDITS_ONLY)
-  nightlyBudgetUsdMicro BigInt?              // solo en modo BUDGET
+  nightlyBudgetUsdMicro BigInt?              // BUDGET mode only
   donateLeftover   Boolean  @default(true)
   mkCiphertext     Bytes?
   mkIv             Bytes?
   mkAuthTag        Bytes?
   mkConnectedAt    DateTime?
-  encPublicKey     String?                   // Could: llave pública del navegador (base64)
+  encPublicKey     String?                   // Could: browser public key (base64)
   createdAt        DateTime @default(now())
   tasks            Task[]
   runs             NightRun[]
@@ -662,8 +662,8 @@ model Task {
   user          User       @relation(fields: [userId], references: [id])
   type          TaskType
   status        TaskStatus @default(QUEUED)
-  priority      Int        @default(2)       // 1 baja, 2 normal, 3 alta
-  inputPath     String?                      // archivo en UPLOAD_DIR
+  priority      Int        @default(2)       // 1 low, 2 normal, 3 high
+  inputPath     String?                      // file in UPLOAD_DIR
   inputMeta     Json?                        // {bytes, durationSec, mime, chars}
   prompt        String?
   nightId       BigInt?
@@ -672,7 +672,7 @@ model Task {
   estCostUsdMicro    BigInt?
   actualCostUsdMicro BigInt?
   steps         Json?                        // [{step, model, requestId, trace, costUsdMicro}]
-  outputRoot    String?                      // root hash 0G Storage
+  outputRoot    String?                      // 0G Storage root hash
   outputTx      String?
   error         String?
   createdAt     DateTime   @default(now())
@@ -681,7 +681,7 @@ model Task {
 }
 
 model Night {
-  id            BigInt      @id            // YYYYMMDD o unix seconds (manual)
+  id            BigInt      @id            // YYYYMMDD or unix seconds (manual)
   status        NightStatus @default(PENDING)
   startedAt     DateTime?
   finishedAt    DateTime?
@@ -717,7 +717,7 @@ model NightRun {
 
 model CommonsItem {
   id              String        @id @default(cuid())
-  sourceRef       String                     // URL/archivo + párrafo
+  sourceRef       String                     // URL/file + paragraph
   sourceText      String
   targetLang      String                     // "hi" | "mr"
   status          CommonsStatus @default(PENDING)
@@ -740,7 +740,7 @@ model MerkleLeaf {
   nightId     BigInt
   night       Night   @relation(fields: [nightId], references: [id])
   requestId   String  @unique
-  values      Json                           // valores en el orden de LEAF_TYPES
+  values      Json                           // values in LEAF_TYPES order
   leafHash    String
   proof       Json                           // bytes32[]
 }
@@ -748,223 +748,223 @@ model MerkleLeaf {
 
 ---
 
-## 17. API interna (Next.js route handlers)
+## 17. Internal API (Next.js route handlers)
 
-| Método | Ruta | Auth | Descripción |
+| Method | Path | Auth | Description |
 |---|---|---|---|
-| POST | `/api/connect` | ninguna | Recibe `mk-`, valida (sección 8.1), crea `User` y sesión |
-| DELETE | `/api/connect` | sesión | Borra `mk-` cifrada |
-| GET | `/api/session` | sesión | Usuario actual, modo, estado de conexión |
-| GET | `/api/account` | sesión | Saldo actual vía `mk-` (`balance` + `funds`) |
-| PATCH | `/api/settings` | sesión | Modo, presupuesto, donar sobrante |
-| GET/POST | `/api/tasks` | sesión | Listar / crear tarea (multipart para archivos) |
-| DELETE | `/api/tasks/[id]` | sesión | Cancelar tarea en cola |
-| GET | `/api/plan/preview` | sesión | Optimizador con saldo y precios reales (no ejecuta) |
-| POST | `/api/runs/now` | sesión | Ejecuta el pipeline real ahora (rate limit: 1 cada 10 min) |
-| GET | `/api/nights/[id]` | sesión/pública parcial | Resultados del usuario + datos públicos del lote |
-| GET | `/api/commons` | pública | Ítems aceptados/rechazados + donantes (desde el contrato) |
-| GET | `/api/verify/[requestId]` | pública | Datos para verificación (sección 15) |
-| GET | `/api/outputs/[taskId]` | sesión | Descarga la salida desde 0G Storage |
+| POST | `/api/connect` | none | Receives `mk-`, validates (section 8.1), creates `User` and session |
+| DELETE | `/api/connect` | session | Deletes the encrypted `mk-` |
+| GET | `/api/session` | session | Current user, mode, connection status |
+| GET | `/api/account` | session | Current balance via `mk-` (`balance` + `funds`) |
+| PATCH | `/api/settings` | session | Mode, budget, donate leftover |
+| GET/POST | `/api/tasks` | session | List / create task (multipart for files) |
+| DELETE | `/api/tasks/[id]` | session | Cancel a queued task |
+| GET | `/api/plan/preview` | session | Optimizer with real balance and prices (does not execute) |
+| POST | `/api/runs/now` | session | Runs the real pipeline now (rate limit: 1 per 10 min) |
+| GET | `/api/nights/[id]` | session/partially public | User's results + public batch data |
+| GET | `/api/commons` | public | Accepted/rejected items + donors (from the contract) |
+| GET | `/api/verify/[requestId]` | public | Verification data (section 15) |
+| GET | `/api/outputs/[taskId]` | session | Downloads the output from 0G Storage |
 
-Sesión: cookie `iron-session` con `userId`. **Identidad = cuenta 0G de la `mk-`.** Iniciar sesión de nuevo = volver a pegar la `mk-` (se valida contra el `accountAddress` guardado). SIWE con wallet es opcional y solo si la dirección coincide con la de la cuenta 0G.
+Session: `iron-session` cookie with `userId`. **Identity = the 0G account of the `mk-`.** Signing in again = pasting the `mk-` again (validated against the stored `accountAddress`). SIWE with a wallet is optional and only if the address matches the 0G account's.
 
 ---
 
 ## 18. Frontend
 
-### 18.1 Páginas
-1. **Inicio (`/`)**: cuenta regresiva en vivo al próximo 00:00 UTC (con hora IST), saldo gastable de esta noche, estado de la cola y botón "Connect your 0G account".
-2. **Conectar (`/connect`)**: asistente de 4 pasos (sección 8.1) con capturas o indicaciones claras de dónde está "Management Keys" en pc.0g.ai.
-3. **Cola (`/queue`)**: agregar tareas (subir audio/documento, escribir idea de imagen, prioridad), lista de tareas y **vista previa del plan** de esta noche (modelo elegido, complejidad detectada, costo estimado, qué queda para la cola común).
-4. **Noche (`/nights/[id]`)**: resultados con su **tarjeta de procedencia** (request IDs, modelo, nivel de confianza, `tee_verified`, costo, root de 0G Storage, enlace al verificador) y el resumen de gasto crédito vs depósito.
-5. **Común (`/commons`)**: traducciones aceptadas y rechazadas con probabilidad del filtro, total donado por usuario (leído del contrato).
-6. **Verificar (`/verify`)**: sección 15.
+### 18.1 Pages
+1. **Home (`/`)**: live countdown to the next 00:00 UTC (with IST time), tonight's spendable balance, queue status and a "Connect your 0G account" button.
+2. **Connect (`/connect`)**: 4-step wizard (section 8.1) with screenshots or clear pointers to where "Management Keys" is in pc.0g.ai.
+3. **Queue (`/queue`)**: add tasks (upload audio/document, write an image idea, priority), task list and **plan preview** for tonight (chosen model, detected complexity, estimated cost, what is left for the commons queue).
+4. **Night (`/nights/[id]`)**: results with their **provenance card** (request IDs, model, trust level, `tee_verified`, cost, 0G Storage root, link to the verifier) and the credit vs deposit spending summary.
+5. **Commons (`/commons`)**: accepted and rejected translations with the filter's probability, total donated per user (read from the contract).
+6. **Verify (`/verify`)**: section 15.
 
-**Idioma de la interfaz: inglés** (jueces internacionales). Textos en sentence case, verbos claros: "Connect your 0G account", "Add task", "Run tonight's shift now", "Verify a result".
+**Interface language: English** (international judges). Text in sentence case, clear verbs: "Connect your 0G account", "Add task", "Run tonight's shift now", "Verify a result".
 
-### 18.2 Dirección visual
-Concepto: **turno de madrugada en Mumbai**: cielo de las 4 AM y luz de farolas de sodio, que se aclara hacia el amanecer cuando termina el lote.
+### 18.2 Visual direction
+Concept: **an early-morning shift in Mumbai**: a 4 AM sky and sodium streetlight glow, brightening toward sunrise when the batch finishes.
 
-| Token | Hex | Uso |
+| Token | Hex | Use |
 |---|---|---|
-| Sky 4 AM | `#1D2550` | Fondo |
-| Late night | `#28316B` | Superficies |
-| Sodium | `#F3A33C` | Acción principal, presupuesto |
-| First light | `#F7D9C4` | Estados completados, amanecer |
-| Haze | `#C9D1E8` | Texto secundario |
-| Paper | `#F6F7FB` | Texto principal |
+| Sky 4 AM | `#1D2550` | Background |
+| Late night | `#28316B` | Surfaces |
+| Sodium | `#F3A33C` | Primary action, budget |
+| First light | `#F7D9C4` | Completed states, sunrise |
+| Haze | `#C9D1E8` | Secondary text |
+| Paper | `#F6F7FB` | Primary text |
 
-- Tipografía: **Familjen Grotesk** (títulos) + **Atkinson Hyperlegible** (texto y números), con fallbacks del sistema.
-- **Elemento distintivo (único lugar con audacia):** la "franja de la noche": una barra horizontal desde ahora hasta las 00:00 UTC donde cada tarea es un bloque de ancho proporcional a su costo; durante la ejecución el presupuesto se va consumiendo de izquierda a derecha y el fondo pasa de Sky 4 AM a First light al terminar. Todo lo demás, sobrio.
-- Sin etiquetas en mayúsculas sostenidas, sin tarjetas idénticas con sombra genérica, sin animaciones de entrada en cada sección. Accesible: foco visible, `prefers-reduced-motion` respetado, responsive hasta móvil.
-
----
-
-## 19. Seguridad
-1. `mk-` cifrada con AES-256-GCM (`SHIFT_MASTER_KEY`, 32 bytes aleatorios en base64), IV de 12 bytes único por cifrado. Descifrada solo en memoria del worker o del handler que la necesita.
-2. Ninguna llave (`mk-`, `sk-`) en logs, respuestas de API, mensajes de error ni en el navegador. `pino` con `redact: ["req.headers.authorization", "*.mk", "*.sk", "*.apiKey"]` y un filtro regex `/(mk|sk)-[A-Za-z0-9_-]+/g → "[REDACTED]"`.
-3. Llaves `sk-` efímeras: tope, nivel `private`, nombre identificable, revocación en `finally` + sweeper.
-4. Uploads: validar MIME y tamaño; nombres de archivo aleatorios; nunca ejecutar archivos.
-5. Rate limits: `/api/connect` 5/min por IP; `/api/runs/now` 1 cada 10 min por usuario.
-6. CORS cerrado al dominio propio. Cookies `httpOnly`, `secure`, `sameSite=lax`.
-7. La `OPERATOR_PRIVATE_KEY` solo en el worker. La web solo lee la cadena.
-8. **Términos de iAI:** confirmar con 0G (Gathin, booth) que usar créditos vía llaves delegadas y donar el sobrante está permitido. Documentar la respuesta.
+- Typography: **Familjen Grotesk** (headings) + **Atkinson Hyperlegible** (text and numbers), with system fallbacks.
+- **Signature element (the one place for boldness):** the "night strip": a horizontal bar from now until 00:00 UTC where each task is a block whose width is proportional to its cost; during execution the budget is consumed from left to right and the background goes from Sky 4 AM to First light when finished. Everything else, restrained.
+- No all-caps tracked labels, no identical cards with generic shadows, no entrance animations on every section. Accessible: visible focus, `prefers-reduced-motion` respected, responsive down to mobile.
 
 ---
 
-## 20. Variables de entorno
+## 19. Security
+1. `mk-` encrypted with AES-256-GCM (`SHIFT_MASTER_KEY`, 32 random bytes in base64), a unique 12-byte IV per encryption. Decrypted only in the memory of the worker or the handler that needs it.
+2. No key (`mk-`, `sk-`) in logs, API responses, error messages or the browser. `pino` with `redact: ["req.headers.authorization", "*.mk", "*.sk", "*.apiKey"]` and a regex filter `/(mk|sk)-[A-Za-z0-9_-]+/g → "[REDACTED]"`.
+3. Ephemeral `sk-` keys: cap, `private` tier, identifiable name, revocation in `finally` + sweeper.
+4. Uploads: validate MIME type and size; random file names; never execute files.
+5. Rate limits: `/api/connect` 5/min per IP; `/api/runs/now` 1 per 10 min per user.
+6. CORS closed to our own domain. Cookies `httpOnly`, `secure`, `sameSite=lax`.
+7. `OPERATOR_PRIVATE_KEY` only in the worker. The web app only reads the chain.
+8. **iAI terms:** confirm with 0G (Gathin, booth) that using credits through delegated keys and donating the leftover is allowed. Document the answer.
 
-| Variable | Ejemplo / valor | Usado por |
+---
+
+## 20. Environment variables
+
+| Variable | Example / value | Used by |
 |---|---|---|
 | `DATABASE_URL` | `postgresql://...` | web, worker |
-| `SESSION_SECRET` | 32+ caracteres aleatorios | web |
-| `SHIFT_MASTER_KEY` | base64 de 32 bytes | web, worker |
+| `SESSION_SECRET` | 32+ random characters | web |
+| `SHIFT_MASTER_KEY` | base64 of 32 bytes | web, worker |
 | `ZG_ROUTER_BASE_URL` | `https://router-api.0g.ai/v1` | core |
-| `ZG_CHAIN_ID` | `16661` [VERIFICAR] | core |
-| `ZG_CHAIN_RPC_URL` | `https://evmrpc.0g.ai` [VERIFICAR] | core |
+| `ZG_CHAIN_ID` | `16661` [VERIFY] | core |
+| `ZG_CHAIN_RPC_URL` | `https://evmrpc.0g.ai` [VERIFY] | core |
 | `ZG_EXPLORER_URL` | `https://chainscan.0g.ai` | web |
-| `LEDGER_CONTRACT_ADDRESS` | `0x...` (tras desplegar) | core |
-| `OPERATOR_PRIVATE_KEY` | `0x...` (solo worker) | worker |
-| `ZG_STORAGE_INDEXER_URL` | [VERIFICAR en docs de Storage] | worker, web |
+| `LEDGER_CONTRACT_ADDRESS` | `0x...` (after deploying) | core |
+| `OPERATOR_PRIVATE_KEY` | `0x...` (worker only) | worker |
+| `ZG_STORAGE_INDEXER_URL` | [VERIFY in the Storage docs] | worker, web |
 | `NIGHT_START_UTC` | `23:00` | worker |
 | `NIGHT_HARD_STOP_UTC` | `23:50` | worker |
 | `SAFETY_MARGIN_PCT` | `10` | worker |
 | `MAX_CONCURRENCY` | `3` | worker |
-| `UPLOAD_DIR` | `/data/uploads` (volumen persistente) | web, worker |
+| `UPLOAD_DIR` | `/data/uploads` (persistent volume) | web, worker |
 | `COMMONS_GATE_THRESHOLD` | `0.75` | worker |
 | `PUBLIC_APP_URL` | `https://shift-...` | web |
 
-Validar todas con `zod` al arrancar; si falta alguna, el proceso no inicia.
+Validate all of them with `zod` at startup; if any is missing, the process does not start.
 
 ---
 
-## 21. Fase 0 — Spike de verificación (primeras 2 horas, OBLIGATORIO)
+## 21. Phase 0 — Verification spike (first 2 hours, MANDATORY)
 
-Crear `scripts/smoke.ts` que ejecute estas pruebas **reales** con la cuenta del equipo (con créditos pedidos en el Telegram de builders de 0G). Registrar resultados en `docs/SPIKE_RESULTS.md`.
+Create `scripts/smoke.ts` that runs these **real** checks with the team account (with credits requested in the 0G builders Telegram). Record results in `docs/SPIKE_RESULTS.md`.
 
-| ID | Qué verificar | Cómo | Fallback si falla |
+| ID | What to verify | How | Fallback if it fails |
 |---|---|---|---|
-| U1 | Los créditos aparecen en `credit_balance` | `GET /v1/account/balance` con `mk-` (`account:read`) | Usar `/v1/account/funds`; si los créditos no son distinguibles, ofrecer solo **modo presupuesto** y explicarlo |
-| U2 | Campos de `POST /v1/api-keys`: límite de crédito y `trust_mode` | Leer OpenAPI + crear llave real | Sin límite por llave → control propio (sección 8.3, punto 6) |
-| U3 | La inferencia con la `sk-` nueva consume crédito, no depósito | 1 chat mínimo + `GET /v1/account/usage/history` (`credit_used`/`deposit_used`) | Comparar saldos antes/después |
-| U4 | Revocación inmediata | `DELETE /v1/api-keys/:id` → siguiente llamada `401 api_key_revoked` | — (crítico; si falla, no lanzar) |
-| U5 | `GET /v1/account` devuelve dirección y moneda | Llamada real | Usar el root/identificador que devuelva; si no hay dirección, identidad = hash de la `mk-` |
-| U6 | Catálogo: IDs de modelos TeeML, precios, unidades (Whisper por segundo, imágenes por tier) | `GET /v1/models` | Ajustar estimador |
-| U7 | Schema de `/v1/decisions` y IDs de Laya/Vela | OpenAPI + llamada real | Si falla: clasificación de complejidad con un chat barato en JSON estricto (sigue siendo real; documentarlo) |
-| U8 | `x_0g_trace` con `verify_tee: true` en chat, imagen y audio | Llamadas reales | Si un endpoint no acepta `verify_tee`, omitirlo solo ahí |
-| U9 | 0G Storage: paquete, indexer, subida y descarga, formato del root | Subir y bajar un JSON | Testnet de Storage, declarado |
-| U10 | Chain ID y RPC de mainnet; desplegar contrato de prueba | `cast chain-id`, `forge create` | Galileo testnet, declarado |
-| U11 | Fecha y hora límite de entrega | Dashboard de ETHGlobal | — |
-| U12 | Permiso de 0G para el uso delegado de créditos de iAI | Preguntar a Gathin en el booth | Si dicen que no: modo presupuesto como principal |
+| U1 | Credits show up in `credit_balance` | `GET /v1/account/balance` with `mk-` (`account:read`) | Use `/v1/account/funds`; if credits are not distinguishable, offer only **budget mode** and explain it |
+| U2 | Fields of `POST /v1/api-keys`: credit limit and `trust_mode` | Read OpenAPI + create a real key | No per-key limit → own spend control (section 8.3, point 6) |
+| U3 | Inference with the new `sk-` consumes credit, not deposit | 1 minimal chat + `GET /v1/account/usage/history` (`credit_used`/`deposit_used`) | Compare balances before/after |
+| U4 | Immediate revocation | `DELETE /v1/api-keys/:id` → next call `401 api_key_revoked` | — (critical; if it fails, do not launch) |
+| U5 | `GET /v1/account` returns address and currency | Real call | Use the root/identifier it returns; if there is no address, identity = hash of the `mk-` |
+| U6 | Catalog: TeeML model IDs, prices, units (Whisper per second, images per tier) | `GET /v1/models` | Adjust the estimator |
+| U7 | `/v1/decisions` schema and Laya/Vela IDs | OpenAPI + real call | If it fails: complexity classification with a cheap chat in strict JSON (still real; document it) |
+| U8 | `x_0g_trace` with `verify_tee: true` on chat, image and audio | Real calls | If an endpoint does not accept `verify_tee`, omit it only there |
+| U9 | 0G Storage: package, indexer, upload and download, root format | Upload and download a JSON | Storage testnet, declared |
+| U10 | Mainnet chain ID and RPC; deploy a test contract | `cast chain-id`, `forge create` | Galileo testnet, declared |
+| U11 | Submission date and deadline time | ETHGlobal dashboard | — |
+| U12 | 0G's permission for delegated use of iAI credits | Ask Gathin at the booth | If they say no: budget mode as the primary mode |
 
-**Regla:** nada que dependa de un supuesto se construye antes de que su prueba pase o tenga fallback decidido.
+**Rule:** nothing that depends on an assumption is built before its check passes or has a decided fallback.
 
 ---
 
-## 22. Plan de trabajo por fases y horas
+## 22. Work plan by phases and hours
 
-Supuesto: equipo de 3 personas, ~24 h efectivas cada una. **H0 = momento de empezar a programar.**
+Assumption: a team of 3 people, ~24 effective hours each. **H0 = the moment coding starts.**
 
-| Fase | Horas | Persona A (backend / 0G) | Persona B (contratos / storage) | Persona C (frontend / demo) |
+| Phase | Hours | Person A (backend / 0G) | Person B (contracts / storage) | Person C (frontend / demo) |
 |---|---|---|---|---|
-| F0 Spike | H0–H2 | `smoke.ts` U1–U8, U12 | U9–U10, scaffold monorepo, Foundry | Pedir créditos en Telegram, scaffold Next.js, dirección visual |
-| F1 Conexión | H2–H8 | Cliente Router (`packages/core/zg`), onboarding `mk-`, vault AES, ciclo de vida `sk-` | Contrato + tests forge + deploy | `/connect`, `/` con cuenta regresiva, sesión |
-| F2 Ejecución | H8–H14 | Ejecutores de los 3 tipos, worker + cron + lock, sweeper | Cliente 0G Storage, subida de salidas, Merkle TS + test de paridad con Solidity | `/queue` con uploads y vista previa del plan |
-| F3 Optimizador y anclaje | H14–H20 | Optimizador + decisiones + replanificación | `anchorNight`, manifiesto, `recordDonations`, `/api/verify` | `/nights/[id]` con tarjetas de procedencia, `/verify` |
-| **Checkpoint H20** | — | **Todo el núcleo (M1–M9) funcionando de punta a punta con una ejecución real "Run now" anclada en 0G Chain.** Si no, todo el equipo cierra el núcleo; S y C se cancelan. | | |
-| F4 Común | H20–H26 | Cola común + compuerta de calidad | Seed de textos (licencia), donaciones en contrato | `/commons`, franja de la noche animada |
-| Ciclo real | ventana 04:30–05:20 IST del 7 nov | Monitorear el lote nocturno real | Verificar anclaje en chainscan | Capturas y grabación para el video |
-| F5 Extras | H26–H30 | (Could) C1 cifrado / C3 TEE | (Could) Apéndice A Arkiv | Pulido, móvil, accesibilidad |
-| F6 Entrega | últimas 4–6 h | README, tabla de request IDs | Direcciones y enlaces | Video < 3 min, pitch, envío |
+| F0 Spike | H0–H2 | `smoke.ts` U1–U8, U12 | U9–U10, monorepo scaffold, Foundry | Ask for credits on Telegram, Next.js scaffold, visual direction |
+| F1 Connection | H2–H8 | Router client (`packages/core/zg`), `mk-` onboarding, AES vault, `sk-` lifecycle | Contract + forge tests + deploy | `/connect`, `/` with countdown, session |
+| F2 Execution | H8–H14 | Executors for the 3 types, worker + cron + lock, sweeper | 0G Storage client, output uploads, TS Merkle + parity test with Solidity | `/queue` with uploads and plan preview |
+| F3 Optimizer and anchoring | H14–H20 | Optimizer + decisions + replanning | `anchorNight`, manifest, `recordDonations`, `/api/verify` | `/nights/[id]` with provenance cards, `/verify` |
+| **Checkpoint H20** | — | **The whole core (M1–M9) working end to end with a real "Run now" execution anchored on 0G Chain.** If not, the whole team closes the core; S and C are cancelled. | | |
+| F4 Commons | H20–H26 | Commons queue + quality gate | Text seed (license), donations on the contract | `/commons`, animated night strip |
+| Real cycle | window 04:30–05:20 IST on Nov 7 | Monitor the real nightly batch | Verify anchoring on chainscan | Screenshots and recording for the video |
+| F5 Extras | H26–H30 | (Could) C1 encryption / C3 TEE | (Could) Appendix A Arkiv | Polish, mobile, accessibility |
+| F6 Delivery | last 4–6 h | README, request ID table | Addresses and links | Video < 3 min, pitch, submission |
 
-**Orden de recorte si hay retraso:** C1 → C2 → C3 → S2 → compuerta de doble modelo (dejar un modelo + decisión) → S1 completa. **Nunca se recorta:** optimizador, ciclo de vida de llaves, anclaje en 0G Chain, verificador.
-
----
-
-## 23. Pruebas
-
-1. **Unitarias (`vitest`)**
-   - Optimizador: presupuesto 0, presupuesto justo, tareas diferidas, mejoras greedy, replanificación por desvío.
-   - Estimador de costos con precios fijos de ejemplo.
-   - Vault AES-GCM: cifrar/descifrar, auth tag alterado → error.
-   - Merkle: árbol con 1 y N hojas; **paridad** del `leafHash` TS vs Solidity (vector fijo compartido).
-   - Redacción de logs: ninguna cadena `mk-`/`sk-` sobrevive.
-2. **Contratos (`forge test`)**: solo owner, doble anclaje revierte, donaciones duplicadas revierten, `verifyLeaf` true/false con vector de TS.
-3. **Integración real (`scripts/smoke.ts` y `scripts/e2e.ts`)**: con la cuenta del equipo: conectar → 1 tarea de cada tipo → "Run now" → verificar en `/verify`. Costo mínimo.
-4. **Checklist manual antes del ciclo real**: worker corriendo, reloj del servidor en UTC, operador con gas, sweeper activo, logs sin secretos.
+**Cut order if behind schedule:** C1 → C2 → C3 → S2 → dual-model gate (keep one model + decision) → full S1. **Never cut:** optimizer, key lifecycle, anchoring on 0G Chain, verifier.
 
 ---
 
-## 24. Guion de la demo (3 minutos)
+## 23. Tests
 
-| Tiempo | Qué se muestra | Qué se dice |
+1. **Unit (`vitest`)**
+   - Optimizer: budget 0, exact budget, deferred tasks, greedy upgrades, replanning on drift.
+   - Cost estimator with fixed example prices.
+   - AES-GCM vault: encrypt/decrypt, tampered auth tag → error.
+   - Merkle: tree with 1 and N leaves; **parity** of the `leafHash` TS vs Solidity (shared fixed vector).
+   - Log redaction: no `mk-`/`sk-` string survives.
+2. **Contracts (`forge test`)**: owner only, double anchoring reverts, duplicate donations revert, `verifyLeaf` true/false with the TS vector.
+3. **Real integration (`scripts/smoke.ts` and `scripts/e2e.ts`)**: with the team account: connect → 1 task of each type → "Run now" → verify at `/verify`. Minimal cost.
+4. **Manual checklist before the real cycle**: worker running, server clock in UTC, operator with gas, sweeper active, logs without secrets.
+
+---
+
+## 24. Demo script (3 minutes)
+
+| Time | What is shown | What is said |
 |---|---|---|
-| 0:00–0:20 | Inicio: cuenta regresiva al corte | "Every night at 00:00 UTC, unused 0G compute credits expire. By design." |
-| 0:20–0:45 | Conectar cuenta con `mk-` de permisos mínimos | "No OAuth exists for third-party apps, so we built scoped delegation: Shift can read balances and mint short-lived capped keys, nothing else." |
-| 0:45–1:15 | Cola con 3 tareas + vista previa del plan | "0G's decision models classify each task, and our optimizer picks the cheapest model that meets the quality bar — fast answers for simple tasks, deep reasoning for hard ones." |
-| 1:15–1:55 | "Run tonight's shift now": ejecución **real**, saldo bajando, resultados apareciendo | "This is a real run on 0G Private Computer, in TEE-sealed models. The key is created, capped, used, and revoked." |
-| 1:55–2:25 | Cola común: una traducción aceptada y una rechazada | "What's left goes to the commons: Ethereum docs in Hindi and Marathi, accepted only when two models agree according to 0G's decision model." |
-| 2:25–2:50 | Verificador con un request ID del **ciclo nocturno real** del 7 nov | "Anyone can verify which model produced it, who it belongs to, and who donated the compute — anchored on 0G Chain, stored on 0G Storage." |
-| 2:50–3:00 | Cierre | "Without 0G, these credits don't exist and these results have no proof of origin. Shift makes every iAI credit count." |
+| 0:00–0:20 | Home: countdown to the cutoff | "Every night at 00:00 UTC, unused 0G compute credits expire. By design." |
+| 0:20–0:45 | Connect an account with a minimum-permission `mk-` | "No OAuth exists for third-party apps, so we built scoped delegation: Shift can read balances and mint short-lived capped keys, nothing else." |
+| 0:45–1:15 | Queue with 3 tasks + plan preview | "0G's decision models classify each task, and our optimizer picks the cheapest model that meets the quality bar — fast answers for simple tasks, deep reasoning for hard ones." |
+| 1:15–1:55 | "Run tonight's shift now": **real** execution, balance dropping, results appearing | "This is a real run on 0G Private Computer, in TEE-sealed models. The key is created, capped, used, and revoked." |
+| 1:55–2:25 | Commons queue: one accepted and one rejected translation | "What's left goes to the commons: Ethereum docs in Hindi and Marathi, accepted only when two models agree according to 0G's decision model." |
+| 2:25–2:50 | Verifier with a request ID from the **real nightly cycle** of Nov 7 | "Anyone can verify which model produced it, who it belongs to, and who donated the compute — anchored on 0G Chain, stored on 0G Storage." |
+| 2:50–3:00 | Close | "Without 0G, these credits don't exist and these results have no proof of origin. Shift makes every iAI credit count." |
 
-Grabar el video con un ciclo real ya completado como respaldo, pero en vivo ejecutar "Run now" real.
-
----
-
-## 25. Checklist de entrega
-
-**README.md** debe incluir:
-- [ ] Qué es Shift (2 párrafos) y la frase "qué se rompe sin 0G".
-- [ ] Cómo usa 0G: Private Computer (modelos, niveles de confianza), modelos de decisión, 0G Storage, 0G Chain (dirección del contrato).
-- [ ] **Tabla de request IDs reales** de los ciclos nocturnos (fecha, tarea, modelo, request ID, enlace al verificador).
-- [ ] Dirección de `ShiftLedger` y transacciones de anclaje (enlaces a chainscan).
-- [ ] Root hashes de manifiestos en 0G Storage.
-- [ ] Arquitectura (diagrama de la sección 4).
-- [ ] Instalación local paso a paso y variables de entorno.
-- [ ] Limitaciones honestas (resultados de la Fase 0, fallbacks usados).
-- [ ] Cómo se usó IA para programar (regla de ETHGlobal).
-- [ ] Licencia del código (MIT) y de los textos de la cola común.
-
-**Formulario de ETHGlobal / 0G:**
-- [ ] Nombre y descripción corta.
-- [ ] Repo público con historial de commits constante.
-- [ ] Video demo < 3 min.
-- [ ] Enlace a demo en vivo.
-- [ ] Direcciones de contratos.
-- [ ] Integrantes con Telegram y X.
-- [ ] Premios seleccionados: 0G (Build with 0G PC) + hasta 2 más (Arkiv si se hizo el Apéndice A).
+Record the video with a real cycle already completed as a backup, but run a real "Run now" live.
 
 ---
 
-## 26. Riesgos y mitigaciones
+## 25. Submission checklist
 
-| Riesgo | Probabilidad | Mitigación |
+**README.md** must include:
+- [ ] What Shift is (2 paragraphs) and the "what breaks without 0G" sentence.
+- [ ] How it uses 0G: Private Computer (models, trust levels), decision models, 0G Storage, 0G Chain (contract address).
+- [ ] **Table of real request IDs** from the nightly cycles (date, task, model, request ID, link to the verifier).
+- [ ] `ShiftLedger` address and anchoring transactions (chainscan links).
+- [ ] Manifest root hashes on 0G Storage.
+- [ ] Architecture (diagram from section 4).
+- [ ] Step-by-step local installation and environment variables.
+- [ ] Honest limitations (Phase 0 results, fallbacks used).
+- [ ] How AI was used to code (ETHGlobal rule).
+- [ ] License of the code (MIT) and of the commons queue texts.
+
+**ETHGlobal / 0G form:**
+- [ ] Name and short description.
+- [ ] Public repo with a steady commit history.
+- [ ] Demo video < 3 min.
+- [ ] Live demo link.
+- [ ] Contract addresses.
+- [ ] Team members with Telegram and X.
+- [ ] Selected prizes: 0G (Build with 0G PC) + up to 2 more (Arkiv if Appendix A was done).
+
+---
+
+## 26. Risks and mitigations
+
+| Risk | Probability | Mitigation |
 |---|---|---|
-| Créditos de iAI no distinguibles o no usables vía Router | Media | U1/U3 en Fase 0; modo presupuesto como fallback real |
-| `POST /v1/api-keys` sin límite por llave | Media | Control de gasto propio + lectura de saldo cada 5 llamadas |
-| Schema de `/v1/decisions` distinto | Media | Leer OpenAPI primero; fallback con chat JSON estricto |
-| Proveedor privado saturado (`429`, `503`) | Media | Reintentos con `Retry-After`; modelo alternativo del mismo tipo |
-| 0G Storage lento o caído | Baja-media | Reintentos; testnet declarada como fallback |
-| Worker caído en la ventana nocturna | Baja | Alertas en logs, sweeper, ejecución manual real de respaldo |
-| Juez ve el Merkle como redundante | Media | Explicar: atribución + curaduría, no prueba de inferencia (sección 4) |
-| Filtración de `mk-` | Baja | Cifrado en reposo, redacción de logs, scopes mínimos, revocable por el usuario |
-| Términos de iAI no permiten el uso | Baja | Confirmar con 0G (U12); modo presupuesto |
-| Tiempo insuficiente | Media | Checkpoint H20 y orden de recorte |
+| iAI credits not distinguishable or not usable via the Router | Medium | U1/U3 in Phase 0; budget mode as a real fallback |
+| `POST /v1/api-keys` without a per-key limit | Medium | Own spend control + balance read every 5 calls |
+| Different `/v1/decisions` schema | Medium | Read OpenAPI first; fallback with strict-JSON chat |
+| Private provider saturated (`429`, `503`) | Medium | Retries with `Retry-After`; alternative model of the same type |
+| 0G Storage slow or down | Low-medium | Retries; testnet declared as a fallback |
+| Worker down during the nightly window | Low | Log alerts, sweeper, real manual run as a backup |
+| A judge sees the Merkle tree as redundant | Medium | Explain: attribution + curation, not inference proof (section 4) |
+| `mk-` leak | Low | Encryption at rest, log redaction, minimum scopes, revocable by the user |
+| iAI terms do not allow the use | Low | Confirm with 0G (U12); budget mode |
+| Insufficient time | Medium | H20 checkpoint and cut order |
 
 ---
 
-## Apéndice A — Integración opcional con Arkiv (solo si el núcleo está listo en H20)
+## Appendix A — Optional Arkiv integration (only if the core is ready at H20)
 
-- **Idea:** la cola de tareas pendientes como entidades de Arkiv que **expiran en el próximo 00:00 UTC**, igual que los créditos. 0G sigue guardando todo lo permanente (salidas, manifiesto, anclaje).
-- **Requisitos del premio "Build on Arkiv (from scratch)"** [VERIFICADO en la página de premios]: escribir en el testnet actual de Arkiv con `@arkiv-network/sdk` o JSON-RPC; al menos una función visible para el usuario que **lea** de Arkiv; README con wallets que escribieron entidades y una consulta ejecutable; archivos `/arkiv/schema.md`, `/arkiv/friction.md`, `/arkiv/reach.md`, `/arkiv/why-arkiv.md`, `/arkiv/how-you-use-arkiv.md`; repo con licencia abierta; declarar uso de IA.
-- **Implementación mínima:** al crear una tarea, crear entidad `{taskId, owner, type, priority}` con expiración al próximo corte; la página `/queue` lee la cola desde Arkiv; el worker marca la entidad como procesada.
-- **Presupuesto de tiempo:** ventana fija de 6 h. Si no queda funcionando, se elimina sin tocar el núcleo.
+- **Idea:** the pending-task queue as Arkiv entities that **expire at the next 00:00 UTC**, just like the credits. 0G still stores everything permanent (outputs, manifest, anchoring).
+- **Requirements of the "Build on Arkiv (from scratch)" prize** [VERIFIED on the prizes page]: write to the current Arkiv testnet with `@arkiv-network/sdk` or JSON-RPC; at least one user-visible feature that **reads** from Arkiv; README with the wallets that wrote entities and an executable query; files `/arkiv/schema.md`, `/arkiv/friction.md`, `/arkiv/reach.md`, `/arkiv/why-arkiv.md`, `/arkiv/how-you-use-arkiv.md`; repo with an open license; declare AI usage.
+- **Minimal implementation:** when a task is created, create an entity `{taskId, owner, type, priority}` expiring at the next cutoff; the `/queue` page reads the queue from Arkiv; the worker marks the entity as processed.
+- **Time budget:** a fixed 6 h window. If it is not working by then, remove it without touching the core.
 
 ---
 
-## Apéndice B — Prompts base
+## Appendix B — Base prompts
 
-**AUDIO_SUMMARY (resumen):**
+**AUDIO_SUMMARY (summary):**
 ```
 System: You summarize transcripts. Respond ONLY with JSON:
 {"summary": string (max 120 words), "keyPoints": string[] (max 6)}.
@@ -980,75 +980,76 @@ Write in the same language as the document. Do not invent facts that are not in 
 User: <document text, truncated to the model's context budget>
 ```
 
-**IMAGE_FROM_PROMPT (mejorar prompt):**
+**IMAGE_FROM_PROMPT (improve prompt):**
 ```
 System: Rewrite the user's idea into one detailed image prompt (max 60 words).
 No real people, no logos, no copyrighted characters. Respond ONLY with the prompt.
 User: <idea>
 ```
 
-**Traducción (cola común):**
+**Translation (commons queue):**
 ```
 System: Translate the text from English to <Hindi|Marathi>. Keep technical terms
 (Ethereum, smart contract, gas, wallet) in their common usage. Respond ONLY with the translation.
 User: <source paragraph>
 ```
 
-Validar toda salida JSON con `zod`; si falla el parseo, 1 reintento con el mensaje de error; si vuelve a fallar, la tarea queda `FAILED` (real, sin inventar contenido).
+Validate every JSON output with `zod`; if parsing fails, 1 retry with the error message; if it fails again, the task stays `FAILED` (real, without inventing content).
 
 ---
 
-## Apéndice C — Glosario y referencias
+## Appendix C — Glossary and references
 
-- **iAI (Infinite AI):** activo de 0G; en staking da 1.271 créditos/día, se renuevan a 00:00 UTC sin acumularse.
-- **`mk-` / `sk-`:** llaves de gestión / de inferencia del 0G Router.
-- **TeeML / private:** el modelo corre dentro de un enclave TEE; ni 0G ni el proveedor ven la inferencia.
-- **verified:** la respuesta provino del modelo real (atestación de ruta); **standard:** sin verificación.
-- **`x_0g_trace`:** traza por respuesta con request ID, proveedor y costos.
-- **Modelos de decisión (Laya, Vela):** responden preguntas tipificadas con probabilidades, no texto.
+- **iAI (Infinite AI):** a 0G asset; when staked it gives 1.271 credits/day, which renew at 00:00 UTC without accumulating.
+- **`mk-` / `sk-`:** management / inference keys of the 0G Router.
+- **TeeML / private:** the model runs inside a TEE enclave; neither 0G nor the provider sees the inference.
+- **verified:** the response came from the real model (route attestation); **standard:** no verification.
+- **`x_0g_trace`:** per-response trace with request ID, provider and costs.
+- **Decision models (Laya, Vela):** they answer typed questions with probabilities, not text.
 
-**Referencias oficiales**
+**Official references**
 - 0G Router (overview): `https://docs.0g.ai/developer-hub/building-on-0g/compute-network/router/overview`
-- Autenticación (`mk-`/`sk-`, scopes): `https://docs.0g.ai/developer-hub/building-on-0g/compute-network/router/authentication`
+- Authentication (`mk-`/`sk-`, scopes): `https://docs.0g.ai/developer-hub/building-on-0g/compute-network/router/authentication`
 - Router API + OpenAPI + changelog: `https://0gfoundation.github.io/0g-router/`
-- Privacidad y niveles de confianza: `https://0g.ai/blog/data-privacy-on-0g-private-computer`
-- iAI: `https://0g.ai/blog/introducing-infinite-ai` y `https://0g.ai/blog/infinite-ai-technical-breakdown`
+- Privacy and trust levels: `https://0g.ai/blog/data-privacy-on-0g-private-computer`
+- iAI: `https://0g.ai/blog/introducing-infinite-ai` and `https://0g.ai/blog/infinite-ai-technical-breakdown`
 - Compute Finance: `https://0g.ai/blog/compute-finance`
-- Premios ETHGlobal Mumbai: `https://ethglobal.com/events/mumbai/prizes`
-- Docs generales de 0G (Storage, Chain): `https://docs.0g.ai`
-- Workshop de 0G en ETHGlobal Mumbai (Gathin T): `https://www.youtube.com/live/by9Rm-Vh1qY`
+- ETHGlobal Mumbai prizes: `https://ethglobal.com/events/mumbai/prizes`
+- General 0G docs (Storage, Chain): `https://docs.0g.ai`
+- 0G workshop at ETHGlobal Mumbai (Gathin T): `https://www.youtube.com/live/by9Rm-Vh1qY`
 
 ---
 
-## 27. Orden del repositorio, seguimiento y commits
+## 27. Repository order, tracking and commits
 
-La presentación ante ETHGlobal incluye el repo: los jueces ven la estructura, el README y el historial de commits. Estas reglas son obligatorias.
+The ETHGlobal presentation includes the repo: judges see the structure, the README and the commit history. These rules are mandatory.
 
-### 27.1 Archivos de orden (incluidos en el kit)
-| Archivo | Para qué | Idioma |
+### 27.1 Order files (included in the kit)
+| File | Purpose | Language |
 |---|---|---|
-| `CLAUDE.md` | Reglas de trabajo que Claude Code lee automáticamente en cada tarea | Inglés |
-| `PROGRESS.md` | Lista viva: hecho, siguiente, resultados de la Fase 0, ejecuciones reales, decisiones, bloqueos | Inglés |
-| `docs/STRUCTURE.md` | Estructura actual y destino del monorepo; dónde va cada archivo | Inglés |
-| `README.md` | README público para jueces; se completa en F6 solo con datos reales | Inglés |
-| `docs/PHASE0_KIT.md` | Cómo correr el kit de la Fase 0 | Español |
-| `LICENSE` | MIT | Inglés |
+| `CLAUDE.md` | Working rules that Claude Code reads automatically on every task | English |
+| `PROGRESS.md` | Living list: done, next, Phase 0 results, real runs, decisions, blockers | English |
+| `docs/STRUCTURE.md` | Current structure and monorepo target; where each file goes | English |
+| `README.md` | Public README for judges; filled in during F6 only with real data | English |
+| `docs/PHASE0_KIT.md` | How to run the Phase 0 kit | English |
+| `LICENSE` | MIT | English |
 
-No se crean otros archivos markdown en la raíz; se agregan secciones a los existentes.
+**Every file in the repo is written in English** (code, comments, docs, this plan). Chat with the user may be in any language, but nothing Spanish is committed.
 
-### 27.2 Flujo por ítem
-1. Tomar el siguiente ítem sin marcar de `PROGRESS.md`.
-2. Implementar solo ese ítem y sus pruebas.
-3. Correr typecheck, pruebas y `forge test` si cambian contratos.
-4. Marcar el ítem en `PROGRESS.md` (con nota si hubo cambio respecto al plan) **en el mismo commit**.
-5. Commit + push. Resumen breve al usuario.
+No other markdown files are created in the root; sections are added to the existing ones.
 
-### 27.3 Reglas de commits
-- **Meta: 50–90 commits en todo el proyecto** (el `PROGRESS.md` planea ~58 más algunos `fix:`).
-- **Un commit = un ítem** de `PROGRESS.md` que compila y pasa pruebas; los ítems grandes se dividen en 2–3 commits.
-- **Tamaño orientativo:** 50–400 líneas de código escrito a mano por commit (no cuentan lockfiles, tipos generados ni assets).
-- **Sin ruido:** correcciones a un commit aún no subido van con `git commit --amend`; correcciones a trabajo ya subido, en un solo `fix:`.
-- **Formato Conventional Commits en inglés**, imperativo, ≤ 72 caracteres: `feat(core): add budget optimizer with greedy upgrades`. Tipos: `feat`, `fix`, `test`, `docs`, `chore`, `refactor`. Ámbitos: `core`, `web`, `worker`, `contracts`, `db`, `scripts`, `spike`.
-- **Sin líneas de atribución de IA** en commits ni PRs; el uso de IA se declara una vez en el README ("How we used AI"), como pide ETHGlobal.
-- **Ritmo constante** a lo largo de la hackathon; nunca acumular horas de trabajo en un solo commit. No reescribir historial ya subido salvo que el usuario lo pida.
+### 27.2 Flow per item
+1. Take the next unchecked item in `PROGRESS.md`.
+2. Implement only that item and its tests.
+3. Run typecheck, tests and `forge test` if contracts change.
+4. Tick the item in `PROGRESS.md` (with a note if anything changed versus the plan) **in the same commit**.
+5. Commit + push. Brief summary to the user.
 
+### 27.3 Commit rules
+- **Target: 50–90 commits across the whole project** (`PROGRESS.md` plans ~58 plus a few `fix:` commits).
+- **One commit = one item** of `PROGRESS.md` that builds and passes tests; large items are split into 2–3 commits.
+- **Size guide:** 50–400 lines of hand-written code per commit (lockfiles, generated types and assets do not count).
+- **No noise:** fixes to a not-yet-pushed commit go in with `git commit --amend`; fixes to already-pushed work go in a single `fix:`.
+- **Conventional Commits format in English**, imperative, ≤ 72 characters: `feat(core): add budget optimizer with greedy upgrades`. Types: `feat`, `fix`, `test`, `docs`, `chore`, `refactor`. Scopes: `core`, `web`, `worker`, `contracts`, `db`, `scripts`, `spike`.
+- **No AI attribution lines** in commits or PRs; AI usage is declared once in the README ("How we used AI"), as ETHGlobal asks.
+- **Steady rhythm** throughout the hackathon; never accumulate hours of work in a single commit. Do not rewrite already-pushed history unless the user asks.

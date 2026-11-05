@@ -23,7 +23,7 @@ shift/
 │   ├── test/ShiftLedger.t.sol
 │   └── script/Deploy.s.sol
 └── docs/
-    ├── SHIFT_PLAN.md         # Full plan (Spanish)
+    ├── SHIFT_PLAN.md         # Full plan
     ├── STRUCTURE.md          # This file
     ├── PHASE0_KIT.md         # How to run Phase 0
     └── spike/                # Phase 0 outputs (no secrets): merkle-vector.json, models.json, SPIKE_RESULTS.json
