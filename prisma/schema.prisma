@@ -1,0 +1,159 @@
+// Database schema (plan §16). The connection URL lives in prisma.config.ts (Prisma 7).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../packages/core/src/db/generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Mode {
+  IAI_CREDITS_ONLY
+  BUDGET
+}
+
+enum TaskType {
+  AUDIO_SUMMARY
+  DOC_ANALYSIS
+  IMAGE_FROM_PROMPT
+}
+
+enum TaskStatus {
+  QUEUED
+  PLANNED
+  RUNNING
+  DONE
+  FAILED
+  DEFERRED
+  CANCELLED
+}
+
+enum NightStatus {
+  PENDING
+  RUNNING
+  ANCHORING
+  DONE
+  FAILED
+}
+
+enum CommonsStatus {
+  PENDING
+  RUNNING
+  ACCEPTED
+  REJECTED
+  FAILED
+}
+
+model User {
+  id                    String     @id @default(cuid())
+  accountAddress        String     @unique // 0G account address (from GET /v1/account)
+  currency              String // "usd" | "0g" (from GET /v1/account/balance)
+  mode                  Mode       @default(IAI_CREDITS_ONLY)
+  nightlyBudgetUsdMicro BigInt? // BUDGET mode only
+  donateLeftover        Boolean    @default(true)
+  mkCiphertext          Bytes? // AES-256-GCM, see packages/core/src/crypto/vault.ts
+  mkIv                  Bytes?
+  mkAuthTag             Bytes?
+  mkConnectedAt         DateTime?
+  encPublicKey          String? // Could: browser public key (base64)
+  createdAt             DateTime   @default(now())
+  tasks                 Task[]
+  runs                  NightRun[]
+}
+
+model Task {
+  id                 String     @id @default(cuid())
+  userId             String
+  user               User       @relation(fields: [userId], references: [id])
+  type               TaskType
+  status             TaskStatus @default(QUEUED)
+  priority           Int        @default(2) // 1 low, 2 normal, 3 high
+  inputPath          String? // file in UPLOAD_DIR
+  inputMeta          Json? // {bytes, durationSec, mime, chars}
+  prompt             String?
+  nightId            BigInt?
+  complexity         String? // simple | standard | complex
+  chosenModel        String?
+  estCostUsdMicro    BigInt?
+  actualCostUsdMicro BigInt?
+  steps              Json? // [{step, model, requestId, trace, costUsdMicro}]
+  outputRoot         String? // 0G Storage root hash
+  outputTx           String?
+  error              String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  @@index([userId, status])
+}
+
+model Night {
+  id           BigInt       @id // YYYYMMDD, or unix seconds for manual runs
+  status       NightStatus  @default(PENDING)
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  merkleRoot   String?
+  manifestRoot String?
+  anchorTx     String?
+  donationsTx  String?
+  itemCount    Int          @default(0)
+  runs         NightRun[]
+  leaves       MerkleLeaf[]
+}
+
+model NightRun {
+  id              String    @id @default(cuid())
+  nightId         BigInt
+  night           Night     @relation(fields: [nightId], references: [id])
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  ephemeralKeyId  String?
+  keyCreatedAt    DateTime?
+  keyRevokedAt    DateTime? // null while the key is alive; the sweeper revokes keys left null for too long
+  balanceBefore   Json?
+  balanceAfter    Json?
+  budgetUsdMicro  BigInt?
+  spentUsdMicro   BigInt    @default(0)
+  donatedUsdMicro BigInt    @default(0)
+  creditUsed      String?
+  depositUsed     String?
+  status          String    @default("PENDING")
+  error           String?
+
+  @@unique([nightId, userId])
+}
+
+model CommonsItem {
+  id              String        @id @default(cuid())
+  sourceRef       String // URL/file + paragraph
+  sourceText      String
+  targetLang      String // "hi" | "mr"
+  status          CommonsStatus @default(PENDING)
+  translationA    String?
+  translationB    String?
+  modelA          String?
+  modelB          String?
+  gateModel       String?
+  gateProbability Float?
+  requestIds      String[]
+  outputRoot      String?
+  donorUserId     String?
+  nightId         BigInt?
+  costUsdMicro    BigInt?
+  updatedAt       DateTime      @updatedAt
+
+  @@index([status])
+}
+
+model MerkleLeaf {
+  id        String @id @default(cuid())
+  nightId   BigInt
+  night     Night  @relation(fields: [nightId], references: [id])
+  requestId String @unique
+  values    Json // values in LEAF_TYPES order
+  leafHash  String
+  proof     Json // bytes32[]
+
+  @@index([nightId])
+}
