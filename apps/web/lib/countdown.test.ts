@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cutoffInIst, formatCountdown, msUntilCutoff, nextCutoff, nightPhase, utcTimeInIst } from "./countdown";
+import { cutoffInIst, formatCountdown, msUntilCutoff, nextCutoff, nightPhase, utcDayElapsed, utcTimeInIst } from "./countdown";
 
 const at = (iso: string) => new Date(iso);
 
@@ -15,6 +15,18 @@ describe("nextCutoff", () => {
 
   it("handles month and year boundaries", () => {
     expect(nextCutoff(at("2026-12-31T18:00:00Z")).toISOString()).toBe("2027-01-01T00:00:00.000Z");
+  });
+});
+
+describe("utcDayElapsed", () => {
+  it("is empty at midnight and halfway at noon", () => {
+    expect(utcDayElapsed(at("2026-11-06T00:00:00.000Z"))).toBe(0);
+    expect(utcDayElapsed(at("2026-11-06T12:00:00.000Z"))).toBe(0.5);
+  });
+
+  it("reaches the reset without passing it", () => {
+    expect(utcDayElapsed(at("2026-11-05T23:59:59.999Z"))).toBeGreaterThan(0.999);
+    expect(utcDayElapsed(at("2026-11-05T23:59:59.999Z"))).toBeLessThanOrEqual(1);
   });
 });
 

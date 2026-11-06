@@ -15,6 +15,14 @@ export function msUntilCutoff(now: Date): number {
   return nextCutoff(now).getTime() - now.getTime();
 }
 
+/** Share of the current UTC day already elapsed, from 0 at 00:00 UTC up to 1 at the next reset. */
+export function utcDayElapsed(now: Date): number {
+  const elapsed = 1 - msUntilCutoff(now) / DAY_MS;
+  if (elapsed <= 0) return 0;
+  if (elapsed >= 1) return 1;
+  return elapsed;
+}
+
 /** "HH:MM:SS", rounded up to the next second so the display never shows 00:00:00 before the reset. */
 export function formatCountdown(ms: number): string {
   const total = Math.max(0, Math.ceil(ms / 1000));
