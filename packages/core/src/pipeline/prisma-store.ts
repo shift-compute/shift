@@ -1,4 +1,4 @@
-import { PrismaClient } from "@shift/core";
+import { PrismaClient } from "../db/client";
 import type { ConnectedUser, OpenTask, PipelineStore, RunPatch, TaskPatch } from "./store";
 
 type TaskData = NonNullable<Parameters<PrismaClient["task"]["update"]>[0]["data"]>;

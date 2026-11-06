@@ -1,36 +1,25 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import {
-  MIN_QUALITY,
-  RouterError,
-  TASK_TYPES,
-  buildCatalog,
-  buildComplexityRequest,
-  candidates,
-  msUntilHardStop,
-  openSecret,
-  planNight,
-  readComplexity,
-  recordStep,
-  redactString,
-  runAudioSummary,
-  runDocAnalysis,
-  runImageFromPrompt,
-  storeTaskOutput,
-  withEphemeralKey,
-  type CatalogEntry,
-  type Complexity,
-  type ExecutorResult,
-  type Model,
-  type PlanOption,
-  type PlanTask,
-  type RouterClient,
-  type StepRecord,
-  type UsageRow,
-  type WorkerConfig,
-} from "@shift/core";
-import { extractDocText, type DocText } from "@shift/core/doc-text";
-import type { StorageClient } from "@shift/core/storage";
+import { buildCatalog, candidates, type CatalogEntry } from "../catalog/catalog";
+import type { WorkerConfig } from "../config";
+import { openSecret } from "../crypto/vault";
+import { extractDocText, type DocText } from "../executors/doc-text";
+import { runAudioSummary } from "../executors/audio-summary";
+import { runDocAnalysis } from "../executors/doc-analysis";
+import { runImageFromPrompt } from "../executors/image-from-prompt";
+import { recordStep } from "../executors/step";
+import { storeTaskOutput } from "../executors/store-output";
+import type { ExecutorResult, StepRecord } from "../executors/types";
+import { msUntilHardStop } from "../night/schedule";
+import { MIN_QUALITY, buildComplexityRequest, readComplexity, type Complexity } from "../optimizer/complexity";
+import { planNight, type PlanOption, type PlanTask } from "../optimizer/optimizer";
+import { redactString } from "../redact";
+import { TASK_TYPES } from "../tasks/task-input";
+import { withEphemeralKey } from "../zg/ephemeral-keys";
+import { RouterError } from "../zg/errors";
+import type { RouterClient } from "../zg/router";
+import type { Model, UsageRow } from "../zg/schemas";
+import type { StorageClient } from "../zg/storage";
 import { z } from "zod";
 import { decideBudget, impliedMicroUsdPerOg, type BudgetDecision } from "./budget";
 import type { ConnectedUser, OpenTask, PipelineStore, RunPatch } from "./store";

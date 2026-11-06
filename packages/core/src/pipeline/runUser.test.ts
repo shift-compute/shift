@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { RouterError, buildCatalog, estimateCostMicro, sealSecret } from "@shift/core";
-import type { StorageClient } from "@shift/core/storage";
+import { buildCatalog } from "../catalog/catalog";
+import { estimateCostMicro } from "../catalog/estimator";
+import { sealSecret } from "../crypto/vault";
+import { RouterError } from "../zg/errors";
+import type { StorageClient } from "../zg/storage";
 import { runUser, type RunConfig, type UserRouter } from "./runUser";
 import type { ConnectedUser, OpenTask, PipelineStore, TaskPatch } from "./store";
 

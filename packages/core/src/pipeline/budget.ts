@@ -1,4 +1,4 @@
-import { usdStringToAtto } from "@shift/core";
+import { usdStringToAtto } from "../catalog/catalog";
 
 /**
  * Turns a live balance into the two numbers the night needs: the optimizer's budget in micro-USD, and the

@@ -4,8 +4,8 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F2 — Execution (F0 closed with open items, see Blockers)
-**Next item:** F2.9
-**Commits so far:** 46 (target for the project: 50–90)
+**Next item:** F2.10
+**Commits so far:** 48 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -70,7 +70,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
   - `runUser` decrypts the management key in memory, caps an ephemeral key from the live balance (iAI uses `credit_balance` minus the safety margin and never the deposit; budget mode may also spend the deposit, up to the nightly cap) and runs the optimizer plus the three executors. Outputs go to the real storage client; request ids, traces and reported cost are stored on the task. The key is revoked before the function returns. A 0G balance is converted with the median rate implied by the live catalog's `pricing` (wei) and `pricing_usd`; if the catalog has no such pair the user is marked failed and no key is created. Commons (F4) and Merkle leaves (F3.8) are not in this step: leftover budget is logged and not spent, and leaves will be built from the stored steps. If a reported cost exceeds its estimate by more than 20%, the rest of that user's night is replanned (plan §8.3). Anchoring stays in F3.9.
 - [x] F2.8 Key sweeper — `feat(worker): add ephemeral key sweeper`
   - Every 10 minutes, and once at process start, the worker revokes `NightRun` keys that are still alive and at least 2 hours old. It decrypts that user's management key in memory and calls `sweepOrphanedKeys`; `keyRevokedAt` is set only after the Router revoke succeeds, so a failure is retried next sweep. On start, `RUNNING` tasks with no Router request id in `steps` go back to `QUEUED`. Tasks that already recorded a request id stay `RUNNING`. The 10-minute sweep does not requeue: a live batch marks a task `RUNNING` before the request id exists.
-- [ ] F2.9 Run-now endpoint using the real pipeline — `feat(web): add run now endpoint`
+- [x] F2.9 Run-now endpoint using the real pipeline *(2 commits)* — `refactor(core): share the night pipeline with the web app` / `feat(web): add run now endpoint`
+  - `POST /api/runs/now` requires a session and calls the same `runUser` as the worker (moved to `packages/core` so the web app does not keep a second pipeline). Manual `Night.id` is unix seconds (`manualNightId`): the column is a BigInt, so the plan's `manual-<timestamp>` string does not fit. The 10-minute limit applies to pipeline starts; a missing key, an empty queue, or a missing storage signer fails first and does not call the Router. `OPERATOR_PRIVATE_KEY` is read only to build that route's storage client and stays off `WebConfig`. Anchoring a manual batch stays in F3.9, same as the nightly `runUser`.
 - [ ] F2.10 Unit tests: vault, executors' parsing, redaction — `test(core): cover vault, executors and log redaction`
 
 ## F3 — Optimizer and anchoring (plan §10, §14, §15)
@@ -140,6 +141,9 @@ Short entries: date — decision — reason. Example: `2026-11-06 — budget mod
 - 2026-11-05 — minimum `credit_limit` for an ephemeral key is 0.0001 0G (`invalid_credit_limit` below it) — found while building F1.9; budgets smaller than that cannot be capped on the key.
 - 2026-11-05 — decision-model questions use `{type, instructions, criteria}` objects, not arrays — verified with a real call (U7).
 - 2026-11-05 — `SMOKE_KEY_LIMIT_FIELD=credit_limit` (value in 0G units, as a string) — taken from the official OpenAPI spec (F0.2).
+- 2026-11-06 — manual nights use a unix-seconds BigInt id — `Night.id` cannot store the plan's `manual-<timestamp>` string. `manualNightId` stays above every `YYYYMMDD` id.
+- 2026-11-06 — `runUser` lives in `@shift/core` — the run-now route and the nightly worker share one pipeline.
+- 2026-11-06 — run now reads `OPERATOR_PRIVATE_KEY` in the web process for 0G Storage uploads — the key stays out of `WebConfig` and is never returned. The rest of the web app does not use it.
 - 2026-11-06 — submission deadline is Saturday 7 November 2026, 09:00 IST, and late submissions are not accepted — ETHGlobal Mumbai details and start pages. The plan's "8 November, 09:00 IST" date was wrong.
 - 2026-11-06 — forge-std v1.9.4 is vendored under `contracts/lib` — a clean clone failed `pnpm test:contracts` because the library was gitignored and only documented as a manual clone.
 

@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { sealSecret, type WorkerConfig } from "@shift/core";
+import { sealSecret, type ConnectedUser, type OpenTask, type PipelineStore, type TaskPatch, type UserRouter, type WorkerConfig } from "@shift/core";
 import { runNight } from "./night";
-import type { UserRouter } from "./pipeline/runUser";
-import type { ConnectedUser, OpenTask, PipelineStore, TaskPatch } from "./pipeline/store";
 
 const KEY = Buffer.alloc(32, 4).toString("base64");
 const ADDRESS = "0xdbdcb1f11b6b8ea7ae2b5735954f251306d6f88f";
