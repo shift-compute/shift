@@ -55,8 +55,8 @@ export function AccountPanel() {
     case "signed_out":
       return (
         <p>
-          <a href="/connect" className="inline-block rounded-full bg-teal px-5 py-2 font-semibold text-paper no-underline shadow-sm shadow-teal/20 transition-colors duration-200 hover:bg-ink">
-            Connect your 0G account
+          <a href="/connect" className="cta cta-primary">
+            Connect 0G
           </a>
         </p>
       );

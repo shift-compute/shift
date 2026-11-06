@@ -11,29 +11,29 @@ export function HomeLanding() {
       <Hero />
 
       <Reveal>
-        <Section id="problem" title="A balance left at midnight is gone.">
+        <Section id="problem" title="Gone at midnight.">
           <p className="mt-6 max-w-2xl text-lg text-muted">
-            During the day you queue the work. Before midnight, Shift spends the credits that would expire on that queue. In iAI mode the deposit stays untouched. Budget mode spends only up to the nightly cap you set.
+            Queue by day. Shift spends credits that would expire at 00:00 UTC. iAI mode leaves the deposit alone. Budget mode stops at your nightly cap.
           </p>
         </Section>
       </Reveal>
 
       <Reveal>
-        <Section id="why" title="Why this runs on 0G">
+        <Section id="why" title="Why 0G">
           <div className="mt-10 grid gap-4 sm:grid-cols-2">
             <Lift className="h-full">
               <div className="h-full rounded-3xl bg-surface/90 px-6 py-7 ring-1 ring-ink/10">
-                <h3 className="text-2xl font-medium tracking-[-0.03em]">Credits with a cutoff</h3>
+                <h3 className="text-2xl font-medium tracking-[-0.03em]">A daily cutoff</h3>
                 <p className="mt-3 text-muted">
-                  0G compute credits reset at 00:00 UTC. Shift is built around that cutoff: spend what would expire, on work already in the queue.
+                  Compute credits reset at 00:00 UTC. Shift spends what would otherwise disappear, on work already queued.
                 </p>
               </div>
             </Lift>
             <Lift className="h-full">
               <div className="h-full rounded-3xl bg-surface/90 px-6 py-7 ring-1 ring-ink/10">
-                <h3 className="text-2xl font-medium tracking-[-0.03em]">Origin on 0G Chain</h3>
+                <h3 className="text-2xl font-medium tracking-[-0.03em]">Proof on-chain</h3>
                 <p className="mt-3 text-muted">
-                  A completed night anchors a Merkle root in ShiftLedger. The verify page recomputes a leaf in the browser and checks it against the contract. This deployment is the Galileo testnet, chain ID 16602.
+                  A finished night anchors a Merkle root in ShiftLedger on Galileo, chain 16602. Verify checks the leaf in your browser.
                 </p>
               </div>
             </Lift>
@@ -44,31 +44,31 @@ export function HomeLanding() {
       <footer className="border-t border-ink/10 py-12">
         <div className="flex flex-col gap-10 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <a href="/" className="inline-flex no-underline">
+            <a href="/" className="site-logo inline-flex no-underline">
               <Logo className="h-10 w-auto" />
             </a>
             <p className="mt-4 max-w-xs text-sm text-muted">Built for ETHGlobal Mumbai.</p>
           </div>
           <nav aria-label="Footer" className="grid grid-cols-2 gap-x-12 gap-y-2 text-sm">
-            <a href="/queue" className="text-muted no-underline hover:text-ink hover:underline">
+            <a href="/queue" className="quiet-link">
               Queue
             </a>
-            <a href="https://github.com/shift-compute/shift" className="text-muted no-underline hover:text-ink hover:underline">
+            <a href="https://github.com/shift-compute/shift" className="quiet-link">
               Repository
             </a>
-            <a href="/commons" className="text-muted no-underline hover:text-ink hover:underline">
+            <a href="/commons" className="quiet-link">
               Commons
             </a>
-            <a href="https://ethglobal.com/events/mumbai" className="text-muted no-underline hover:text-ink hover:underline">
+            <a href="https://ethglobal.com/events/mumbai" className="quiet-link">
               ETHGlobal Mumbai
             </a>
-            <a href="/verify" className="text-muted no-underline hover:text-ink hover:underline">
+            <a href="/verify" className="quiet-link">
               Verify
             </a>
-            <a href="https://chainscan-galileo.0g.ai/address/0xA3B6664b487FC01c4264977c9B92058A89C31Ed7" className="text-muted no-underline hover:text-ink hover:underline">
+            <a href="https://chainscan-galileo.0g.ai/address/0xA3B6664b487FC01c4264977c9B92058A89C31Ed7" className="quiet-link">
               ShiftLedger on Galileo
             </a>
-            <a href="/connect" className="text-muted no-underline hover:text-ink hover:underline">
+            <a href="/connect" className="quiet-link">
               Connect
             </a>
           </nav>
