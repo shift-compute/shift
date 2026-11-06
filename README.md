@@ -13,7 +13,7 @@ Built for ETHGlobal Mumbai 2026 (0G "Build with 0G PC", and the general finalist
 | Network for the contract and storage | **0G Galileo testnet, chain ID 16602.** This project has no mainnet (chain ID 16661) deployment. |
 | ShiftLedger | [`0xA3B6664b487FC01c4264977c9B92058A89C31Ed7`](https://chainscan-galileo.0g.ai/address/0xA3B6664b487FC01c4264977c9B92058A89C31Ed7) |
 | Live demo | Not deployed yet. The URL lands here in F6.1. Until then, run it locally (below). |
-| Demo video | Not recorded yet. The link lands here in F6.4. The 3-minute script is [plan §24](docs/SHIFT_PLAN.md). |
+| Demo video | Not recorded. No URL in this file. Placeholder and shot list: [Submission](#submission). Script: [plan §24](docs/SHIFT_PLAN.md). |
 | Real inference runs | **None recorded.** The team account still has `credit_balance` 0 and `deposit_balance` 0. F3.12 and F4.7 stay open. The [request-id table](#request-ids) is one waiting row until a funded run. |
 | Status log | [`PROGRESS.md`](PROGRESS.md) · Phase 0 write-up: [`docs/SPIKE_RESULTS.md`](docs/SPIKE_RESULTS.md) |
 
@@ -202,11 +202,58 @@ One waiting row. A row is added only when a real night or a real "Run now" retur
 |---|---|---|---|---|
 | — | — | Waiting on F3.12 (funded run). None recorded. | — | — |
 
+## Submission
+
+ETHGlobal Mumbai 2026, Jio World Convention Centre. Hacking started Thursday 5 November 2026, 21:00 IST. **Submission closes Saturday 7 November 2026, 09:00 IST.** Late submissions are not accepted ([event details](https://ethglobal.com/events/mumbai/info/details), [start page](https://ethglobal.com/events/mumbai/info/start)).
+
+| Field | What to submit |
+|---|---|
+| Name | Shift |
+| Short description | The opening paragraph of this README. |
+| Repository | https://github.com/shift-compute/shift |
+| Network | **0G Galileo testnet, chain ID 16602**, for ShiftLedger and for 0G Storage. This project has no mainnet (chain ID 16661) deployment. |
+| Contract | [`0xA3B6664b487FC01c4264977c9B92058A89C31Ed7`](https://chainscan-galileo.0g.ai/address/0xA3B6664b487FC01c4264977c9B92058A89C31Ed7) |
+| Live demo | Not deployed. F6.1 is still open. Until that URL exists, follow [Run it locally](#run-it-locally). |
+| Demo video | **Placeholder.** No URL is published below. Paste the link into the [demo video](#demo-video) line after a teammate records the cut. |
+| Sponsor prize named in the plan | 0G **"Build with 0G PC"** — $5,000 (1st $2,500 / 2nd $1,500 / 3rd $1,000). See [plan §2](docs/SHIFT_PLAN.md). |
+
+Every project also goes through ETHGlobal's general finalist review. The form allows up to three sponsor prizes. The plan names one extra prize, Arkiv, only if Appendix A shipped. It did not (F5.2 is open). No other sponsor prize is written down in this repo, so this file leaves the other slots empty.
+
+### How to demo
+
+Same path on a future live URL and on `http://localhost:3000` after `pnpm dev`:
+
+1. **Connect** — `/connect`. Paste an `mk-` with `account:read`, `keys:create`, and `keys:manage`.
+2. **Queue** — `/queue`. Add an audio summary, a document analysis, and an image prompt. Tonight's plan and the night strip are on this page. The preview does not spend credits.
+3. **Run** — **Run tonight's shift now** (`POST /api/runs/now`), or leave the worker up for 23:00–23:50 UTC (04:30–05:20 IST). Both call the same pipeline. A 0 Router balance stops at HTTP 402 `insufficient_balance`. Shift records that failure and does not fill in a result.
+4. **Night** — `/nights/[id]`. Night strip, provenance cards, and the anchored batch.
+5. **Verify** — `/verify?rid=<request id>` from **Verify this result** on a card. The browser recomputes the leaf and calls `verifyLeaf` on ShiftLedger.
+6. **Commons** — `/commons`. Accepted and rejected translations, with the filter probability on each card.
+
+### Demo video
+
+**Video URL:** _placeholder — record the cut, then paste the URL on this line._
+
+That line is the whole link. A judge who opens the file today finds no video address. Keep the cut under 3 minutes ([plan §24](docs/SHIFT_PLAN.md), 0G deliverable). Record the narration in a human voice from the team. Text-to-speech and AI voices stay out of this hack. Film a real **Run now** when credits exist, and keep a completed real cycle as backup. While the balance is 0, show the 402 and the empty commons and verify states. Leave request ids, storage roots, and accepted translations out of the cut unless a real run wrote them.
+
+Shot list to film against. Times follow plan §24. The frames are the surfaces that exist in the app now: the night strip, provenance on the night page, verify, and commons accept/reject.
+
+| Time | Shot | What should be on screen |
+|---|---|---|
+| 0:00–0:20 | Home `/` | Countdown to 00:00 UTC (05:30 IST) and the night strip. Cue: unused 0G credits expire at 00:00 UTC, by design. |
+| 0:20–0:45 | `/connect` | The scoped `mk-` wizard. Cue: no third-party OAuth, so Shift reads balances and mints short-lived capped keys. |
+| 0:45–1:15 | `/queue` | Three tasks, the plan preview, and the night strip (block width is cost; the remainder is labeled for the commons). Cue: decision models set the quality bar, and the optimizer takes the cheapest model that still clears it. |
+| 1:15–1:55 | Run tonight's shift now | A real Router run: the balance moving and results appearing. Cue: 0G Private Computer; the key is created, capped, used, and revoked. |
+| 1:55–2:15 | `/nights/[id]` | Night strip for that night (the end label is **First light** when the night is `DONE`). Provenance card: model, cost, 0G Storage root, then each step's request id, model, trust level, TEE verdict, and **Verify this result**. Anchored batch: Merkle root, manifest root, anchor transaction — only the values this run stored. |
+| 2:15–2:35 | `/commons` | One **Accepted** card and one **Rejected** card (Hindi or Marathi), filter probability visible, rejected text still on the card. Cue: leftovers translate Ethereum docs, and the decision model keeps a row only when both translations match the source. An empty board is the honest frame until a funded pair finishes; say that on camera. |
+| 2:35–2:50 | `/verify?rid=` | The request id from the night above. The page checks the proof in the browser, then `verifyLeaf` on Galileo. Cue: anyone can see which model produced it, who owns it, and who donated the compute. |
+| 2:50–3:00 | Close | Cue: without 0G these credits do not exist, and these results have no proof of origin. |
+
 ## For judges
 
 **Live demo URL (F6.1).** Not deployed. This line will be replaced with the real URL. There is no preview link to try yet.
 
-**Demo video (F6.4).** Not recorded. This line will be replaced with a link under 3 minutes. Please treat a missing video as missing, not as an unlisted URL.
+**Demo video.** The placeholder and the shot list are in [Submission](#submission). This README has no video URL.
 
 **Request ids, anchor transactions, and manifest roots.** [Verifiable evidence](#verifiable-evidence): the Galileo contract page, the F0.6 deploy transaction, the turbo indexer, the Phase 0 storage proof, and a request-id table with one waiting row. The waiting row is not a sample id.
 
@@ -244,7 +291,7 @@ Later the same day, `GET /v1/models` returned **79 models, no `verifiability` fi
 - **U12 is unanswered.** Budget mode is primary until 0G confirms delegated iAI credit use.
 - **Commons work is off the Merkle tree** (see above). Donations on the contract exist only after an anchored night with a positive amount. No such transaction exists yet.
 - **The verifier trusts the database for the proof bytes**, then checks those bytes on-chain. It does not yet rebuild the batch from the storage manifest alone.
-- **Deploy and the demo video** are still open (F6.1, F6.4). The request-id table is in [Verifiable evidence](#verifiable-evidence) and stays on the waiting row until a funded run (F3.12).
+- **Deploy is still open (F6.1).** The demo video is not recorded: [Submission](#submission) holds the placeholder and the shot list, and this file has no video URL. The request-id table is in [Verifiable evidence](#verifiable-evidence) and stays on the waiting row until a funded run (F3.12).
 
 ## How we used AI
 
@@ -255,7 +302,7 @@ AI coding assistants, including Claude Code (working rules in [`CLAUDE.md`](CLAU
 - [Sebastián Ceciliano Piedra](https://github.com/Cbiux)
 - [Psybre](https://github.com/Psybre)
 
-Telegram and X handles go in the submission form with F6.4. They are not invented here.
+Telegram and X handles are not stored in this repository. Put the team's real handles on the ETHGlobal form. They are not invented here.
 
 ## License
 
