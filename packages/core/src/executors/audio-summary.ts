@@ -59,6 +59,6 @@ export async function runAudioSummary(ctx: ExecutorContext, input: AudioInput): 
   return {
     result: { transcript, summary: parsed.summary, keyPoints: parsed.keyPoints },
     files: [],
-    steps: [recordStep("transcribe", sttModel, stt), recordStep("summarize", ctx.models.chat, chat)],
+    steps: [recordStep("transcribe", sttModel, stt, ctx.trustMode), recordStep("summarize", ctx.models.chat, chat, ctx.trustMode)],
   };
 }

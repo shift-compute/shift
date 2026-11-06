@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sealSecret, type ConnectedUser, type OpenTask, type PipelineStore, type TaskPatch, type UserRouter, type WorkerConfig } from "@shift/core";
+import { sealSecret, type AnchorStore, type CompletedTask, type ConnectedUser, type LedgerClient, type OpenTask, type PipelineStore, type TaskPatch, type UserRouter, type WorkerConfig } from "@shift/core";
 import { runNight } from "./night";
 
 const KEY = Buffer.alloc(32, 4).toString("base64");
@@ -50,19 +50,50 @@ const config = {
 
 const docReply = { data: { choices: [{ message: { content: '{"summary":"Ok.","actionItems":[],"risks":[]}' } }] }, status: 200, requestId: "req-doc", trace: { billing: { total_cost_usd_micro: "1" } } };
 
+/** An anchor store with nothing to prove, and a ledger that fails if a transaction is attempted. */
+function emptyAnchor() {
+  let lookups = 0;
+  const anchorStore: AnchorStore = {
+    completedTasks: async () => {
+      lookups += 1;
+      return [];
+    },
+    saveTree: async () => {
+      throw new Error("empty night must not write a tree");
+    },
+    saveManifestRoot: async () => {
+      throw new Error("empty night must not write a manifest");
+    },
+    saveAnchorTx: async () => {
+      throw new Error("empty night must not write a tx");
+    },
+  };
+  const ledger: LedgerClient = {
+    anchorNight: async () => {
+      throw new Error("empty night must not send a transaction");
+    },
+  };
+  return { anchorStore, ledger, lookups: () => lookups };
+}
+
 describe("runNight", () => {
-  it("finishes quietly when nobody is connected", async () => {
+  it("finishes quietly when nobody is connected and does not anchor an empty batch", async () => {
     const logs: string[] = [];
     const store = memory([], []).store;
+    const anchored = emptyAnchor();
     await runNight({
       config,
       nightId: 20261106n,
       log: (message) => logs.push(message),
       store,
+      anchorStore: anchored.anchorStore,
+      ledger: anchored.ledger,
       router: { listModels: async () => { throw new Error("should not be called"); } } as unknown as UserRouter,
       storage: { upload: async () => { throw new Error("should not be called"); }, download: async () => { throw new Error("no"); } },
     });
     expect(logs.join("\n")).toContain("0 connected");
+    expect(logs.join("\n")).toContain("empty batch, not anchored");
+    expect(anchored.lookups()).toBe(1);
   });
 
   it("runs the next user when the first one fails, and loads the catalog once", async () => {
@@ -93,17 +124,21 @@ describe("runNight", () => {
       generateImage: async () => { throw new Error("no"); },
     } as UserRouter;
 
+    const anchored = emptyAnchor();
     await runNight({
       config,
       nightId: 20261106n,
       log: () => undefined,
       store: mem.store,
+      anchorStore: anchored.anchorStore,
+      ledger: anchored.ledger,
       router,
       storage: { upload: async () => ({ rootHash: `0x${"ab".repeat(32)}`, txHash: `0x${"cd".repeat(32)}` }), download: async () => new Uint8Array() },
       now: () => new Date("2026-11-06T23:10:00Z"),
       sleep: async () => undefined,
       readFile: async () => new TextEncoder().encode("hello"),
     });
+    expect(anchored.lookups()).toBe(1);
 
     expect(models).toBe(1);
     expect(mem.runs).toEqual(["a", "b"]);
@@ -134,19 +169,70 @@ describe("runNight", () => {
       generateImage: async () => { throw new Error("no"); },
     } as UserRouter;
 
+    const anchored = emptyAnchor();
     await runNight({
       config,
       nightId: 20261106n,
       log: () => undefined,
       store: mem.store,
+      anchorStore: anchored.anchorStore,
+      ledger: anchored.ledger,
       router,
       storage: { upload: async () => ({ rootHash: `0x${"ab".repeat(32)}`, txHash: `0x${"cd".repeat(32)}` }), download: async () => new Uint8Array() },
       now: () => now,
       sleep: async () => undefined,
       readFile: async () => new TextEncoder().encode("hello"),
     });
+    expect(anchored.lookups()).toBe(1);
 
     expect(mem.runs).toEqual(["a"]);
     expect(mem.state.get("tb")).toBeUndefined();
+  });
+
+  it("anchors completed tasks after the user loop without calling the Router when nobody is queued", async () => {
+    const task: CompletedTask = {
+      id: "task-1",
+      owner: "0x1111111111111111111111111111111111111111",
+      outputRoot: `0x${"ab".repeat(32)}`,
+      steps: [{ step: "analyze", model: "0gm-1.0-35b-a3b", requestId: "req-1", costUsdMicro: "10", trust: "private" }],
+    };
+    const uploads: Uint8Array[] = [];
+    let itemCount = 0;
+    const anchorStore: AnchorStore = {
+      completedTasks: async () => [task],
+      saveTree: async () => undefined,
+      saveManifestRoot: async () => undefined,
+      saveAnchorTx: async () => undefined,
+    };
+    const ledger: LedgerClient = {
+      anchorNight: async (input) => {
+        itemCount = input.itemCount;
+        expect(input.manifestRoot).toBe(`0x${"cd".repeat(32)}`);
+        expect(input.nightId).toBe(20261106n);
+        return { txHash: `0x${"12".repeat(32)}` };
+      },
+    };
+
+    await runNight({
+      config: { ...config, ZG_CHAIN_ID: 16602, LEDGER_CONTRACT_ADDRESS: "0xA3B6664b487FC01c4264977c9B92058A89C31Ed7" } as WorkerConfig,
+      nightId: 20261106n,
+      log: () => undefined,
+      store: memory([], []).store,
+      anchorStore,
+      ledger,
+      router: { listModels: async () => { throw new Error("the Router must not be called"); } } as unknown as UserRouter,
+      storage: {
+        upload: async (bytes) => {
+          uploads.push(bytes);
+          return { rootHash: `0x${"cd".repeat(32)}`, txHash: `0x${"ef".repeat(32)}` };
+        },
+        download: async () => new Uint8Array(),
+      },
+    });
+
+    expect(itemCount).toBe(1);
+    const manifest = JSON.parse(new TextDecoder().decode(uploads[0]!)) as { donationsRecorded: boolean; leaves: { requestId: string }[] };
+    expect(manifest.donationsRecorded).toBe(false);
+    expect(manifest.leaves.map((leaf) => leaf.requestId)).toEqual(["req-1"]);
   });
 });

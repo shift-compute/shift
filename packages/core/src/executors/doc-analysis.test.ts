@@ -65,7 +65,7 @@ describe("runDocAnalysis", () => {
     const out = await runDocAnalysis(ctx, { text: "body", chars: 99, truncated: true });
 
     expect(out.result).toEqual({ summary: "s", actionItems: ["a"], risks: [], truncated: true, chars: 99 });
-    expect(out.steps).toEqual([{ step: "analyze", model: "m", requestId: "req-1" }]);
+    expect(out.steps).toEqual([{ step: "analyze", model: "m", trust: "verified", requestId: "req-1" }]);
     expect(chat.mock.calls[0]![2]).toEqual({ trustMode: "verified", clientRequestId: "t9-1-analyze" });
   });
 

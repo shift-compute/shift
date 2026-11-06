@@ -31,8 +31,8 @@ function respond(result: RunNowResult): NextResponse {
 }
 
 /**
- * Runs the real per-user pipeline now (plan §9.1). Same `runUser` as the nightly worker, for the signed-in user only.
- * Manual nights use a unix-seconds id because `Night.id` is a BigInt.
+ * Runs the real per-user pipeline now (plan §9.1). Same `runUser` as the nightly worker, for the signed-in user only,
+ * then the same `anchorNight` when the batch has leaves. Manual nights use a unix-seconds id because `Night.id` is a BigInt.
  */
 export async function POST() {
   const user = await getCurrentUser();
@@ -45,14 +45,19 @@ export async function POST() {
       readOperatorKey(process.env);
     },
     run: async (connected, nightId) => {
+      const config = getConfig();
       const summary = await runCurrentUser({
         db: getDb(),
         user: connected,
         nightId,
-        config: runConfig(getConfig()),
+        config: runConfig(config),
         router: getRouter(),
         storage: await getStorage(),
         log,
+        chainId: config.ZG_CHAIN_ID,
+        chainRpcUrl: config.ZG_CHAIN_RPC_URL,
+        ledgerAddress: config.LEDGER_CONTRACT_ADDRESS,
+        operatorKey: readOperatorKey(process.env),
       });
       log(`run now user ${connected.id} night ${summary.nightId} ${summary.status}`);
       return summary;

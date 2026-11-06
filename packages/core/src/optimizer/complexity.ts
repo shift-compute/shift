@@ -93,7 +93,7 @@ export async function classifyComplexity(i: ClassifyInput): Promise<Classificati
       trustMode: i.trustMode,
       clientRequestId: `${i.taskId}-${i.attempt}-classify`,
     });
-    return { ...readComplexity(res.data), step: recordStep("classify", i.model, res) };
+    return { ...readComplexity(res.data), step: recordStep("classify", i.model, res, i.trustMode) };
   } catch {
     return { complexity: "standard", fellBack: true };
   }

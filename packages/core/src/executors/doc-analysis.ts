@@ -41,6 +41,6 @@ export async function runDocAnalysis(ctx: ExecutorContext, doc: DocText): Promis
   return {
     result: { ...parsed, truncated: doc.truncated, chars: doc.chars },
     files: [],
-    steps: [recordStep("analyze", ctx.models.chat, chat)],
+    steps: [recordStep("analyze", ctx.models.chat, chat, ctx.trustMode)],
   };
 }

@@ -78,7 +78,7 @@ model Task {
   chosenModel        String?
   estCostUsdMicro    BigInt?
   actualCostUsdMicro BigInt?
-  steps              Json? // [{step, model, requestId, trace, costUsdMicro}]
+  steps              Json? // [{step, model, trust, requestId, trace, costUsdMicro}]
   outputRoot         String? // 0G Storage root hash
   outputTx           String?
   error              String?
