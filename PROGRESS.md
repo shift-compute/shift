@@ -3,9 +3,9 @@
 Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
-**Current phase:** F6 — Delivery (F3.12 and F4.7 remain open: blocked on Router credits; F6.1 deploy is not done)
-**Next item:** F6.4 (F6.1 stays open, awaiting deploy)
-**Commits so far:** 66 (target for the project: 50–90)
+**Current phase:** F6 — Delivery (F6.1 deploy is next; F3.12 and F4.7 remain open, blocked on Router credits; F5 is optional)
+**Next item:** F6.1 (deploy), or F5 if taken, or the blocked runs F3.12 / F4.7 once Router credits exist
+**Commits so far:** 67 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -128,7 +128,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
   - Judge-facing README: Galileo ShiftLedger address, local run, `/verify?rid=` flow, commons license, and empty placeholders for the live URL, request-id table, and video. No request ids, anchor txs, or manifest roots were invented. F6.1 stays open (no deploy). F3.12 and F4.7 stay blocked on 0 Router balance.
 - [x] F6.3 Request ID table, contract and storage links in README — `docs: add verifiable run evidence`
   - README evidence section links the Galileo ShiftLedger page, the F0.6 deploy tx, the turbo indexer `https://indexer-storage-testnet-turbo.0g.ai`, and `docs/spike/STORAGE_RESULTS.json` (Phase 0 root `0x35eb71f2…d589`, indexer `/file?root=`). The request-id table has one waiting row. No request id, anchor tx, or night manifest root was added. F3.12, F4.7, and F6.1 stay open. Next is F6.4.
-- [ ] F6.4 Demo video link + submission details — `docs: add demo video and submission info`
+- [x] F6.4 Demo video link + submission details — `docs: add demo video and submission info`
+  - README submission section: deadline Saturday 7 November 2026, 09:00 IST (no late submissions), Jio World Convention Centre, Galileo testnet only (chain ID 16602), repo link, and the demo path (connect → queue → run now or the night window → `/nights/[id]` → `/verify?rid=` → `/commons`). The demo video is a placeholder plus the plan §24 shot list (night strip, provenance, verify, commons accept/reject). No video URL was added. Narration is human-recorded; text-to-speech and AI voices stay out. The only sponsor prize named for the form is 0G "Build with 0G PC"; Arkiv stays off because Appendix A was not built (F5.2 open). F6.1, F3.12, and F4.7 stay open. Next is F6.1, or F5 / the blocked runs.
 
 Planned commits: ~58 + a few `fix:` commits = within the 50–90 target.
 
@@ -189,6 +190,7 @@ Short entries: date — decision — reason. Example: `2026-11-06 — budget mod
 - 2026-11-06 — the night strip is the only bold surface, on the home page, the queue and a night's results — block width is cost share (preview estimates, or reported micro-USD on a recorded night). First light is a `DONE` night. Home keeps the first preview while a run is in progress so a finished task keeps its estimated width, and status polls hit the database rather than the Router. F4.7 stays blocked on the 0 Router balance, same as F3.12, so the next build item is F6.1.
 - 2026-11-06 — the judge README ships before deploy and before a real run — F6.1 is still open and the Router balance is 0, so the live URL, request-id table, and video stay empty until F6.1, F6.3, and F6.4. No rows were invented. Chain and storage stay on Galileo (chain ID 16602).
 - 2026-11-06 — the request-id table stays on a waiting row until a funded run — F6.3 publishes the Galileo contract page, the F0.6 deploy tx, the turbo indexer, and the Phase 0 storage proof in `docs/spike/STORAGE_RESULTS.json`. A night's request ids, anchor tx, and manifest root are filled in only after F3.12. F6.1 and F6.4 stay open.
+- 2026-11-06 — the demo video stays a placeholder until a person records it — F6.4 writes the submission details and the shot list from plan §24 (night strip, provenance, verify, commons accept/reject). No URL was invented. Narration is a human voice, not text-to-speech or an AI voice. The only sponsor prize named for the form is 0G "Build with 0G PC"; Arkiv stays off because Appendix A was not built. F6.1, F3.12, and F4.7 stay open. Next is F6.1, or F5 / the blocked runs.
 
 ## Blockers
 - **The Router catalog changed after Phase 0.** At ~16:30 UTC on 2026-11-05 `GET /v1/models` returned 124 models, 9 of them TeeML (`0gm-1.0-35b-a3b`, `glm-5.3`, `laya`, `vela-2.0-9b`, `whisper-large-v3`, `z-image-turbo`, embeddings). Later the same day, with or without a key and with any trust-mode header, it returns 79 models, no `verifiability` field and none of those: no decision models, no speech-to-text, no private (TeeML) models. Shift's core (decision models, Whisper, private trust mode) depends on them. Ask 0G at the booth whether this is an outage or a permanent change; re-run `pnpm smoke` to refresh `docs/spike/models.json` (the committed copy is the earlier catalog). F3.1's loader accepts the reduced body: missing `verifiability` becomes trust `standard`, and an empty TeeML set does not throw. Private mode then has no chat model to plan with. F3.3 plans text tasks as `standard` and does not call `/v1/decisions` when that list also has no decision model. F4.3 leaves `RUNNING` commons rows untouched in that case and does not mark them accepted.
