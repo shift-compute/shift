@@ -25,7 +25,8 @@ import type { UsageRow } from "../zg/schemas";
 import type { StorageClient } from "../zg/storage";
 import { z } from "zod";
 import { decideBudget, type BudgetDecision } from "./budget";
-import { pickTranslationModels, runCommonsTranslations, type CommonsStore } from "./commons";
+import { pickTranslationModels, runCommonsTranslations, type CommonsStore, type CommonsTranslationResult } from "./commons";
+import { DEFAULT_COMMONS_GATE_THRESHOLD, runCommonsQualityGate, type CommonsDecide, type CommonsGateResult } from "./commons-gate";
 import type { ConnectedUser, OpenTask, PipelineStore, RunPatch } from "./store";
 import { resolveUpload } from "./uploads";
 
@@ -49,7 +50,7 @@ const MIME_BY_EXT: Record<string, string> = {
   ".md": "text/markdown",
 };
 
-export type RunConfig = Pick<WorkerConfig, "SHIFT_MASTER_KEY" | "SAFETY_MARGIN_PCT" | "MAX_CONCURRENCY" | "NIGHT_HARD_STOP_UTC" | "UPLOAD_DIR">;
+export type RunConfig = Pick<WorkerConfig, "SHIFT_MASTER_KEY" | "SAFETY_MARGIN_PCT" | "MAX_CONCURRENCY" | "NIGHT_HARD_STOP_UTC" | "UPLOAD_DIR" | "COMMONS_GATE_THRESHOLD">;
 
 /** The Router methods one user night needs. The real client satisfies this; tests pass their own. */
 export type UserRouter = Pick<RouterClient, "listModels" | "getBalance" | "getUsageHistory" | "createApiKey" | "revokeApiKey" | "chat" | "decide" | "transcribe" | "generateImage">;
@@ -91,7 +92,7 @@ interface Spend {
   reportedMicro: bigint;
   /** Reported cost where we have it, otherwise the estimate. This is what the optimizer treats as spent. */
   accountedMicro: bigint;
-  /** Reported cost of commons translations. Personal tasks stay in `reportedMicro`. */
+  /** Reported cost of commons translations and the quality gate. Personal tasks stay in `reportedMicro`. */
   donatedMicro: bigint;
 }
 
@@ -104,8 +105,8 @@ const DEFER = {
  * One connected user's night (plan §9.3).
  * Decrypts the management key in memory, caps an ephemeral inference key, plans with the optimizer and runs the
  * executors for real. The key is revoked before this function returns. When `donateLeftover` is set, whatever budget
- * the personal tasks did not spend translates PENDING commons items (plan §12.2, steps 1–2 only). The quality gate
- * and `recordDonations` are later phases.
+ * the personal tasks did not spend translates PENDING commons items and runs the decision-model quality gate
+ * (plan §12.2, steps 1–5). `recordDonations` is still a later phase.
  */
 export async function runUser(deps: RunUserDeps): Promise<RunUserOutcome> {
   const run = await openRun(deps.store, deps.nightId, deps.user.id);
@@ -266,34 +267,74 @@ async function spendCommons(deps: RunUserDeps, sk: string, catalog: CatalogEntry
   if (!deps.user.donateLeftover || !deps.commons) return none;
   const remaining = budgetMicro > spentAccounted ? budgetMicro - spentAccounted : 0n;
   const now = deps.now ?? (() => new Date());
-  const translated = await runCommonsTranslations({
-    commons: deps.commons,
-    chat: (key, body, options) => deps.router.chat(key, body, options),
+  const commons = deps.commons;
+  const gateBase = {
+    commons,
+    decide: ((key, body, options) => deps.router.decide(key, body, options)) satisfies CommonsDecide,
+    upload: (bytes: Uint8Array) => deps.storage.upload(bytes),
     sk,
     catalog,
-    remainingMicro: remaining,
     userId: deps.user.id,
-    nightId: deps.nightId,
+    threshold: deps.config.COMMONS_GATE_THRESHOLD ?? DEFAULT_COMMONS_GATE_THRESHOLD,
     hardStopUtc: deps.config.NIGHT_HARD_STOP_UTC,
     now,
     ...(deps.sleep ? { sleep: deps.sleep } : {}),
     log: deps.log,
-  });
+  };
+  // Finish pairs already RUNNING (an earlier night had no decision model, or the upload failed) before new translations.
+  const opened = await runCommonsQualityGate({ ...gateBase, remainingMicro: remaining });
+  const afterOpen = remaining > opened.accountedMicro ? remaining - opened.accountedMicro : 0n;
+  const blocked = opened.stop === "hard_stop" || opened.stop === "balance";
+  const translated = blocked
+    ? { translated: 0, failed: 0, reportedMicro: 0n, accountedMicro: 0n, requestIds: [] as string[], stop: opened.stop }
+    : await runCommonsTranslations({
+        commons,
+        chat: (key, body, options) => deps.router.chat(key, body, options),
+        sk,
+        catalog,
+        remainingMicro: afterOpen,
+        userId: deps.user.id,
+        nightId: deps.nightId,
+        hardStopUtc: deps.config.NIGHT_HARD_STOP_UTC,
+        now,
+        ...(deps.sleep ? { sleep: deps.sleep } : {}),
+        log: deps.log,
+      });
+  logTranslations(deps, translated, afterOpen);
+  const afterPairs = afterOpen > translated.accountedMicro ? afterOpen - translated.accountedMicro : 0n;
+  const closed =
+    blocked || translated.stop === "hard_stop" || translated.stop === "balance"
+      ? emptyGate()
+      : await runCommonsQualityGate({ ...gateBase, remainingMicro: afterPairs });
+  const accepted = opened.accepted + closed.accepted;
+  const rejected = opened.rejected + closed.rejected;
+  if (accepted > 0 || rejected > 0) {
+    const gateReported = opened.reportedMicro + closed.reportedMicro;
+    deps.log(`user ${deps.user.id}: commons gate accepted ${accepted}, rejected ${rejected}; ${gateReported} micro-USD`);
+  }
+  const reported = opened.reportedMicro + translated.reportedMicro + closed.reportedMicro;
+  return {
+    requestIds: [...opened.requestIds, ...translated.requestIds, ...closed.requestIds],
+    reportedMicro: reported,
+    accountedMicro: opened.accountedMicro + translated.accountedMicro + closed.accountedMicro,
+    donatedMicro: reported,
+  };
+}
+
+function emptyGate(): CommonsGateResult {
+  return { accepted: 0, rejected: 0, held: 0, reportedMicro: 0n, accountedMicro: 0n, requestIds: [], stop: "done" };
+}
+
+function logTranslations(deps: RunUserDeps, translated: CommonsTranslationResult, remaining: bigint): void {
   if (translated.stop === "no_model" && remaining > 0n) {
     deps.log(`user ${deps.user.id}: ${remaining} micro-USD left; the catalog has fewer than two private chat models, so commons items stay pending`);
   } else if (translated.translated > 0 || translated.failed > 0) {
-    deps.log(`user ${deps.user.id}: commons translations ${translated.translated} ready, ${translated.failed} failed; donated ${translated.reportedMicro} micro-USD`);
+    deps.log(`user ${deps.user.id}: commons translations ${translated.translated} ready, ${translated.failed} failed; ${translated.reportedMicro} micro-USD`);
   } else if (translated.stop === "budget" && remaining > 0n) {
     deps.log(`user ${deps.user.id}: ${remaining} micro-USD left cannot fund another translation pair; pending commons items stay pending`);
   } else if (translated.stop === "hard_stop") {
     deps.log(`user ${deps.user.id}: hard stop reached; commons items not started stay pending`);
   }
-  return {
-    requestIds: translated.requestIds,
-    reportedMicro: translated.reportedMicro,
-    accountedMicro: translated.accountedMicro,
-    donatedMicro: translated.reportedMicro,
-  };
 }
 
 async function prepareTasks(deps: RunUserDeps, tasks: OpenTask[]): Promise<Prepared[]> {

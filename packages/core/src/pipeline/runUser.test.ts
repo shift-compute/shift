@@ -2,12 +2,13 @@ import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { buildCatalog } from "../catalog/catalog";
 import { estimateCostMicro, estimateDecisionMicro, estimateTranslationMicro } from "../catalog/estimator";
+import { gateQuestionChars, pickGateModel } from "./commons-gate";
 import { complexityState } from "../optimizer/complexity";
 import { COST_DRIFT_PERCENT, costDrifted } from "../optimizer/replan";
 import { sealSecret } from "../crypto/vault";
 import { RouterError } from "../zg/errors";
 import type { StorageClient } from "../zg/storage";
-import { translationSystemPrompt, type CommonsItemRef, type CommonsStore, type CommonsTranslationPatch } from "./commons";
+import { translationSystemPrompt, type CommonsGateItem, type CommonsItemRef, type CommonsStore, type CommonsTranslationPatch } from "./commons";
 import { runUser, type RunConfig, type UserRouter } from "./runUser";
 import type { ConnectedUser, OpenTask, PipelineStore, TaskPatch } from "./store";
 
@@ -24,6 +25,7 @@ const config: RunConfig = {
   MAX_CONCURRENCY: 1,
   NIGHT_HARD_STOP_UTC: "23:50",
   UPLOAD_DIR: "/tmp/shift-uploads",
+  COMMONS_GATE_THRESHOLD: 0.75,
 };
 
 function user(over: Partial<ConnectedUser> = {}): ConnectedUser {
@@ -763,13 +765,141 @@ describe("runUser", () => {
     expect(h.logs.join("\n")).toContain("fewer than two private chat models");
     expect([...h.runs.values()][0]?.donatedUsdMicro).toBe(0n);
   });
+
+  it("accepts a translated commons item and stores the injected storage root", async () => {
+    const source = "Ethereum gas pays for a smart contract.";
+    const rows = [commonsRow("c1", source, "hi")];
+    const h = harness({
+      tasks: [],
+      models: [
+        { id: "0gm-1.0-35b-a3b", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0.000001", completion: "0.000001" } },
+        { id: "glm-5.3", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0.000001", completion: "0.000001" } },
+        { id: "laya", type: "decisions", verifiability: "TeeML", context_length: 512, pricing_usd: { prompt: "0", completion: "0" } },
+      ],
+      chat: async (_sk, body) => ({ data: { choices: [{ message: { content: `tr-${body.model}` } }] }, status: 200, requestId: `req-${body.model}`, trace: { billing: { total_cost_usd_micro: "5" } } }),
+      decide: async (_sk, body) => {
+        expect(body.model).toBe("laya");
+        expect(body.questions["choice"]).toMatchObject({
+          type: "choice",
+          instructions: "Do translation A and translation B convey the same meaning as the source?",
+          criteria: ["yes", "no"],
+        });
+        return { data: { model: "laya", answers: { choice: { type: "choice", probabilities: { yes: 0.75, no: 0.25 } } } }, status: 200, requestId: "req-gate", trace: { billing: { total_cost_usd_micro: "4" } } };
+      },
+    });
+    await run(h, { user: user({ donateLeftover: true }), commons: memoryCommons(rows), config: { ...config, SAFETY_MARGIN_PCT: 0 } });
+    expect(rows[0]).toMatchObject({
+      status: "ACCEPTED",
+      translationA: "tr-glm-5.3",
+      translationB: "tr-0gm-1.0-35b-a3b",
+      gateModel: "laya",
+      gateProbability: 0.75,
+      requestIds: ["req-glm-5.3", "req-0gm-1.0-35b-a3b", "req-gate"],
+      costUsdMicro: 14n,
+    });
+    expect(rows[0]?.outputRoot).toMatch(/^0x[0-9a-f]{64}$/);
+    const stored = JSON.parse(new TextDecoder().decode(h.uploads[0]!)) as { source: string; translationA: string; probability: number; requestIds: string[]; models: { gate: string } };
+    expect(stored).toMatchObject({
+      source,
+      translationA: "tr-glm-5.3",
+      models: { translationA: "glm-5.3", translationB: "0gm-1.0-35b-a3b", gate: "laya" },
+      requestIds: ["req-glm-5.3", "req-0gm-1.0-35b-a3b", "req-gate"],
+      probability: 0.75,
+    });
+    expect(stored.models.gate).toBe("laya");
+    expect([...h.runs.values()][0]?.donatedUsdMicro).toBe(14n);
+    expect(h.events).toContain("revoke");
+  });
+
+  it("rejects a translation below the threshold and does not upload it", async () => {
+    const rows = [commonsRow("c1", "Ethereum gas pays for a smart contract.", "hi")];
+    const h = harness({
+      tasks: [],
+      models: [
+        { id: "0gm-1.0-35b-a3b", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0", completion: "0" } },
+        { id: "glm-5.3", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0", completion: "0" } },
+        { id: "laya", type: "decisions", verifiability: "TeeML", context_length: 512, pricing_usd: { prompt: "0", completion: "0" } },
+      ],
+      chat: async (_sk, body) => ({ data: { choices: [{ message: { content: "अनुवाद" } }] }, status: 200, requestId: `req-${body.model}`, trace: { billing: { total_cost_usd_micro: "3" } } }),
+      decide: async () => ({ data: { model: "laya", answers: { choice: { type: "choice", probabilities: { yes: 0.74, no: 0.26 } } } }, status: 200, requestId: "req-gate", trace: { billing: { total_cost_usd_micro: "2" } } }),
+    });
+    await run(h, { user: user({ donateLeftover: true }), commons: memoryCommons(rows), config: { ...config, SAFETY_MARGIN_PCT: 0 } });
+    expect(rows[0]).toMatchObject({ status: "REJECTED", translationA: "अनुवाद", translationB: "अनुवाद", gateProbability: 0.74, gateModel: "laya" });
+    expect(rows[0]?.outputRoot).toBeUndefined();
+    expect(h.uploads).toHaveLength(0);
+    expect([...h.runs.values()][0]?.donatedUsdMicro).toBe(8n);
+  });
+
+  it("gates a waiting RUNNING item before paying for another translation pair", async () => {
+    const source = "Ethereum gas pays for a smart contract.";
+    const chatModels = [
+      { id: "glm-5.3", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0.0001", completion: "0.0001" } },
+      { id: "0gm-1.0-35b-a3b", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0.0001", completion: "0.0001" } },
+    ];
+    const decisionModel = { id: "narrow-dm", type: "decisions", verifiability: "TeeML", context_length: 512, pricing_usd: { prompt: "0.00000001", completion: "0" } };
+    const entries = buildCatalog([...chatModels, decisionModel]);
+    const glm = entries.find((entry) => entry.id === "glm-5.3");
+    const lite = entries.find((entry) => entry.id === "0gm-1.0-35b-a3b");
+    if (!glm || !lite) throw new Error("missing chat model");
+    const pair = estimateTranslationMicro(glm, source.length, translationSystemPrompt("Hindi").length) + estimateTranslationMicro(lite, source.length, translationSystemPrompt("Hindi").length);
+    const picked = pickGateModel(entries, source, "एक", "दोन");
+    if (!picked) throw new Error("missing decision model");
+    const gateEstimate = estimateDecisionMicro(picked.model, picked.state.length + gateQuestionChars());
+    expect(gateEstimate > 0n && gateEstimate < pair).toBe(true);
+    const rows = [
+      commonsRow("old", source, "hi", {
+        status: "RUNNING",
+        translationA: "एक",
+        translationB: "दोन",
+        modelA: "glm-5.3",
+        modelB: "0gm-1.0-35b-a3b",
+        requestIds: ["req-a", "req-b"],
+        costUsdMicro: 5n,
+        donorUserId: "user-1",
+        nightId: NIGHT,
+      }),
+      commonsRow("new", source, "mr"),
+    ];
+    let chats = 0;
+    const h = harness({
+      tasks: [],
+      models: [...chatModels, decisionModel],
+      balance: usdBalance(pair.toString(), "0"),
+      chat: async () => {
+        chats += 1;
+        throw new Error("a new pair must wait");
+      },
+      decide: async () => ({ data: { model: "narrow-dm", answers: { choice: { type: "choice", probabilities: { yes: 0.9, no: 0.1 } } } }, status: 200, requestId: "req-gate", trace: { billing: { total_cost_usd_micro: gateEstimate.toString() } } }),
+    });
+    await run(h, { user: user({ donateLeftover: true }), commons: memoryCommons(rows), config: { ...config, SAFETY_MARGIN_PCT: 0 } });
+    expect(chats).toBe(0);
+    expect(rows[0]).toMatchObject({ status: "ACCEPTED", gateModel: "narrow-dm", gateProbability: 0.9, costUsdMicro: 5n + gateEstimate });
+    expect(rows[0]?.outputRoot).toMatch(/^0x[0-9a-f]{64}$/);
+    expect(rows[1]?.status).toBe("PENDING");
+    expect([...h.runs.values()][0]?.donatedUsdMicro).toBe(gateEstimate);
+  });
 });
 
-function commonsRow(id: string, sourceText: string, targetLang: string): CommonsItemRef & CommonsTranslationPatch & { status: "PENDING" | "RUNNING" | "FAILED"; requestIds: string[] } {
-  return { id, sourceText, targetLang, status: "PENDING", requestIds: [] };
+interface CommonsRow extends CommonsItemRef {
+  status: "PENDING" | "RUNNING" | "FAILED" | "ACCEPTED" | "REJECTED";
+  translationA?: string | null;
+  translationB?: string | null;
+  modelA?: string | null;
+  modelB?: string | null;
+  requestIds: string[];
+  costUsdMicro?: bigint | null;
+  donorUserId?: string | null;
+  nightId?: bigint | null;
+  gateModel?: string | null;
+  gateProbability?: number | null;
+  outputRoot?: string | null;
 }
 
-function memoryCommons(rows: Array<CommonsItemRef & { status: "PENDING" | "RUNNING" | "FAILED"; requestIds: string[] }>): CommonsStore {
+function commonsRow(id: string, sourceText: string, targetLang: string, over: Partial<CommonsRow> = {}): CommonsRow {
+  return { id, sourceText, targetLang, status: "PENDING", requestIds: [], ...over };
+}
+
+function memoryCommons(rows: CommonsRow[]): CommonsStore {
   return {
     pendingItems: async () => rows.filter((row) => row.status === "PENDING").map((row) => ({ id: row.id, sourceText: row.sourceText, targetLang: row.targetLang })),
     claim: async (id, donor) => {
@@ -779,7 +909,24 @@ function memoryCommons(rows: Array<CommonsItemRef & { status: "PENDING" | "RUNNI
       Object.assign(row, { donorUserId: donor.userId, nightId: donor.nightId });
       return true;
     },
-    save: async (id, patch) => {
+    runningItems: async (userId) =>
+      rows.flatMap((row): CommonsGateItem[] => {
+        if (row.status !== "RUNNING" || row.donorUserId !== userId) return [];
+        if (!row.translationA || !row.translationB || !row.modelA || !row.modelB) return [];
+        return [{
+          id: row.id,
+          sourceText: row.sourceText,
+          translationA: row.translationA,
+          translationB: row.translationB,
+          modelA: row.modelA,
+          modelB: row.modelB,
+          requestIds: row.requestIds,
+          costUsdMicro: row.costUsdMicro ?? null,
+          gateModel: row.gateModel ?? null,
+          gateProbability: row.gateProbability ?? null,
+        }];
+      }),
+    save: async (id, patch: CommonsTranslationPatch) => {
       const row = rows.find((item) => item.id === id);
       if (!row) throw new Error(`missing ${id}`);
       Object.assign(row, patch);

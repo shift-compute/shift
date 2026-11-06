@@ -46,6 +46,7 @@ const config = {
   NIGHT_START_UTC: "23:00",
   NIGHT_HARD_STOP_UTC: "23:50",
   UPLOAD_DIR: "/tmp/shift-uploads",
+  COMMONS_GATE_THRESHOLD: 0.75,
 } as WorkerConfig;
 
 const docReply = { data: { choices: [{ message: { content: '{"summary":"Ok.","actionItems":[],"risks":[]}' } }] }, status: 200, requestId: "req-doc", trace: { billing: { total_cost_usd_micro: "1" } } };
@@ -240,14 +241,44 @@ describe("runNight", () => {
     const user = connected("donor", "mk-dddddddddddddddddddd");
     user.donateLeftover = true;
     const mem = memory([user], []);
-    const row = { id: "c1", sourceText: "Ethereum gas pays for a smart contract.", targetLang: "hi", status: "PENDING", requestIds: [] as string[], translationA: undefined as string | undefined, translationB: undefined as string | undefined };
+    const row = {
+      id: "c1",
+      sourceText: "Ethereum gas pays for a smart contract.",
+      targetLang: "hi",
+      status: "PENDING",
+      requestIds: [] as string[],
+      translationA: undefined as string | undefined,
+      translationB: undefined as string | undefined,
+      modelA: undefined as string | undefined,
+      modelB: undefined as string | undefined,
+      donorUserId: undefined as string | undefined,
+      costUsdMicro: undefined as bigint | undefined,
+      gateModel: undefined as string | null | undefined,
+      gateProbability: undefined as number | null | undefined,
+    };
     const commons: CommonsStore = {
       pendingItems: async () => (row.status === "PENDING" ? [{ id: row.id, sourceText: row.sourceText, targetLang: row.targetLang }] : []),
       claim: async (id, donor) => {
         if (row.status !== "PENDING" || id !== row.id) return false;
         row.status = "RUNNING";
+        row.donorUserId = donor.userId;
         expect(donor.userId).toBe("donor");
         return true;
+      },
+      runningItems: async (userId) => {
+        if (row.status !== "RUNNING" || row.donorUserId !== userId || !row.translationA || !row.translationB || !row.modelA || !row.modelB) return [];
+        return [{
+          id: row.id,
+          sourceText: row.sourceText,
+          translationA: row.translationA,
+          translationB: row.translationB,
+          modelA: row.modelA,
+          modelB: row.modelB,
+          requestIds: row.requestIds,
+          costUsdMicro: row.costUsdMicro ?? null,
+          gateModel: row.gateModel ?? null,
+          gateProbability: row.gateProbability ?? null,
+        }];
       },
       save: async (_id, patch) => {
         Object.assign(row, patch);

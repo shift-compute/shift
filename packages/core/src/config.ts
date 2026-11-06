@@ -33,6 +33,8 @@ const sharedShape = {
   NIGHT_HARD_STOP_UTC: hhmm.default("23:50"),
   SAFETY_MARGIN_PCT: z.coerce.number().int().min(0).max(50).default(10),
   MAX_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(3),
+  // Shared so a manual run uses the same cutoff as the nightly worker.
+  COMMONS_GATE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.75),
 };
 
 const webSchema = z.object({
@@ -46,7 +48,6 @@ const workerSchema = z
     ...sharedShape,
     OPERATOR_PRIVATE_KEY: privateKey,
     NIGHT_START_UTC: hhmm.default("23:00"),
-    COMMONS_GATE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.75),
   })
   .refine((c) => c.NIGHT_START_UTC < c.NIGHT_HARD_STOP_UTC, {
     path: ["NIGHT_HARD_STOP_UTC"],

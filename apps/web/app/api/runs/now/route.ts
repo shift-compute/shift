@@ -22,6 +22,7 @@ function runConfig(config: WebConfig): RunConfig {
     SAFETY_MARGIN_PCT: config.SAFETY_MARGIN_PCT,
     MAX_CONCURRENCY: config.MAX_CONCURRENCY,
     NIGHT_HARD_STOP_UTC: config.NIGHT_HARD_STOP_UTC,
+    COMMONS_GATE_THRESHOLD: config.COMMONS_GATE_THRESHOLD,
   };
 }
 
