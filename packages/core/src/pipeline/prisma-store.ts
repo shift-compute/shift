@@ -1,4 +1,5 @@
 import { PrismaClient } from "../db/client";
+import type { CommonsStore, CommonsTranslationPatch } from "./commons";
 import type { ConnectedUser, OpenTask, PipelineStore, RunPatch, TaskPatch } from "./store";
 
 type TaskData = NonNullable<Parameters<PrismaClient["task"]["update"]>[0]["data"]>;
@@ -77,6 +78,45 @@ export function prismaPipelineStore(db: PrismaClient): PipelineStore {
     async updateTask(id, patch) {
       await db.task.update({ where: { id }, data: taskData(patch) });
     },
+  };
+}
+
+/** Prisma backing for commons translations. Claim is conditional so two nights cannot take the same PENDING row. */
+export function prismaCommonsStore(db: PrismaClient): CommonsStore {
+  return {
+    async pendingItems() {
+      return db.commonsItem.findMany({
+        where: { status: "PENDING" },
+        orderBy: { id: "asc" },
+        select: { id: true, sourceText: true, targetLang: true },
+      });
+    },
+
+    async claim(id, donor) {
+      const updated = await db.commonsItem.updateMany({
+        where: { id, status: "PENDING" },
+        data: { status: "RUNNING", donorUserId: donor.userId, nightId: donor.nightId },
+      });
+      return updated.count === 1;
+    },
+
+    async save(id, patch) {
+      await db.commonsItem.update({ where: { id }, data: commonsData(patch) });
+    },
+  };
+}
+
+function commonsData(patch: CommonsTranslationPatch): NonNullable<Parameters<PrismaClient["commonsItem"]["update"]>[0]["data"]> {
+  return {
+    status: patch.status,
+    ...(patch.translationA !== undefined ? { translationA: patch.translationA } : {}),
+    ...(patch.translationB !== undefined ? { translationB: patch.translationB } : {}),
+    ...(patch.modelA !== undefined ? { modelA: patch.modelA } : {}),
+    ...(patch.modelB !== undefined ? { modelB: patch.modelB } : {}),
+    ...(patch.requestIds !== undefined ? { requestIds: patch.requestIds } : {}),
+    ...(patch.costUsdMicro !== undefined ? { costUsdMicro: patch.costUsdMicro } : {}),
+    ...(patch.donorUserId !== undefined ? { donorUserId: patch.donorUserId } : {}),
+    ...(patch.nightId !== undefined ? { nightId: patch.nightId } : {}),
   };
 }
 

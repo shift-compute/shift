@@ -1,4 +1,4 @@
-import { anchorNight, createLedgerClient, createRouterClient, msUntilHardStop, prismaAnchorStore, prismaPipelineStore, redactString, runUser, type AnchorStore, type CatalogCache, type LedgerClient, type PipelineStore, type PrismaClient, type UserRouter, type WorkerConfig } from "@shift/core";
+import { anchorNight, createLedgerClient, createRouterClient, msUntilHardStop, prismaAnchorStore, prismaCommonsStore, prismaPipelineStore, redactString, runUser, type AnchorStore, type CatalogCache, type CommonsStore, type LedgerClient, type PipelineStore, type PrismaClient, type UserRouter, type WorkerConfig } from "@shift/core";
 import type { StorageClient } from "@shift/core/storage";
 
 export interface NightContext {
@@ -18,6 +18,8 @@ export interface NightContext {
   catalogCache?: CatalogCache;
   sleep?: (ms: number) => Promise<void>;
   readFile?: (absolutePath: string) => Promise<Uint8Array>;
+  /** PENDING commons rows. Unset in production: built from `db`. Tests inject this and a fake chat client. */
+  commons?: CommonsStore;
 }
 
 /**
@@ -38,6 +40,7 @@ export async function runNight(ctx: NightContext): Promise<void> {
     const client = storage ?? (await defaultStorage(ctx.config));
     storage = client;
     const catalogCache = ctx.catalogCache ?? {};
+    const commons = ctx.commons ?? (ctx.db ? prismaCommonsStore(ctx.db) : undefined);
 
     for (const user of users) {
       if (msUntilHardStop(now(), ctx.config.NIGHT_HARD_STOP_UTC) === 0) {
@@ -57,6 +60,7 @@ export async function runNight(ctx: NightContext): Promise<void> {
           now,
           ...(ctx.sleep ? { sleep: ctx.sleep } : {}),
           ...(ctx.readFile ? { readFile: ctx.readFile } : {}),
+          ...(commons ? { commons } : {}),
         });
       } catch (err) {
         // runUser records its own failures. This only catches a failure of that recording, so one user cannot abort the night.

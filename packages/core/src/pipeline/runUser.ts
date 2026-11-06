@@ -25,6 +25,7 @@ import type { UsageRow } from "../zg/schemas";
 import type { StorageClient } from "../zg/storage";
 import { z } from "zod";
 import { decideBudget, type BudgetDecision } from "./budget";
+import { pickTranslationModels, runCommonsTranslations, type CommonsStore } from "./commons";
 import type { ConnectedUser, OpenTask, PipelineStore, RunPatch } from "./store";
 import { resolveUpload } from "./uploads";
 
@@ -65,6 +66,8 @@ export interface RunUserDeps {
   now?: () => Date;
   sleep?: (ms: number) => Promise<void>;
   readFile?: (absolutePath: string) => Promise<Uint8Array>;
+  /** PENDING commons rows. Absent in tests that do not donate. The worker passes the Prisma store. */
+  commons?: CommonsStore;
 }
 
 export interface RunUserOutcome {
@@ -88,6 +91,8 @@ interface Spend {
   reportedMicro: bigint;
   /** Reported cost where we have it, otherwise the estimate. This is what the optimizer treats as spent. */
   accountedMicro: bigint;
+  /** Reported cost of commons translations. Personal tasks stay in `reportedMicro`. */
+  donatedMicro: bigint;
 }
 
 const DEFER = {
@@ -98,8 +103,9 @@ const DEFER = {
 /**
  * One connected user's night (plan §9.3).
  * Decrypts the management key in memory, caps an ephemeral inference key, plans with the optimizer and runs the
- * executors for real. The key is revoked before this function returns. Commons donations and Merkle leaves are later
- * phases: leftover budget is not spent here, and each task's steps and storage root are what those phases will read.
+ * executors for real. The key is revoked before this function returns. When `donateLeftover` is set, whatever budget
+ * the personal tasks did not spend translates PENDING commons items (plan §12.2, steps 1–2 only). The quality gate
+ * and `recordDonations` are later phases.
  */
 export async function runUser(deps: RunUserDeps): Promise<RunUserOutcome> {
   const run = await openRun(deps.store, deps.nightId, deps.user.id);
@@ -141,19 +147,20 @@ async function runOpen(deps: RunUserDeps, runId: string): Promise<RunUserOutcome
   const { user, store, router, log } = deps;
   const now = deps.now ?? (() => new Date());
   const tasks = await store.openTasks(user.id);
-  if (tasks.length === 0) {
-    await store.updateRun(runId, { status: "SKIPPED", error: "No queued tasks. Leftover budget is not donated until the commons queue exists." });
-    log(`user ${user.id}: no queued tasks`);
-    return { status: "SKIPPED", runId };
-  }
+  const donateConfigured = user.donateLeftover && deps.commons !== undefined;
   if (msUntilHardStop(now(), deps.config.NIGHT_HARD_STOP_UTC) === 0) {
     await store.updateRun(runId, { status: "SKIPPED", error: "The hard stop was already reached, so this user did not start." });
     log(`user ${user.id}: hard stop reached before start`);
     return { status: "SKIPPED", runId };
   }
+  if (tasks.length === 0 && !donateConfigured) {
+    await store.updateRun(runId, { status: "SKIPPED", error: "No queued tasks." });
+    log(`user ${user.id}: no queued tasks`);
+    return { status: "SKIPPED", runId };
+  }
 
-  const runnable = await prepareTasks(deps, tasks);
-  if (runnable.length === 0) {
+  const runnable = tasks.length === 0 ? [] : await prepareTasks(deps, tasks);
+  if (runnable.length === 0 && !donateConfigured) {
     await store.updateRun(runId, { status: "DONE", spentUsdMicro: 0n, donatedUsdMicro: 0n });
     return { status: "DONE", runId };
   }
@@ -195,11 +202,17 @@ async function runWithKey(deps: RunUserDeps, runId: string, mk: string, runnable
 
   // Classification needs the ephemeral key, so this check still uses the quality floor of 1.
   // executePlan writes MIN_QUALITY onto each text task and calls planNight again with what that call left.
+  const pair = pickTranslationModels(catalog);
+  const donate = user.donateLeftover && deps.commons !== undefined && pair !== undefined;
   const preview = planNight(runnable.map((task) => task.plan), catalog, "private", budget.budgetMicro);
-  if (preview.assignments.length === 0) {
+  if (preview.assignments.length === 0 && !donate) {
     for (const item of preview.deferred) await defer(store, deps.nightId, item.taskId, DEFER[item.reason]);
     await store.updateRun(runId, { status: "DONE", spentUsdMicro: 0n, donatedUsdMicro: 0n });
-    log(`user ${user.id}: nothing fits tonight's budget`);
+    if (user.donateLeftover && deps.commons && !pair) {
+      log(`user ${user.id}: leftover budget is not spent on commons; the catalog has fewer than two private chat models`);
+    } else {
+      log(`user ${user.id}: nothing fits tonight's budget`);
+    }
     return { status: "DONE", runId };
   }
 
@@ -221,22 +234,66 @@ async function runWithKey(deps: RunUserDeps, runId: string, mk: string, runnable
         revokeError = failureText(err);
       },
     },
-    (sk) => executePlan(deps, sk, runnable.filter((task) => chosen.has(task.row.id)), catalog, budget),
+    async (sk) => {
+      const personal =
+        preview.assignments.length === 0
+          ? { requestIds: [], reportedMicro: 0n, accountedMicro: 0n, donatedMicro: 0n }
+          : await executePlan(deps, sk, runnable.filter((task) => chosen.has(task.row.id)), catalog, budget);
+      const commonsSpend = await spendCommons(deps, sk, catalog, budget.budgetMicro, personal.accountedMicro);
+      return {
+        requestIds: [...personal.requestIds, ...commonsSpend.requestIds],
+        reportedMicro: personal.reportedMicro,
+        accountedMicro: personal.accountedMicro + commonsSpend.accountedMicro,
+        donatedMicro: commonsSpend.reportedMicro,
+      };
+    },
     { sleep: deps.sleep },
   );
 
   const summary: RunPatch = {
     status: "DONE",
     spentUsdMicro: spend.result.reportedMicro,
-    donatedUsdMicro: 0n,
+    donatedUsdMicro: spend.result.donatedMicro,
     ...(revokeError ? { error: `The ephemeral key could not be revoked; the sweeper will retry. ${revokeError}` } : {}),
   };
   await recordUsage(deps, mk, spend.result.requestIds, summary);
   await store.updateRun(runId, summary);
-  if (user.donateLeftover && budget.budgetMicro > spend.result.accountedMicro) {
-    log(`user ${user.id}: ${budget.budgetMicro - spend.result.accountedMicro} micro-USD left; the commons queue is not wired yet`);
-  }
   return { status: "DONE", runId };
+}
+
+async function spendCommons(deps: RunUserDeps, sk: string, catalog: CatalogEntry[], budgetMicro: bigint, spentAccounted: bigint): Promise<Spend> {
+  const none: Spend = { requestIds: [], reportedMicro: 0n, accountedMicro: 0n, donatedMicro: 0n };
+  if (!deps.user.donateLeftover || !deps.commons) return none;
+  const remaining = budgetMicro > spentAccounted ? budgetMicro - spentAccounted : 0n;
+  const now = deps.now ?? (() => new Date());
+  const translated = await runCommonsTranslations({
+    commons: deps.commons,
+    chat: (key, body, options) => deps.router.chat(key, body, options),
+    sk,
+    catalog,
+    remainingMicro: remaining,
+    userId: deps.user.id,
+    nightId: deps.nightId,
+    hardStopUtc: deps.config.NIGHT_HARD_STOP_UTC,
+    now,
+    ...(deps.sleep ? { sleep: deps.sleep } : {}),
+    log: deps.log,
+  });
+  if (translated.stop === "no_model" && remaining > 0n) {
+    deps.log(`user ${deps.user.id}: ${remaining} micro-USD left; the catalog has fewer than two private chat models, so commons items stay pending`);
+  } else if (translated.translated > 0 || translated.failed > 0) {
+    deps.log(`user ${deps.user.id}: commons translations ${translated.translated} ready, ${translated.failed} failed; donated ${translated.reportedMicro} micro-USD`);
+  } else if (translated.stop === "budget" && remaining > 0n) {
+    deps.log(`user ${deps.user.id}: ${remaining} micro-USD left cannot fund another translation pair; pending commons items stay pending`);
+  } else if (translated.stop === "hard_stop") {
+    deps.log(`user ${deps.user.id}: hard stop reached; commons items not started stay pending`);
+  }
+  return {
+    requestIds: translated.requestIds,
+    reportedMicro: translated.reportedMicro,
+    accountedMicro: translated.accountedMicro,
+    donatedMicro: translated.reportedMicro,
+  };
 }
 
 async function prepareTasks(deps: RunUserDeps, tasks: OpenTask[]): Promise<Prepared[]> {
@@ -296,7 +353,7 @@ async function prepareOne(deps: RunUserDeps, row: OpenTask): Promise<{ ok: true;
 }
 
 async function executePlan(deps: RunUserDeps, sk: string, tasks: Prepared[], catalog: CatalogEntry[], budget: Extract<BudgetDecision, { ok: true }>): Promise<Spend> {
-  const spend: Spend = { requestIds: [], reportedMicro: 0n, accountedMicro: 0n };
+  const spend: Spend = { requestIds: [], reportedMicro: 0n, accountedMicro: 0n, donatedMicro: 0n };
   let activeCatalog = catalog;
   let stop = false;
   const now = deps.now ?? (() => new Date());
