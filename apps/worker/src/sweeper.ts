@@ -1,21 +1,23 @@
 import {
   PrismaClient,
   openSecret,
+  recoverInterruptedRuns,
+  recoverInterruptedTasks,
   redactString,
+  stepsHaveRequestId,
   sweepOrphanedKeys,
   type KeyClient,
   type OrphanKey,
+  type RecoverRun,
 } from "@shift/core";
-import { z } from "zod";
+
+export { recoverInterruptedRuns, recoverInterruptedTasks, stepsHaveRequestId };
 
 /** node-cron schedule: minute 0, 10, 20, 30, 40 and 50. Plan §8.3. */
 export const SWEEP_CRON = "*/10 * * * *";
 
 /** Same cutoff as `sweepOrphanedKeys`: a key is old enough once it has been alive for 2 hours. */
 export const ORPHAN_MIN_AGE_MS = 2 * 60 * 60 * 1000;
-
-const recordedStep = z.object({ requestId: z.string().optional() }).passthrough();
-const stepList = z.array(z.unknown());
 
 /** A connected user's sealed management key. The plaintext is decrypted only inside the sweep. */
 export interface SweepUser {
@@ -54,6 +56,9 @@ export interface SweeperStore {
   runningTasks(): Promise<RunningTaskRow[]>;
   /** Sets these tasks back to QUEUED only while they are still RUNNING. */
   requeueTasks(ids: string[]): Promise<void>;
+  runningRuns(): Promise<RecoverRun[]>;
+  /** Sets these runs to FAILED only while they are still RUNNING. */
+  failRuns(ids: string[], error: string): Promise<void>;
 }
 
 export interface SweepDeps {
@@ -71,35 +76,6 @@ export interface SweepOutcome {
   revoked: string[];
   failed: string[];
   skipped: string[];
-}
-
-/**
- * True when any step stored on the task carries a Router request id.
- * An empty or blank id does not count: the call was not recorded, so the task may be run again.
- */
-export function stepsHaveRequestId(steps: unknown): boolean {
-  const parsed = stepList.safeParse(steps);
-  if (!parsed.success) return false;
-  // Each step is checked on its own. One malformed step must not hide a request id recorded on another.
-  return parsed.data.some((item) => {
-    const step = recordedStep.safeParse(item);
-    if (!step.success) return false;
-    const id = step.data.requestId?.trim();
-    return id !== undefined && id.length > 0;
-  });
-}
-
-/**
- * Plan §9.4: after a crash, RUNNING tasks that never received a request id go back to QUEUED.
- * Tasks that already recorded one stay RUNNING so a paid call is not sent twice.
- * Call this once when the process starts. A live batch marks a task RUNNING before the Router answers,
- * so repeating this on the 10-minute timer would rewind work that is still in flight.
- */
-export async function recoverInterruptedTasks(store: Pick<SweeperStore, "runningTasks" | "requeueTasks">): Promise<string[]> {
-  const running = await store.runningTasks();
-  const ids = running.filter((task) => !stepsHaveRequestId(task.steps)).map((task) => task.id);
-  if (ids.length > 0) await store.requeueTasks(ids);
-  return ids;
 }
 
 /**
@@ -258,6 +234,36 @@ export function prismaSweeperStore(db: PrismaClient): SweeperStore {
       await db.task.updateMany({
         where: { id: { in: ids }, status: "RUNNING" },
         data: { status: "QUEUED" },
+      });
+    },
+
+    async runningRuns() {
+      const runs = await db.nightRun.findMany({
+        where: { status: "RUNNING" },
+        select: {
+          id: true,
+          nightId: true,
+          status: true,
+          keyRevokedAt: true,
+          keyCreatedAt: true,
+          night: { select: { startedAt: true } },
+        },
+      });
+      return runs.map((run) => ({
+        id: run.id,
+        nightId: run.nightId,
+        status: run.status,
+        keyRevokedAt: run.keyRevokedAt,
+        keyCreatedAt: run.keyCreatedAt,
+        nightStartedAt: run.night.startedAt,
+      }));
+    },
+
+    async failRuns(ids, error) {
+      if (ids.length === 0) return;
+      await db.nightRun.updateMany({
+        where: { id: { in: ids }, status: "RUNNING" },
+        data: { status: "FAILED", error },
       });
     },
   };

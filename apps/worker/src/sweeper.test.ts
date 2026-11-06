@@ -62,6 +62,8 @@ function memory(rows: Row[], tasks: TaskRow[] = []) {
         if (task.status === "RUNNING" && ids.includes(task.id)) task.status = "QUEUED";
       }
     },
+    runningRuns: async () => [],
+    failRuns: async () => undefined,
   };
   return { store, rows, tasks };
 }

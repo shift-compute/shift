@@ -188,6 +188,7 @@ describe("executeManualRun", () => {
       eligibleUsers: async () => [],
       openTasks: async (userId) => (userId === "user-1" ? [open] : []),
       findRun: async () => null,
+      findRunningRun: async () => null,
       createRun: async () => ({ id: "run-real" }),
       updateRun: async () => undefined,
       updateTask: async (id, patch) => {
@@ -284,6 +285,7 @@ describe("executeManualRun", () => {
       eligibleUsers: async () => [],
       openTasks: async () => [open],
       findRun: async () => null,
+      findRunningRun: async () => null,
       createRun: async () => ({ id: "run-real" }),
       updateRun: async () => undefined,
       updateTask: async () => undefined,

@@ -28,6 +28,7 @@ function memory(users: ConnectedUser[], tasks: OpenTask[]) {
     eligibleUsers: async () => users,
     openTasks: async (userId) => tasks.filter((task) => task.inputPath?.startsWith(userId) && (state.get(task.id)?.status ?? "QUEUED") !== "DONE"),
     findRun: async () => null,
+    findRunningRun: async () => null,
     createRun: async (_nightId, userId) => {
       runs.push(userId);
       return { id: `run-${userId}` };
