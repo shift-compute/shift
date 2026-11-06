@@ -7,7 +7,7 @@ import { complexityState } from "../optimizer/complexity";
 import { COST_DRIFT_PERCENT, costDrifted } from "../optimizer/replan";
 import { sealSecret } from "../crypto/vault";
 import { RouterError } from "../zg/errors";
-import type { StorageClient } from "../zg/storage";
+import { createStorageClient, type StorageClient } from "../zg/storage";
 import { translationSystemPrompt, type CommonsGateItem, type CommonsItemRef, type CommonsStore, type CommonsTranslationPatch } from "./commons";
 import { runUser, type RunConfig, type UserRouter } from "./runUser";
 import type { ConnectedUser, OpenTask, PipelineStore, TaskPatch } from "./store";
@@ -203,6 +203,43 @@ function run(h: Harness, over: Partial<Parameters<typeof runUser>[0]> = {}) {
 }
 
 describe("runUser", () => {
+  it("fails a task when the storage indexer never resolves", async () => {
+    const h = harness();
+    const storage = createStorageClient({
+      rpcUrl: "http://127.0.0.1:8545",
+      indexerUrl: "http://127.0.0.1:1",
+      signer: {},
+      uploadTimeoutMs: 30,
+      maxAttempts: 1,
+      sleep: async () => undefined,
+      indexer: {
+        upload: () => new Promise(() => undefined),
+        download: async () => {
+          throw new Error("not used");
+        },
+      },
+    });
+    const started = Date.now();
+    const outcome = await run(h, { storage });
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(outcome.status).toBe("DONE");
+    expect(h.tasks.get("task1")?.status).toBe("FAILED");
+    expect(h.tasks.get("task1")?.error).toMatch(/timed out/);
+    expect(h.events).toContain("revoke");
+  });
+
+  it("fails a task that is still running when the hard stop passes", async () => {
+    const h = harness();
+    h.storage.upload = () => new Promise(() => undefined);
+    const started = Date.now();
+    const outcome = await run(h, { now: () => new Date("2026-11-06T23:49:59.850Z") });
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(outcome.status).toBe("DONE");
+    expect(h.tasks.get("task1")?.status).toBe("FAILED");
+    expect(h.tasks.get("task1")?.error).toMatch(/hard stop/);
+    expect(h.events).toContain("revoke");
+  });
+
   it("caps a private key from the credit balance, stores the output and revokes the key", async () => {
     const h = harness();
     const outcome = await run(h);

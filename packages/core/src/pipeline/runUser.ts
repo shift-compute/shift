@@ -33,6 +33,8 @@ import { resolveUpload } from "./uploads";
 /** Plan §9.4: a task is tried once more, at most twice, and only when the failure was a 429 or a 5xx. */
 const MAX_RETRIES = 2;
 const USAGE_HISTORY_LIMIT = 100;
+/** A task that is still running after this is failed. It is never left RUNNING. */
+export const TASK_DEADLINE_MS = 5 * 60_000;
 
 const inputMetaSchema = z.object({
   bytes: z.number().int().nonnegative().optional(),
@@ -69,6 +71,8 @@ export interface RunUserDeps {
   readFile?: (absolutePath: string) => Promise<Uint8Array>;
   /** PENDING commons rows. Absent in tests that do not donate. The worker passes the Prisma store. */
   commons?: CommonsStore;
+  /** Per-task cap. Defaults to {@link TASK_DEADLINE_MS}. Tests pass a short value. Also capped by the hard stop. */
+  taskDeadlineMs?: number;
 }
 
 export interface RunUserOutcome {
@@ -529,7 +533,14 @@ async function executePlan(deps: RunUserDeps, sk: string, tasks: Prepared[], cat
 type TaskOutcome = "ok" | "stop" | "exclude" | "replan";
 
 async function runTask(deps: RunUserDeps, sk: string, task: Prepared, option: PlanOption, spend: Spend): Promise<TaskOutcome> {
-  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const clock = deps.now ?? (() => new Date());
+  const hardStopMs = msUntilHardStop(clock(), deps.config.NIGHT_HARD_STOP_UTC);
+  const limitMs = deps.taskDeadlineMs ?? TASK_DEADLINE_MS;
+  const deadlineMs = Math.min(limitMs, hardStopMs);
+  const deadlineMessage =
+    hardStopMs <= limitMs
+      ? "The hard stop passed before this task could finish."
+      : "The task exceeded its deadline.";
   await deps.store.updateTask(task.row.id, {
     status: "RUNNING",
     nightId: deps.nightId,
@@ -537,6 +548,43 @@ async function runTask(deps: RunUserDeps, sk: string, task: Prepared, option: Pl
     chosenModel: option.models.chat.id,
     estCostUsdMicro: option.costMicro,
   });
+  if (deadlineMs <= 0) {
+    await deps.store.updateTask(task.row.id, { status: "FAILED", nightId: deps.nightId, error: deadlineMessage });
+    return "ok";
+  }
+
+  const gate = { expired: false };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<"deadline">((resolve) => {
+    timer = setTimeout(() => {
+      gate.expired = true;
+      resolve("deadline");
+    }, deadlineMs);
+  });
+  const body = runTaskBody(deps, sk, task, option, spend, gate).then(
+    (outcome) => outcome,
+    (err: unknown) => {
+      if (gate.expired) return "ok" as TaskOutcome;
+      throw err;
+    },
+  );
+  try {
+    const outcome = await Promise.race([body, timeout]);
+    if (outcome === "deadline") {
+      await deps.store.updateTask(task.row.id, { status: "FAILED", nightId: deps.nightId, error: deadlineMessage });
+      return "ok";
+    }
+    return outcome;
+  } catch (err) {
+    await deps.store.updateTask(task.row.id, { status: "FAILED", nightId: deps.nightId, error: failureText(err) }).catch(() => undefined);
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function runTaskBody(deps: RunUserDeps, sk: string, task: Prepared, option: PlanOption, spend: Spend, gate: { expired: boolean }): Promise<TaskOutcome> {
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
 
   const failedSteps: StepRecord[] = [];
   let last: unknown;
@@ -559,6 +607,7 @@ async function runTask(deps: RunUserDeps, sk: string, task: Prepared, option: Pl
 
   const prior = task.classifyStep ? [task.classifyStep] : [];
   if (!output) {
+    if (gate.expired) return "ok";
     const steps = [...prior, ...failedSteps];
     if (failedSteps.length > 0) addCost(spend, failedSteps, option.costMicro);
     await deps.store.updateTask(task.row.id, { status: "FAILED", nightId: deps.nightId, ...(steps.length > 0 ? { steps } : {}), error: failureText(last) });
@@ -571,8 +620,10 @@ async function runTask(deps: RunUserDeps, sk: string, task: Prepared, option: Pl
   const steps = [...prior, ...output.steps];
   addCost(spend, output.steps, option.costMicro);
   const actual = reportedCost(output.steps);
+  if (gate.expired) return "ok";
   try {
     const stored = await storeTaskOutput(deps.storage, { id: task.row.id, type: task.plan.type }, output);
+    if (gate.expired) return "ok";
     await deps.store.updateTask(task.row.id, {
       status: "DONE",
       nightId: deps.nightId,
@@ -584,6 +635,7 @@ async function runTask(deps: RunUserDeps, sk: string, task: Prepared, option: Pl
     });
   } catch (err) {
     // The call was already billed. A storage failure must not run it again, but the drift check below still runs.
+    if (gate.expired) return "ok";
     await deps.store.updateTask(task.row.id, { status: "FAILED", nightId: deps.nightId, steps, actualCostUsdMicro: actual ?? null, error: failureText(err) });
   }
   return costDrifted(option.costMicro, actual) ? "replan" : "ok";
