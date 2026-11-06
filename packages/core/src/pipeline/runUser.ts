@@ -451,7 +451,7 @@ async function runTask(deps: RunUserDeps, sk: string, task: Prepared, option: Pl
       last = err;
       output = undefined;
       if (err instanceof RouterError && err.requestId) {
-        failedSteps.push({ step: "error", model: option.models.chat.id, requestId: err.requestId });
+        failedSteps.push({ step: "error", model: option.models.chat.id, requestId: err.requestId, trust: option.models.chat.trust });
       }
       if (isStop(err)) break;
       if (!(err instanceof RouterError) || !err.retryable || attempt === MAX_RETRIES) break;
@@ -526,7 +526,7 @@ async function classify(deps: RunUserDeps, sk: string, task: Prepared, model: Ca
         trustMode: model.trust,
         clientRequestId: `${task.row.id}-${attempt}-classify`,
       });
-      return { ...readComplexity(res.data), step: recordStep("classify", model.id, res) };
+      return { ...readComplexity(res.data), step: recordStep("classify", model.id, res, model.trust) };
     } catch (err) {
       last = err;
       if (isStop(err)) return "stop";

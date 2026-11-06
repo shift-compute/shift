@@ -56,6 +56,6 @@ export async function runImageFromPrompt(ctx: ExecutorContext, idea: string): Pr
   return {
     result: { prompt: idea, revisedPrompt, imageFile },
     files: [{ name: imageFile, mime: picture.mime, bytes: picture.bytes }],
-    steps: [recordStep("refine", ctx.models.chat, chat), recordStep("image", imageModel, image)],
+    steps: [recordStep("refine", ctx.models.chat, chat, ctx.trustMode), recordStep("image", imageModel, image, ctx.trustMode)],
   };
 }

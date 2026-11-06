@@ -207,11 +207,13 @@ describe("executeManualRun", () => {
         throw new Error("storage must not be called");
       },
     };
+    const order: string[] = [];
     const hooks: ManualRunHooks = {
       beginNight: async (id) => {
         expect(id).toBe(NIGHT);
       },
       finishNight: async (id, status) => {
+        order.push(`finish:${status}`);
         nights.push({ id, status });
       },
       readBack: async (_nightId, userId) => ({
@@ -242,12 +244,16 @@ describe("executeManualRun", () => {
           router,
           storage,
           hooks,
+          anchor: async () => {
+            order.push("anchor");
+          },
           log: () => undefined,
           now: () => NOW,
         }),
     });
 
     expect(calls).toEqual([]);
+    expect(order).toEqual(["anchor", "finish:DONE"]);
     expect(saved.get("evil")?.status).toBe("FAILED");
     expect(saved.get("evil")?.error).toContain("escapes");
     expect(nights).toEqual([{ id: NIGHT, status: "DONE" }]);
@@ -260,5 +266,56 @@ describe("executeManualRun", () => {
       tasks: [{ id: "evil", status: "FAILED" }],
     });
     expect(result.body.tasks[0]?.error).toContain("escapes");
+  });
+
+  it("marks the manual night failed when anchoring throws", async () => {
+    const nights: Array<"DONE" | "FAILED"> = [];
+    const open: OpenTask = {
+      id: "evil",
+      type: "DOC_ANALYSIS",
+      priority: 2,
+      createdAt: new Date("2026-11-06T09:00:00Z"),
+      inputPath: "../../etc/passwd",
+      inputMeta: { bytes: 4, mime: "text/plain" },
+      prompt: null,
+    };
+    const store: PipelineStore = {
+      eligibleUsers: async () => [],
+      openTasks: async () => [open],
+      findRun: async () => null,
+      createRun: async () => ({ id: "run-real" }),
+      updateRun: async () => undefined,
+      updateTask: async () => undefined,
+    };
+    const result = await executeRunNow({
+      user: user(),
+      limiter: allow(),
+      countOpenTasks: async () => 1,
+      ensureStorage: () => undefined,
+      now: () => NOW,
+      run: (connected, nightId) =>
+        executeManualRun({
+          user: connected,
+          nightId,
+          config,
+          store,
+          router: {} as UserRouter,
+          storage: { upload: async () => { throw new Error("no"); }, download: async () => { throw new Error("no"); } },
+          hooks: {
+            beginNight: async () => undefined,
+            finishNight: async (_id, status) => {
+              nights.push(status);
+            },
+            readBack: async () => ({ error: null, tasks: [] }),
+          },
+          anchor: async () => {
+            throw new Error("rpc down");
+          },
+          log: () => undefined,
+          now: () => NOW,
+        }),
+    });
+    expect(nights).toEqual(["FAILED"]);
+    expect(result).toEqual({ status: 500, body: { error: "internal_error" } });
   });
 });

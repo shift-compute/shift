@@ -5,6 +5,8 @@ import type { Trace } from "../zg/schemas";
 export interface StepRecord {
   step: string;
   model: string;
+  /** Trust mode of this Router call. The night leaf uses it; a missing tier is not guessed at anchor time. */
+  trust?: TrustMode;
   requestId?: string;
   trace?: Trace;
   /** Cost reported by the Router for this call, when it reports one. */

@@ -1,5 +1,8 @@
 import {
+  anchorNight,
+  createLedgerClient,
   manualNightId,
+  prismaAnchorStore,
   prismaPipelineStore,
   redact,
   redactString,
@@ -134,6 +137,8 @@ export async function executeManualRun(deps: {
   router: UserRouter;
   storage: StorageClient;
   hooks: ManualRunHooks;
+  /** Same anchor as the nightly worker. Tests omit it; a manual run with real tasks passes it. */
+  anchor?: (nightId: bigint) => Promise<unknown>;
   log: (message: string) => void;
   now?: () => Date;
 }): Promise<RunNowSummary> {
@@ -150,6 +155,7 @@ export async function executeManualRun(deps: {
       log: deps.log,
       now,
     });
+    await deps.anchor?.(deps.nightId);
     const back = await deps.hooks.readBack(deps.nightId, deps.user.id, outcome.runId);
     // The night row is the batch. A user's FAILED or SKIPPED run is still a finished batch; the summary carries that status.
     await deps.hooks.finishNight(deps.nightId, "DONE", now());
@@ -170,8 +176,34 @@ export async function runCurrentUser(deps: {
   storage: StorageClient;
   log: (message: string) => void;
   now?: () => Date;
+  chainId: number;
+  chainRpcUrl: string;
+  ledgerAddress: string;
+  /** Operator key. Signs the anchor transaction and pays gas. Never log it. */
+  operatorKey: string;
 }): Promise<RunNowSummary> {
-  return executeManualRun({ ...deps, store: prismaPipelineStore(deps.db), hooks: prismaHooks(deps.db) });
+  const ledger = createLedgerClient({
+    rpcUrl: deps.chainRpcUrl,
+    chainId: deps.chainId,
+    address: deps.ledgerAddress,
+    privateKey: deps.operatorKey,
+  });
+  return executeManualRun({
+    ...deps,
+    store: prismaPipelineStore(deps.db),
+    hooks: prismaHooks(deps.db),
+    anchor: (nightId) =>
+      anchorNight({
+        nightId,
+        store: prismaAnchorStore(deps.db),
+        storage: deps.storage,
+        ledger,
+        chainId: deps.chainId,
+        contractAddress: deps.ledgerAddress,
+        log: deps.log,
+        ...(deps.now ? { now: deps.now } : {}),
+      }),
+  });
 }
 
 function prismaHooks(db: PrismaClient): ManualRunHooks {
