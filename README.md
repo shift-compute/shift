@@ -14,7 +14,7 @@ Built for ETHGlobal Mumbai 2026 (0G "Build with 0G PC", and the general finalist
 | ShiftLedger | [`0xA3B6664b487FC01c4264977c9B92058A89C31Ed7`](https://chainscan-galileo.0g.ai/address/0xA3B6664b487FC01c4264977c9B92058A89C31Ed7) |
 | Live demo | [https://shift-production-b890.up.railway.app](https://shift-production-b890.up.railway.app) — Railway project `shift`, service `Shift`, Postgres, volume at `/data`. A local run is still documented below. |
 | Demo video | Not recorded. No URL in this file. Placeholder and shot list: [Submission](#submission). Script: [plan §24](docs/SHIFT_PLAN.md). |
-| Real inference runs | **None recorded.** The team account still has `credit_balance` 0 and `deposit_balance` 0. F3.12 and F4.7 stay open. The [request-id table](#request-ids) is one waiting row until a funded run. |
+| Real inference runs | Four manual nights are anchored on Galileo. Ids, roots, and transactions were read from `ShiftLedger.nights` on 2026-11-06: [Verifiable evidence](#anchored-nights). This file does not copy Router request ids. F3.12 in `PROGRESS.md` is still the open write-up. F4.7 (the 7 November window) is still open. |
 | Status log | [`PROGRESS.md`](PROGRESS.md) · Phase 0 write-up: [`docs/SPIKE_RESULTS.md`](docs/SPIKE_RESULTS.md) |
 
 ## How a night works
@@ -24,15 +24,21 @@ Built for ETHGlobal Mumbai 2026 (0G "Build with 0G PC", and the general finalist
 3. **Run.** The worker opens the window at 23:00 UTC and hard-stops at 23:50 UTC (04:30–05:20 IST). **Run tonight's shift now** (`POST /api/runs/now`) uses that same pipeline. Shift creates an ephemeral `sk-` capped to the night's budget, calls the 0G Router, uploads outputs to 0G Storage, and revokes the key before it returns. A sweeper revokes keys left alive for more than two hours.
 4. **Commons** (`/commons`). Leftover budget, when you donate it, pays for two private translations and a decision-model gate.
 5. **Anchor.** Personal steps that finished with a request id become Merkle leaves. `ShiftLedger.anchorNight` stores the root and the manifest's storage root. Positive donations are written with `recordDonations` only after that anchor.
-6. **Verify** (`/verify?rid=`). Anyone can recompute the leaf in the browser and ask the contract.
+6. **Verify** (`/verify?rid=`). Anyone can recompute the leaf in the browser and ask the contract. The storage link is the ciphertext of a personal output.
 
-Two spending modes share that pipeline. **Budget mode** is the primary one: a nightly USD cap, and the deposit may be spent up to that cap. **iAI mode** spends `credit_balance` minus a safety margin and does not touch the deposit. iAI mode stays secondary until 0G confirms that delegated use of iAI credits is allowed (Phase 0 check U12 is still open) and until a paid call shows credits moving (U3 is blocked on a 0 balance).
+Two spending modes share that pipeline. **Budget mode** is the primary one: a nightly USD cap, and the deposit may be spent up to that cap. **iAI mode** spends `credit_balance` minus a safety margin and does not touch the deposit. iAI mode stays secondary until 0G confirms that delegated use of iAI credits is allowed (Phase 0 check U12 is still open).
+
+**TODO (plan §19.8, unanswered).** Ask 0G whether using credits through a delegated management key is allowed, and whether donating the leftover to the commons is allowed. Do not treat silence as a yes.
+
+## Privacy
+
+Personal files and the result JSON are encrypted before they are uploaded to 0G Storage (AES-256-GCM, a per-account key from HKDF of `SHIFT_MASTER_KEY` and the account address). The Merkle leaf and the `/verify` link point at that ciphertext. The signed-in owner reads the plaintext from `GET /api/tasks/[id]/output`. **The operator can decrypt**, because the master key is in the service environment. Commons outputs stay public JSON on purpose. Roots written before this sealing change can still be plaintext; this page does not re-download the nights below and does not claim those bytes are ciphertext. Details and the threat model: [`SECURITY.md`](SECURITY.md).
 
 ## How Shift uses 0G
 
 - **Private Computer (Router).** Chat, audio, and image models, plus account, balance, and key APIs. Trust tiers are standard, verified (TeeTLS), and private (TeeML). An ephemeral key is pinned to the tier the plan chose. If the catalog has no TeeML model that can run the task, private mode defers the task. It does not silently drop to a weaker tier.
 - **Decision models.** One `/v1/decisions` call classifies each text task (simple / standard / complex) and sets the quality floor. A second call is the commons gate. Model ids come from the live catalog. Nothing is hard-coded. If that catalog has no decision model, classification plans `standard` and does not call the Router, and commons rows stay `RUNNING`.
-- **0G Storage.** Task outputs and `NightManifest.json` go to the Galileo turbo indexer (`https://indexer-storage-testnet-turbo.0g.ai`) via `@0gfoundation/0g-ts-sdk`. The operator wallet pays gas. Phase 0 uploaded and downloaded one file on that indexer; the root, the indexer file, and the raw JSON are in [Verifiable evidence](#verifiable-evidence). No night manifest has been uploaded, because no night has run.
+- **0G Storage.** Task outputs and `NightManifest.json` go to the Galileo turbo indexer (`https://indexer-storage-testnet-turbo.0g.ai`) via `@0gfoundation/0g-ts-sdk`. The operator wallet pays gas. Personal outputs are ciphertext. Commons outputs are public. Phase 0 uploaded and downloaded one probe file; that proof is in [Verifiable evidence](#verifiable-evidence). The four anchored nights below each have a manifest root on the contract.
 - **0G Chain.** `ShiftLedger` anchors attribution (who owns the result, which model, what it cost, whether it was commons work) and records donated micro-USD. 0G already attests each model call. This contract does not redo that proof.
 
 The example Router base URL is the mainnet Router, `https://router-api.0g.ai/v1`, because that is where the team account was read. `.env.example` also lists the testnet Router. Chain id `ZG_CHAIN_ID` is **16602**.
@@ -74,7 +80,7 @@ apps/worker       cron 23:00–23:50 UTC, sweeper, anchor, recordDonations
 | Owner | `0x3E7E6733f1E0Fbb55035d6791a77e596ab11aD07` (operator wallet) |
 | Source | [`contracts/src/ShiftLedger.sol`](contracts/src/ShiftLedger.sol) |
 
-`anchorNight` and `recordDonations` are owner-only. `verifyLeaf(nightId, proof, leaf)` is a public view. An empty root returns false. No night has been anchored. The deploy transaction in this table created the contract. The Phase 0 storage upload has its own transaction in [Verifiable evidence](#verifiable-evidence). Anchor transactions and manifest roots are listed there only after a funded run writes them.
+`anchorNight` and `recordDonations` are owner-only. `verifyLeaf(nightId, proof, leaf)` is a public view. An empty root returns false. The deploy transaction in this table created the contract. It is not an anchor. Four nights are anchored; their transactions were read from Galileo on 2026-11-06 and are listed under [Anchored nights](#anchored-nights). The Phase 0 storage upload has its own transaction in [Verifiable evidence](#verifiable-evidence).
 
 `forge test`: 7 passed in Phase 0, including TypeScript ↔ Solidity leaf-hash parity (`docs/spike/merkle-vector.json`).
 
@@ -124,7 +130,7 @@ The web app listens on `http://localhost:3000` (`PUBLIC_APP_URL`). In another sh
 pnpm --filter @shift/worker dev
 ```
 
-Generate `SHIFT_MASTER_KEY` with `openssl rand -base64 32` and pick a `SESSION_SECRET` of at least 32 characters. Put the operator wallet in `OPERATOR_PRIVATE_KEY` (a dedicated testnet key; faucet at https://faucet.0g.ai). That key pays for storage uploads and `anchorNight`. The web config object does not include it. Only the run-now route and the worker read it, and it never reaches the browser. Do not commit `.env`.
+Generate `SHIFT_MASTER_KEY` with `openssl rand -base64 32` and pick a `SESSION_SECRET` of at least 32 characters. Put the operator wallet in `OPERATOR_PRIVATE_KEY` (a dedicated testnet key; faucet at https://faucet.0g.ai). That key pays for storage uploads and `anchorNight`. The web config object does not include it, and it never reaches the browser. Plan §19.7 says only the worker should hold it. **Run now uses it too**: `POST /api/runs/now` reads `OPERATOR_PRIVATE_KEY` in the web process so a manual night can upload and anchor. The nightly worker reads the same variable. Do not commit `.env`. Optional `SHIFT_MASTER_KEY_PREV` is only for a rotation; see [`SECURITY.md`](SECURITY.md).
 
 Public values already filled in [`.env.example`](.env.example):
 
@@ -155,7 +161,7 @@ pnpm test:contracts
 
 ## Verifiable evidence
 
-These links are records that already exist: the deployed contract, its deploy transaction, and the Phase 0 storage upload. A Router request id, an `anchorNight` transaction, and a night manifest root are absent until F3.12 or another funded run. The team account still has `credit_balance` 0 and `deposit_balance` 0. F4.7 (7 November 2026, 04:30–05:20 IST) is the same status.
+These links are records that already exist: the deployed contract, its deploy transaction, the Phase 0 storage upload, and four `anchorNight` transactions read from Galileo on 2026-11-06. This file does not copy Router request ids. F3.12 in [`PROGRESS.md`](PROGRESS.md) is still the open write-up of a funded run. F4.7 (7 November 2026, 04:30–05:20 IST) has not been recorded here. This section does not claim a current Router balance.
 
 ### ShiftLedger
 
@@ -166,7 +172,20 @@ These links are records that already exist: the deployed contract, its deploy tr
 | Contract page | [`0xA3B6664b487FC01c4264977c9B92058A89C31Ed7`](https://chainscan-galileo.0g.ai/address/0xA3B6664b487FC01c4264977c9B92058A89C31Ed7) |
 | Deploy transaction (F0.6) | [`0x4a2bd7c707056195ef102420a6e3e3ebed0442e2399d91eef49bdd495d0f7117`](https://chainscan-galileo.0g.ai/tx/0x4a2bd7c707056195ef102420a6e3e3ebed0442e2399d91eef49bdd495d0f7117) |
 
-The deploy transaction created the contract. It is not an `anchorNight` call. No night has been anchored, so this section has no anchor transaction to add.
+The deploy transaction created the contract. It is not an `anchorNight` call.
+
+### Anchored nights
+
+Read on 2026-11-06 from `nights(uint64)` and the `NightAnchored` logs on `0xA3B6664b487FC01c4264977c9B92058A89C31Ed7` (Galileo, chain ID 16602). These are manual night ids (unix seconds), not `YYYYMMDD`. Request ids are not in this table.
+
+| Night ID | Anchored (UTC) | Items | Anchor transaction | Merkle root | Manifest root |
+|---|---|---|---|---|---|
+| 1793985613 | 2026-11-06 17:22:06 | 9 | [`0xe98b9b69…8c25`](https://chainscan-galileo.0g.ai/tx/0xe98b9b6966669491fea77ed51ebee94715f262e3280e982998eb1be39a4a8c25) | `0x336c9af6c39705862223c51a50922e801de4bd725d145003cf7698fbc820a7b4` | `0xafb58afe874fb9358902cfac0458e48e81c6cb69b69dd2ade5dc8fa1741adf3a` |
+| 1793985870 | 2026-11-06 17:25:46 | 3 | [`0x49692625…19bd`](https://chainscan-galileo.0g.ai/tx/0x496926250ade1c14a002299f2c7c88af7401f5f77af6732b9bf8c4c3ec2d19bd) | `0x6eccca30c98c6415f9ffae400af20812905c0e4c720a620bcff02e325dbbb966` | `0xe69e5b6b7006b5d749f373958834721170e5364bb9b7f6c956a7b6d53921e88e` |
+| 1793986070 | 2026-11-06 17:29:33 | 3 | [`0xd5e43623…4bc1`](https://chainscan-galileo.0g.ai/tx/0xd5e43623327ac75de4b98dea94116f5c87671fbeacda3757aa872c5065614bc1) | `0x573d006b1795529af3960cbaa4caf26affd27d02c877027cc446d32ccc330ffc` | `0xad2b488b94fcbd63468832fdbc079c31dd4d871e1f29fee482b988430dc9b39a` |
+| 1793986691 | 2026-11-06 17:42:35 | 3 | [`0x78716f2e…9130`](https://chainscan-galileo.0g.ai/tx/0x78716f2e3091de359bf68803c19ed21010a0f85af90d1c32bc1db0b434729130) | `0x36876fdf415fd3e03aa40930138d43292c38f407ae9e4c87b7f05bf1aad435ab` | `0x7152136a4f29beeba56cc39a20c548124e1181398e7a170bbb1ba236df41e456` |
+
+`donationsRecorded` is false on the first three. On 1793986691 it is true. `DonationRecorded` in the same window is [`0xf9ffd467…46cb`](https://chainscan-galileo.0g.ai/tx/0xf9ffd467e511a682bc93e91a715fabccd2d2268b4c77d73cbd46b4014ccc46cb) (2026-11-06 17:42:50 UTC, 15799 micro-USD, donor `0xDbdcB1F11b6b8ea7ae2B5735954f251306D6F88F`). No other donation log was read for these four ids.
 
 ### 0G Storage
 
@@ -180,7 +199,7 @@ The upload proof is [`docs/spike/STORAGE_RESULTS.json`](docs/spike/STORAGE_RESUL
 | Indexer file | [`/file?root=0x35eb71f2…d589`](https://indexer-storage-testnet-turbo.0g.ai/file?root=0x35eb71f233c5020c97ddacd04435d0021a696633c5d1b6278a7fd296d135d589) |
 | Storage transaction | [`0xdd4c935f2dd3b2a0048f558b3e904fe855c9987be6f9c5ff90b0129d72a7afc6`](https://chainscan-galileo.0g.ai/tx/0xdd4c935f2dd3b2a0048f558b3e904fe855c9987be6f9c5ff90b0129d72a7afc6) |
 
-That object is a 60-byte probe (`{"app":"shift","check":"U9",...}`). The verifier builds output and manifest links with the same pattern, `{indexer}/file?root={root}`. The probe is not `NightManifest.json` and not an inference output. No night manifest has been uploaded.
+That object is a 60-byte probe (`{"app":"shift","check":"U9",...}`). The verifier builds output and manifest links with the same pattern, `{indexer}/file?root={root}`. The probe is not `NightManifest.json` and not an inference output. The manifest roots in [Anchored nights](#anchored-nights) are the night manifests. A personal output link is ciphertext for results stored after sealing; this file does not re-download those roots.
 
 ### How a judge checks a request id
 
@@ -196,11 +215,11 @@ An unknown id is 404. A missing `tee_verified` is "no verdict". There is no requ
 
 ### Request IDs
 
-One waiting row. A row is added only when a real night or a real "Run now" returns a Router request id, and the anchor transaction and manifest root are copied from that same run.
+Request ids are not copied here. Anchor transactions for the four nights are in [Anchored nights](#anchored-nights). A row is added only when a request id is taken from that same run, not invented.
 
 | Date (UTC) | Night ID | Sample request IDs | Anchor tx | Manifest root |
 |---|---|---|---|---|
-| — | — | Waiting on F3.12 (funded run). None recorded. | — | — |
+| — | — | Not copied into this file. See the anchored-night table for transactions. | — | — |
 
 ## Submission
 
@@ -285,13 +304,13 @@ Later the same day, `GET /v1/models` returned **79 models, no `verifiability` fi
 
 ## Limitations
 
-- **No paid run yet.** U3, U8, the H20 checkpoint (F3.12), and the 7 November nightly run (F4.7) are blocked on a 0 Router balance. Please do not read the UI as if those runs happened.
+- **F3.12 and F4.7 are still open in `PROGRESS.md`.** Galileo already has four anchored manual nights, listed above. This file does not copy their request ids and does not record the 7 November window. U3 and U8 were not re-run for this page.
 - **Galileo for the contract and for storage.** Mainnet chain ID 16661 is not where ShiftLedger lives. Say so if you cite the address.
 - **TeeML catalog variance.** Private mode, Whisper audio, and the decision-model gate depend on models that the Router sometimes omits. When they are missing, the night defers or waits. It does not swap in a standard model under a private key (the Router would return 503).
-- **U12 is unanswered.** Budget mode is primary until 0G confirms delegated iAI credit use.
-- **Commons work is off the Merkle tree** (see above). Donations on the contract exist only after an anchored night with a positive amount. No such transaction exists yet.
+- **U12 / plan §19.8 is unanswered.** TODO: ask 0G whether delegated use of iAI credits is allowed, and whether donating the leftover is allowed. Budget mode stays primary. Do not treat silence as a yes.
+- **Commons work is off the Merkle tree** (see above). One `recordDonations` transaction is in [Anchored nights](#anchored-nights) (night 1793986691). A commons-only night still would not show up there.
 - **The verifier trusts the database for the proof bytes**, then checks those bytes on-chain. It does not yet rebuild the batch from the storage manifest alone.
-- **The app is live; a funded run is not.** [https://shift-production-b890.up.railway.app](https://shift-production-b890.up.railway.app) (F6.1). The demo video is not recorded: [Submission](#submission) holds the placeholder and the shot list, and this file has no video URL. The request-id table is in [Verifiable evidence](#verifiable-evidence) and stays on the waiting row until a funded run (F3.12). `/api/commons` on that host returns an empty item list. Seeding that database is a separate operator step, and this file does not claim it was run.
+- **The app is live.** [https://shift-production-b890.up.railway.app](https://shift-production-b890.up.railway.app) (F6.1). The demo video is not recorded: [Submission](#submission) holds the placeholder and the shot list, and this file has no video URL. The request-id table does not list ids. `/api/commons` on that host returned an empty item list when deploy was checked. Seeding that database is a separate operator step, and this file does not claim it was run.
 
 ## How we used AI
 

@@ -69,3 +69,13 @@ Do not set the `ZG_MK_KEY` or `SMOKE_*` variables: they are for the Phase 0 scri
 ## What was checked
 
 The image was not built on the machine that wrote the Dockerfile (Docker Desktop was not running). On that machine, `pnpm --filter @shift/web build` succeeded with no `.env`, `prisma generate` succeeded with an empty `DATABASE_URL`, and `bash -n scripts/start-prod.sh` passed. Railway built the image. The live checks at the top of this file are the public proof the service is up. They do not include a commons seed or a funded inference run.
+
+## Operator checklist
+
+Do these by hand. This file does not record them as done.
+
+1. After `pnpm seed:commons`, disable the Postgres public TCP proxy. The app should use the private Railway database URL.
+2. Turn on 2FA for the Railway account that owns the project.
+3. Fund the operator wallet with the minimum Galileo gas it needs for storage uploads and `anchorNight`. Do not leave a large balance there.
+4. Connect only team accounts. Do not paste a personal `mk-` into the demo.
+5. After the demo, revoke that `mk-` in the 0G console (Settings → Management Keys). Disconnect in the app as well. Disconnect deletes the ciphertext; the console revoke is what kills the key.
