@@ -75,9 +75,12 @@ describe("loadWorkerConfig", () => {
 });
 
 describe("loadWebConfig", () => {
-  it("parses a valid environment", () => {
+  it("parses a valid environment and the same night knobs the worker uses", () => {
     const c = loadWebConfig(web);
     expect(c.PUBLIC_APP_URL).toBe("https://shift.example");
+    expect(c.NIGHT_HARD_STOP_UTC).toBe("23:50");
+    expect(c.SAFETY_MARGIN_PCT).toBe(10);
+    expect(c.MAX_CONCURRENCY).toBe(3);
   });
 
   it("does not expose the operator private key to the web app", () => {

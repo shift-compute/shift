@@ -29,6 +29,10 @@ const sharedShape = {
   ZG_STORAGE_INDEXER_URL: url,
   LEDGER_CONTRACT_ADDRESS: evmAddress,
   UPLOAD_DIR: z.string().min(1).default("./uploads"),
+  // Shared so a manual run from the web app uses the same caps as the nightly worker.
+  NIGHT_HARD_STOP_UTC: hhmm.default("23:50"),
+  SAFETY_MARGIN_PCT: z.coerce.number().int().min(0).max(50).default(10),
+  MAX_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(3),
 };
 
 const webSchema = z.object({
@@ -42,9 +46,6 @@ const workerSchema = z
     ...sharedShape,
     OPERATOR_PRIVATE_KEY: privateKey,
     NIGHT_START_UTC: hhmm.default("23:00"),
-    NIGHT_HARD_STOP_UTC: hhmm.default("23:50"),
-    SAFETY_MARGIN_PCT: z.coerce.number().int().min(0).max(50).default(10),
-    MAX_CONCURRENCY: z.coerce.number().int().min(1).max(10).default(3),
     COMMONS_GATE_THRESHOLD: z.coerce.number().min(0).max(1).default(0.75),
   })
   .refine((c) => c.NIGHT_START_UTC < c.NIGHT_HARD_STOP_UTC, {
