@@ -20,7 +20,7 @@ function chatEntry(id: string, trust: TrustLevel, promptAtto = ATTO_PER_MICRO, c
 }
 
 interface Row extends CommonsItemRef {
-  status: "PENDING" | "RUNNING" | "FAILED";
+  status: "PENDING" | "RUNNING" | "FAILED" | "ACCEPTED" | "REJECTED";
   translationA?: string | null;
   translationB?: string | null;
   modelA?: string | null;
@@ -30,6 +30,8 @@ interface Row extends CommonsItemRef {
   donorUserId?: string | null;
   nightId?: bigint | null;
   gateModel?: string | null;
+  gateProbability?: number | null;
+  outputRoot?: string | null;
 }
 
 function memory(rows: Row[], refuse?: (id: string) => boolean) {
@@ -43,6 +45,23 @@ function memory(rows: Row[], refuse?: (id: string) => boolean) {
       row.nightId = donor.nightId;
       return true;
     },
+    runningItems: async (userId) =>
+      rows.flatMap((row) => {
+        if (row.status !== "RUNNING" || row.donorUserId !== userId) return [];
+        if (!row.translationA || !row.translationB || !row.modelA || !row.modelB) return [];
+        return [{
+          id: row.id,
+          sourceText: row.sourceText,
+          translationA: row.translationA,
+          translationB: row.translationB,
+          modelA: row.modelA,
+          modelB: row.modelB,
+          requestIds: row.requestIds,
+          costUsdMicro: row.costUsdMicro ?? null,
+          gateModel: row.gateModel ?? null,
+          gateProbability: row.gateProbability ?? null,
+        }];
+      }),
     save: async (id, patch: CommonsTranslationPatch) => {
       const row = rows.find((item) => item.id === id);
       if (!row) throw new Error(`missing ${id}`);

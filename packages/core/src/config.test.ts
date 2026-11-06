@@ -81,6 +81,7 @@ describe("loadWebConfig", () => {
     expect(c.NIGHT_HARD_STOP_UTC).toBe("23:50");
     expect(c.SAFETY_MARGIN_PCT).toBe(10);
     expect(c.MAX_CONCURRENCY).toBe(3);
+    expect(c.COMMONS_GATE_THRESHOLD).toBe(0.75);
   });
 
   it("does not expose the operator private key to the web app", () => {

@@ -15,6 +15,7 @@ const config: RunConfig = {
   MAX_CONCURRENCY: 1,
   NIGHT_HARD_STOP_UTC: "23:50",
   UPLOAD_DIR: "/tmp/shift-uploads",
+  COMMONS_GATE_THRESHOLD: 0.75,
 };
 
 function user(over: Partial<RunNowUser> = {}): RunNowUser {

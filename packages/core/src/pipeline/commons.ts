@@ -37,12 +37,13 @@ export interface CommonsItemRef {
 }
 
 /**
- * Fields F4.2 writes. `RUNNING` means both translations are stored and the quality gate (F4.3) has not run.
- * `FAILED` means the pair did not finish; a billed call is not put back on the queue.
+ * Fields written on a commons row.
+ * `RUNNING` means both translations are stored and the quality gate has not accepted or rejected the item.
+ * The gate sets `ACCEPTED` or `REJECTED`. `FAILED` means the pair did not finish; a billed call is not put back on the queue.
  * `PENDING` releases a claim when nothing was billed.
  */
 export interface CommonsTranslationPatch {
-  status: "PENDING" | "RUNNING" | "FAILED";
+  status: "PENDING" | "RUNNING" | "FAILED" | "ACCEPTED" | "REJECTED";
   translationA?: string | null;
   translationB?: string | null;
   modelA?: string | null;
@@ -51,6 +52,24 @@ export interface CommonsTranslationPatch {
   costUsdMicro?: bigint | null;
   donorUserId?: string | null;
   nightId?: bigint | null;
+  gateModel?: string | null;
+  gateProbability?: number | null;
+  outputRoot?: string | null;
+}
+
+/** A RUNNING row that already has both translations, ready for the quality gate. */
+export interface CommonsGateItem {
+  id: string;
+  sourceText: string;
+  translationA: string;
+  translationB: string;
+  modelA: string;
+  modelB: string;
+  requestIds: string[];
+  costUsdMicro: bigint | null;
+  /** Set when an earlier pass scored the item and the upload did not finish. */
+  gateModel: string | null;
+  gateProbability: number | null;
 }
 
 export interface CommonsStore {
@@ -58,6 +77,12 @@ export interface CommonsStore {
   pendingItems(): Promise<CommonsItemRef[]>;
   /** PENDING → RUNNING for this donor. False when another run already took the row. */
   claim(id: string, donor: { userId: string; nightId: bigint }): Promise<boolean>;
+  /**
+   * This donor's RUNNING rows that already have both translations and both model ids.
+   * Includes an earlier night: a pair left RUNNING (no decision model, or the upload failed) is finished
+   * before a new pair is started. Ordered by id.
+   */
+  runningItems(userId: string): Promise<CommonsGateItem[]>;
   save(id: string, patch: CommonsTranslationPatch): Promise<void>;
 }
 

@@ -1,5 +1,5 @@
 import { PrismaClient } from "../db/client";
-import type { CommonsStore, CommonsTranslationPatch } from "./commons";
+import type { CommonsGateItem, CommonsStore, CommonsTranslationPatch } from "./commons";
 import type { ConnectedUser, OpenTask, PipelineStore, RunPatch, TaskPatch } from "./store";
 
 type TaskData = NonNullable<Parameters<PrismaClient["task"]["update"]>[0]["data"]>;
@@ -100,6 +100,42 @@ export function prismaCommonsStore(db: PrismaClient): CommonsStore {
       return updated.count === 1;
     },
 
+    async runningItems(userId) {
+      const rows = await db.commonsItem.findMany({
+        where: { status: "RUNNING", donorUserId: userId },
+        orderBy: { id: "asc" },
+        select: {
+          id: true,
+          sourceText: true,
+          translationA: true,
+          translationB: true,
+          modelA: true,
+          modelB: true,
+          requestIds: true,
+          costUsdMicro: true,
+          gateModel: true,
+          gateProbability: true,
+        },
+      });
+      const ready: CommonsGateItem[] = [];
+      for (const row of rows) {
+        if (!row.translationA?.trim() || !row.translationB?.trim() || !row.modelA || !row.modelB) continue;
+        ready.push({
+          id: row.id,
+          sourceText: row.sourceText,
+          translationA: row.translationA,
+          translationB: row.translationB,
+          modelA: row.modelA,
+          modelB: row.modelB,
+          requestIds: row.requestIds,
+          costUsdMicro: row.costUsdMicro,
+          gateModel: row.gateModel,
+          gateProbability: row.gateProbability,
+        });
+      }
+      return ready;
+    },
+
     async save(id, patch) {
       await db.commonsItem.update({ where: { id }, data: commonsData(patch) });
     },
@@ -117,6 +153,9 @@ function commonsData(patch: CommonsTranslationPatch): NonNullable<Parameters<Pri
     ...(patch.costUsdMicro !== undefined ? { costUsdMicro: patch.costUsdMicro } : {}),
     ...(patch.donorUserId !== undefined ? { donorUserId: patch.donorUserId } : {}),
     ...(patch.nightId !== undefined ? { nightId: patch.nightId } : {}),
+    ...(patch.gateModel !== undefined ? { gateModel: patch.gateModel } : {}),
+    ...(patch.gateProbability !== undefined ? { gateProbability: patch.gateProbability } : {}),
+    ...(patch.outputRoot !== undefined ? { outputRoot: patch.outputRoot } : {}),
   };
 }
 
