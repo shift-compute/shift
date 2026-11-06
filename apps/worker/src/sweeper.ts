@@ -1,6 +1,6 @@
 import {
   PrismaClient,
-  openSecret,
+  openRotatedSecret,
   recoverInterruptedRuns,
   recoverInterruptedTasks,
   redactString,
@@ -59,12 +59,16 @@ export interface SweeperStore {
   runningRuns(): Promise<RecoverRun[]>;
   /** Sets these runs to FAILED only while they are still RUNNING. */
   failRuns(ids: string[], error: string): Promise<void>;
+  /** Writes a management key that was re-sealed under the current master key. */
+  saveManagementKey?(userId: string, sealed: { ciphertext: Buffer; iv: Buffer; authTag: Buffer }): Promise<void>;
 }
 
 export interface SweepDeps {
   store: SweeperStore;
   keys: KeyClient;
   masterKey: string;
+  /** Previous master key. A row that opens with it is re-sealed with `masterKey` when the store can save it. */
+  previousMasterKey?: string;
   now?: () => Date;
   minAgeMs?: number;
   sleep?: (ms: number) => Promise<void>;
@@ -101,7 +105,7 @@ export async function sweepEphemeralKeys(deps: SweepDeps): Promise<SweepOutcome>
         skipped.push(row.keyId);
         continue;
       }
-      const mk = managementKey(opened, row.user, deps.masterKey);
+      const mk = await managementKey(opened, row.user, deps);
       if (!mk) {
         failed.push(row.keyId);
         say(`sweep: user ${row.user.id} key ${row.keyId} left alive; the management key could not be opened`);
@@ -149,23 +153,26 @@ export function createSweepLock(run: () => Promise<void>): () => Promise<boolean
   };
 }
 
-function managementKey(opened: Map<string, string | null>, user: SweepUser, masterKey: string): string | null {
+async function managementKey(opened: Map<string, string | null>, user: SweepUser, deps: SweepDeps): Promise<string | null> {
   const cached = opened.get(user.id);
   if (cached !== undefined) return cached;
-  const mk = openManagementKey(user, masterKey);
+  const mk = await openManagementKey(user, deps);
   opened.set(user.id, mk);
   return mk;
 }
 
 /** Decrypts in memory. A missing or unreadable vault returns null and never throws the ciphertext. */
-function openManagementKey(user: SweepUser, masterKey: string): string | null {
+async function openManagementKey(user: SweepUser, deps: SweepDeps): Promise<string | null> {
   if (!user.mkCiphertext || !user.mkIv || !user.mkAuthTag) return null;
   try {
-    return openSecret(
+    const opened = openRotatedSecret(
       { ciphertext: user.mkCiphertext, iv: user.mkIv, authTag: user.mkAuthTag },
-      masterKey,
+      deps.masterKey,
+      deps.previousMasterKey,
       user.accountAddress.toLowerCase(),
     );
+    if (opened.resealed) await deps.store.saveManagementKey?.(user.id, opened.resealed);
+    return opened.plaintext;
   } catch {
     return null;
   }
@@ -264,6 +271,13 @@ export function prismaSweeperStore(db: PrismaClient): SweeperStore {
       await db.nightRun.updateMany({
         where: { id: { in: ids }, status: "RUNNING" },
         data: { status: "FAILED", error },
+      });
+    },
+
+    async saveManagementKey(userId, sealed) {
+      await db.user.update({
+        where: { id: userId },
+        data: { mkCiphertext: sealed.ciphertext, mkIv: sealed.iv, mkAuthTag: sealed.authTag },
       });
     },
   };

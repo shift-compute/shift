@@ -40,6 +40,27 @@ export function sealSecret(plaintext: string, masterKeyBase64: string, context?:
   return { ciphertext, iv, authTag: cipher.getAuthTag() };
 }
 
+export interface RotatedSecret {
+  plaintext: string;
+  /** Set when `previousKey` opened the row. Store this seal; it uses the current key. */
+  resealed: SealedSecret | null;
+}
+
+/**
+ * Opens a secret with the current master key, then with `previousKey` when the current key fails.
+ * A row that opens only with the previous key is re-sealed with the current key and the same context.
+ * A wrong key, or a ciphertext bound to another account, still fails and is not re-sealed.
+ */
+export function openRotatedSecret(sealed: SealedSecret, currentKey: string, previousKey: string | undefined, context?: string): RotatedSecret {
+  try {
+    return { plaintext: openSecret(sealed, currentKey, context), resealed: null };
+  } catch (err) {
+    if (!(err instanceof VaultError) || !previousKey || previousKey === currentKey) throw err;
+  }
+  const plaintext = openSecret(sealed, previousKey, context);
+  return { plaintext, resealed: sealSecret(plaintext, currentKey, context) };
+}
+
 /** Decrypts a secret. Keep the result in memory only: never write it to disk, logs or responses. */
 export function openSecret(sealed: SealedSecret, masterKeyBase64: string, context?: string): string {
   const key = parseMasterKey(masterKeyBase64);

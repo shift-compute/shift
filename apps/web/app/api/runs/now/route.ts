@@ -18,6 +18,7 @@ function log(message: string): void {
 function runConfig(config: WebConfig): RunConfig {
   return {
     SHIFT_MASTER_KEY: config.SHIFT_MASTER_KEY,
+    ...(config.SHIFT_MASTER_KEY_PREV ? { SHIFT_MASTER_KEY_PREV: config.SHIFT_MASTER_KEY_PREV } : {}),
     UPLOAD_DIR: config.UPLOAD_DIR,
     SAFETY_MARGIN_PCT: config.SAFETY_MARGIN_PCT,
     MAX_CONCURRENCY: config.MAX_CONCURRENCY,

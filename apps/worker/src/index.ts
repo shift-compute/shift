@@ -22,6 +22,7 @@ const runSweep = createSweepLock(async () => {
       store: sweeperStore,
       keys: router,
       masterKey: config.SHIFT_MASTER_KEY,
+      ...(config.SHIFT_MASTER_KEY_PREV ? { previousMasterKey: config.SHIFT_MASTER_KEY_PREV } : {}),
       log,
     });
   } catch (err) {

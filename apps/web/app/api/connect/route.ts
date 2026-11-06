@@ -72,7 +72,7 @@ export async function DELETE() {
   if (!user) return NextResponse.json({ error: "not_signed_in" }, { status: 401 });
 
   const db = getDb();
-  const mk = openUserKey(user);
+  const mk = await openUserKey(user);
   let unrevokedKeyIds: string[] = [];
   if (mk) {
     const alive = await db.nightRun.findMany({ where: { userId: user.id, ephemeralKeyId: { not: null }, keyRevokedAt: null } });

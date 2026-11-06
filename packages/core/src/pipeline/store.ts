@@ -75,4 +75,6 @@ export interface PipelineStore {
   createRun(nightId: bigint, userId: string): Promise<{ id: string; busy?: boolean }>;
   updateRun(id: string, patch: RunPatch): Promise<void>;
   updateTask(id: string, patch: TaskPatch): Promise<void>;
+  /** Writes a management key that was re-sealed under the current master key. */
+  saveManagementKey?(userId: string, sealed: { ciphertext: Buffer; iv: Buffer; authTag: Buffer }): Promise<void>;
 }

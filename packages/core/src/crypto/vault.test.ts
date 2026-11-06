@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { openSecret, sealSecret, VaultError } from "./vault";
+import { openRotatedSecret, openSecret, sealSecret, VaultError } from "./vault";
 
 const KEY = Buffer.alloc(32, 9).toString("base64");
+const PREV = Buffer.alloc(32, 8).toString("base64");
 const OTHER_KEY = Buffer.alloc(32, 10).toString("base64");
 const MK = "mk-0123456789abcdefghijklmnopqrstuv";
 const ACCOUNT = "0xdbdcb1f11b6b8ea7ae2b5735954f251306d6f88f";
@@ -90,5 +91,29 @@ describe("vault", () => {
         expect(text).not.toContain(ACCOUNT);
       }
     }
+  });
+
+  it("re-seals a row that opens with the previous key", () => {
+    const sealed = sealSecret(MK, PREV, ACCOUNT);
+    const opened = openRotatedSecret(sealed, KEY, PREV, ACCOUNT);
+    expect(opened.plaintext).toBe(MK);
+    expect(opened.resealed).not.toBeNull();
+    expect(openSecret(opened.resealed!, KEY, ACCOUNT)).toBe(MK);
+    expect(() => openSecret(opened.resealed!, PREV, ACCOUNT)).toThrow(VaultError);
+    const current = openRotatedSecret(sealSecret(MK, KEY, ACCOUNT), KEY, PREV, ACCOUNT);
+    expect(current.plaintext).toBe(MK);
+    expect(current.resealed).toBeNull();
+  });
+
+  it("still fails a wrong key", () => {
+    expect(() => openRotatedSecret(sealSecret(MK, KEY, ACCOUNT), OTHER_KEY, PREV, ACCOUNT)).toThrow(VaultError);
+    expect(() => openRotatedSecret(sealSecret(MK, KEY, ACCOUNT), OTHER_KEY, undefined, ACCOUNT)).toThrow(VaultError);
+  });
+
+  it("still fails a row bound to another account address", () => {
+    const sealed = sealSecret(MK, PREV, ACCOUNT);
+    const other = "0x0000000000000000000000000000000000000001";
+    expect(() => openRotatedSecret(sealed, KEY, PREV, other)).toThrow(VaultError);
+    expect(() => openRotatedSecret(sealed, PREV, KEY, other)).toThrow(VaultError);
   });
 });

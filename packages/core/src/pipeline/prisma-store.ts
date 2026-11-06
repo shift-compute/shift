@@ -97,6 +97,13 @@ export function prismaPipelineStore(db: PrismaClient): PipelineStore {
     async updateTask(id, patch) {
       await db.task.update({ where: { id }, data: taskData(patch) });
     },
+
+    async saveManagementKey(userId, sealed) {
+      await db.user.update({
+        where: { id: userId },
+        data: { mkCiphertext: sealed.ciphertext, mkIv: sealed.iv, mkAuthTag: sealed.authTag },
+      });
+    },
   };
 }
 

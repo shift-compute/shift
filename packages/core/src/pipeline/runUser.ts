@@ -4,7 +4,7 @@ import type { CatalogEntry } from "../catalog/catalog";
 import { loadModelCatalog, type CatalogCache } from "../catalog/loader";
 import { impliedMicroUsdPerOg } from "../catalog/rate";
 import type { WorkerConfig } from "../config";
-import { openSecret } from "../crypto/vault";
+import { openRotatedSecret } from "../crypto/vault";
 import { ANALYSIS_MAX_TOKENS, REFINE_MAX_TOKENS, SUMMARY_MAX_TOKENS, maxTokensCostMicro } from "../executors/chat-limits";
 import { extractDocText, type DocText } from "../executors/doc-text";
 import { runAudioSummary } from "../executors/audio-summary";
@@ -55,7 +55,7 @@ const MIME_BY_EXT: Record<string, string> = {
   ".md": "text/markdown",
 };
 
-export type RunConfig = Pick<WorkerConfig, "SHIFT_MASTER_KEY" | "SAFETY_MARGIN_PCT" | "MAX_CONCURRENCY" | "NIGHT_HARD_STOP_UTC" | "UPLOAD_DIR" | "COMMONS_GATE_THRESHOLD">;
+export type RunConfig = Pick<WorkerConfig, "SHIFT_MASTER_KEY" | "SHIFT_MASTER_KEY_PREV" | "SAFETY_MARGIN_PCT" | "MAX_CONCURRENCY" | "NIGHT_HARD_STOP_UTC" | "UPLOAD_DIR" | "COMMONS_GATE_THRESHOLD">;
 
 /** The Router methods one user night needs. The real client satisfies this; tests pass their own. */
 export type UserRouter = Pick<RouterClient, "listModels" | "getBalance" | "getUsageHistory" | "createApiKey" | "revokeApiKey" | "chat" | "decide" | "transcribe" | "generateImage">;
@@ -192,11 +192,14 @@ async function runOpen(deps: RunUserDeps, runId: string): Promise<RunUserOutcome
   }
 
   // Decrypted only for this run. The string cannot be wiped, but it is not logged, stored or returned.
-  let mk = openSecret(
+  const openedKey = openRotatedSecret(
     { ciphertext: user.mkCiphertext, iv: user.mkIv, authTag: user.mkAuthTag },
     deps.config.SHIFT_MASTER_KEY,
+    deps.config.SHIFT_MASTER_KEY_PREV,
     user.accountAddress.toLowerCase(),
   );
+  if (openedKey.resealed) await store.saveManagementKey?.(user.id, openedKey.resealed);
+  let mk = openedKey.plaintext;
   try {
     return await runWithKey(deps, runId, mk, runnable);
   } finally {
