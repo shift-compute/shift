@@ -15,6 +15,7 @@ import type { ExecutorResult, StepRecord } from "../executors/types";
 import { msUntilHardStop } from "../night/schedule";
 import { MIN_QUALITY, buildComplexityRequest, classificationSpendMicro, complexityState, pickDecisionModel, readComplexity, type Complexity } from "../optimizer/complexity";
 import { planNight, type PlanOption, type PlanTask } from "../optimizer/optimizer";
+import { costDrifted } from "../optimizer/replan";
 import { redactString } from "../redact";
 import { TASK_TYPES } from "../tasks/task-input";
 import { withEphemeralKey } from "../zg/ephemeral-keys";
@@ -353,6 +354,16 @@ async function executePlan(deps: RunUserDeps, sk: string, tasks: Prepared[], cat
 
   const queue = tasks.filter((task) => assignment.has(task.row.id));
   const limit = deps.config.MAX_CONCURRENCY;
+  // Tasks already inside runTask are off the queue. Their estimate stays reserved so a replan cannot spend it twice.
+  const running = new Set<string>();
+  // Dequeue and replan share one turn. A worker may be inside runTask while another replans; it must not pull the
+  // next task until the new assignments and DEFERRED rows are stored.
+  let turn: Promise<void> = Promise.resolve();
+  const exclusive = <T>(fn: () => Promise<T> | T): Promise<T> => {
+    const run = turn.then(fn);
+    turn = run.then(() => undefined, () => undefined);
+    return run;
+  };
 
   const deferRest = async (reason: string) => {
     stop = true;
@@ -361,7 +372,9 @@ async function executePlan(deps: RunUserDeps, sk: string, tasks: Prepared[], cat
 
   const replan = async () => {
     const left = queue.filter((task) => !dropped.has(task.row.id));
-    const budgetLeft = budget.budgetMicro > spend.accountedMicro ? budget.budgetMicro - spend.accountedMicro : 0n;
+    const reserved = [...running].reduce((sum, id) => sum + (assignment.get(id)?.costMicro ?? 0n), 0n);
+    const committed = spend.accountedMicro + reserved;
+    const budgetLeft = budget.budgetMicro > committed ? budget.budgetMicro - committed : 0n;
     const next = planNight(left.map((task) => task.plan), activeCatalog, "private", budgetLeft);
     const keep = new Map(next.assignments.map((item) => [item.taskId, item.option]));
     for (const task of left) {
@@ -375,25 +388,33 @@ async function executePlan(deps: RunUserDeps, sk: string, tasks: Prepared[], cat
 
   await runPool(Math.min(limit, queue.length), async () => {
     for (;;) {
-      if (stop || msUntilHardStop(now(), deps.config.NIGHT_HARD_STOP_UTC) === 0) return;
-      const task = queue.shift();
-      if (!task || dropped.has(task.row.id)) {
-        if (!task) return;
-        continue;
-      }
-      const option = assignment.get(task.row.id);
-      if (!option) continue;
-      const outcome = await runTask(deps, sk, task, option, spend);
+      const next = await exclusive(() => {
+        if (stop || msUntilHardStop(now(), deps.config.NIGHT_HARD_STOP_UTC) === 0) return undefined;
+        for (;;) {
+          const task = queue.shift();
+          if (!task) return undefined;
+          if (dropped.has(task.row.id)) continue;
+          const option = assignment.get(task.row.id);
+          if (!option) continue;
+          running.add(task.row.id);
+          return { task, option };
+        }
+      });
+      if (!next) return;
+      const outcome = await runTask(deps, sk, next.task, next.option, spend);
+      running.delete(next.task.row.id);
       if (outcome === "stop") {
-        await deferRest("The balance or the key limit was reached, so the remaining tasks wait for another night.");
+        await exclusive(() => deferRest("The balance or the key limit was reached, so the remaining tasks wait for another night."));
         return;
       }
       if (outcome === "exclude") {
-        const ids = new Set([option.models.chat.id, option.models.transcribe?.id, option.models.image?.id].filter((id): id is string => id !== undefined));
-        activeCatalog = activeCatalog.filter((entry) => !ids.has(entry.id));
-        await replan();
+        await exclusive(async () => {
+          const ids = new Set([next.option.models.chat.id, next.option.models.transcribe?.id, next.option.models.image?.id].filter((id): id is string => id !== undefined));
+          activeCatalog = activeCatalog.filter((entry) => !ids.has(entry.id));
+          await replan();
+        });
       }
-      if (outcome === "replan") await replan();
+      if (outcome === "replan") await exclusive(() => replan());
     }
   });
 
@@ -464,11 +485,10 @@ async function runTask(deps: RunUserDeps, sk: string, task: Prepared, option: Pl
       error: null,
     });
   } catch (err) {
+    // The call was already billed. A storage failure must not run it again, but the drift check below still runs.
     await deps.store.updateTask(task.row.id, { status: "FAILED", nightId: deps.nightId, steps, actualCostUsdMicro: actual ?? null, error: failureText(err) });
-    return "ok";
   }
-  const drifted = actual !== undefined && (option.costMicro === 0n ? actual > 0n : actual * 100n > option.costMicro * 120n);
-  return drifted ? "replan" : "ok";
+  return costDrifted(option.costMicro, actual) ? "replan" : "ok";
 }
 
 async function dispatch(router: UserRouter, sk: string, task: Prepared, option: PlanOption, attempt: number): Promise<ExecutorResult<unknown>> {

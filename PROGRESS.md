@@ -4,8 +4,8 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F3 — Optimizer and anchoring (F0 closed with open items, see Blockers)
-**Next item:** F3.5
-**Commits so far:** 53 (target for the project: 50–90)
+**Next item:** F3.6
+**Commits so far:** 54 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -84,7 +84,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
   - `buildComplexityRequest`, `readComplexity` (confidence below 0.5 plans `standard`), `classifyComplexity` (one real `/v1/decisions` call; a failed call plans `standard` and does not fail the task) and `MIN_QUALITY` (simple 1, standard 2, complex 3) were already in `packages/core/src/optimizer/complexity.ts` and exported from `@shift/core`. This commit adds `pickDecisionModel` and `classificationSpendMicro`. The picker reads ids only from the catalog: the strictest trust tier that has a decision model (private TeeML, then verified, then standard), then the smallest `contextLength` that can hold the task text (Laya's 512 tokens when the text fits, otherwise a larger context such as Vela), else the largest context in that tier. No decision model at all plans `standard` and does not call the Router, so an empty TeeML catalog spends nothing. `runUser` subtracts the step's reported cost from the night budget, or `estimateDecisionMicro` of the state actually sent when the response carries no cost. Tests inject `decide`. No credit spend.
 - [x] F3.4 Budget optimizer (base + greedy upgrades) — `feat(core): add budget optimizer`
   - `optionsFor` and `planNight` were already in `packages/core/src/optimizer/optimizer.ts` and exported from `@shift/core`. This commit locks plan §10.4 with synthetic catalogs (no Router calls): the quality frontier, a cheap base by priority then `createdAt`, greedy upgrades by (Δquality × priority) / Δcost, same-price quality kept as the base, and `remainingMicro` left untouched for commons. Empty catalog, zero and negative budget, `no_model` vs `over_budget`, and a minimum quality the budget cannot buy are covered. `runUser` already writes `MIN_QUALITY` from F3.3 onto each text task before the execution `planNight`; the pre-key preview stays at floor 1 because classification needs the ephemeral key. Planning uses `candidates` as a trust floor (a looser mode still admits stricter models). A private plan does not silently switch to verified when TeeML is missing: the ephemeral key is pinned to private, and the Router returns 503 rather than downgrading (plan §7.4). No credit spend.
-- [ ] F3.5 Adaptive replanning during execution — `feat(core): replan when real cost drifts`
+- [x] F3.5 Adaptive replanning during execution — `feat(core): replan when real cost drifts`
+  - `runUser` already replanned after a successful task when the reported cost was above 1.2× the estimate (or any positive cost on a zero estimate), and already removed the failed model on `exclude_model_and_replan` / `switch_provider_or_model` before planning again. This commit extracts `costDrifted` and `COST_DRIFT_PERCENT` (120) into `packages/core/src/optimizer/replan.ts` and exports them. A missing reported cost does not replan. Dequeue and replan share one turn, and tasks already inside an executor keep their estimate reserved, so a second worker cannot start a queued task on the pre-replan assignment. A storage failure still marks the task failed and replans when the cost drifted. Tests inject executors and synthetic costs. No credit spend.
 - [ ] F3.6 Optimizer tests — `test(core): cover optimizer edge cases`
 - [ ] F3.7 Plan preview endpoint + UI — `feat(web): add tonight's plan preview`
 - [ ] F3.8 Merkle leaves and tree (LEAF_TYPES, parity) — `feat(core): add merkle leaf encoding and tree`
@@ -152,6 +153,7 @@ Short entries: date — decision — reason. Example: `2026-11-06 — budget mod
 - 2026-11-06 — submission deadline is Saturday 7 November 2026, 09:00 IST, and late submissions are not accepted — ETHGlobal Mumbai details and start pages. The plan's "8 November, 09:00 IST" date was wrong.
 - 2026-11-06 — forge-std v1.9.4 is vendored under `contracts/lib` — a clean clone failed `pnpm test:contracts` because the library was gitignored and only documented as a manual clone.
 - 2026-11-06 — per-token prices stay in atto-USD; the 0G rate is the lower median of paired catalog prices — a micro-USD integer would erase prices such as $0.00000008 per token. A catalog with no wei+USD pair fails the conversion instead of using a fixed rate.
+- 2026-11-06 — a cost-drift replan reserves the estimate of tasks already running — with concurrency, a call can be in flight while the rest of the queue is recomputed, and that estimate stays out of the remaining budget. Exactly 1.2× the estimate does not replan (plan §10.4 uses a strict greater-than).
 - 2026-11-06 — a private night does not fall back to verified models when no TeeML model can run the task — the ephemeral key is pinned to `private`, and the Router answers 503 instead of downgrading (plan §7.4). The task is deferred with `no_model`. `candidates` still lets a stricter model satisfy a looser floor.
 - 2026-11-06 — complexity classification uses the strictest decision-model tier in the catalog and plans `standard` with no Router call when that catalog has no decision model — the live catalog sometimes has no TeeML models and no decision models (see Blockers). Model ids are never hard-coded.
 

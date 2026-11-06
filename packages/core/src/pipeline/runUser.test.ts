@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { buildCatalog } from "../catalog/catalog";
 import { estimateCostMicro, estimateDecisionMicro } from "../catalog/estimator";
 import { complexityState } from "../optimizer/complexity";
+import { COST_DRIFT_PERCENT, costDrifted } from "../optimizer/replan";
 import { sealSecret } from "../crypto/vault";
 import { RouterError } from "../zg/errors";
 import type { StorageClient } from "../zg/storage";
@@ -174,6 +175,14 @@ function harness(options: { tasks?: OpenTask[]; models?: unknown[]; balance?: Re
   return { events, logs, tasks, runs, uploads, store, router, storage };
 }
 
+const DOC_SIZE = { bytes: 21, mime: "text/plain", chars: 21 };
+
+function docEstimate(model: Parameters<typeof buildCatalog>[0][number]): bigint {
+  const entry = buildCatalog([model])[0];
+  if (!entry) throw new Error("missing catalog entry");
+  return estimateCostMicro("DOC_ANALYSIS", DOC_SIZE, { chat: entry });
+}
+
 function run(h: Harness, over: Partial<Parameters<typeof runUser>[0]> = {}) {
   return runUser({
     user: user(),
@@ -343,11 +352,15 @@ describe("runUser", () => {
     expect(h.events).toEqual([]);
   });
 
-  it("replans the rest of the night when a reported cost blows past the estimate", async () => {
+  it("keeps the rest of the plan when the reported cost stays within 1.2×", async () => {
     const priced = { ...chatModel, pricing_usd: { prompt: "0.0001", completion: "0.0006" } };
-    const estimate = estimateCostMicro("DOC_ANALYSIS", { bytes: 21, mime: "text/plain", chars: 21 }, { chat: buildCatalog([priced])[0]! });
-    // Both tasks fit the estimate; the first call then reports the whole budget.
+    const estimate = docEstimate(priced);
+    const reported = (estimate * COST_DRIFT_PERCENT) / 100n;
     const budget = estimate * 2n;
+    // A replan would see less than one estimate left and defer the second task. Staying under the line must not.
+    expect(costDrifted(estimate, reported)).toBe(false);
+    expect(reported).toBeGreaterThan(estimate);
+    expect(budget - reported).toBeLessThan(estimate);
     let calls = 0;
     const h = harness({
       tasks: [doc("first"), doc("second")],
@@ -355,13 +368,180 @@ describe("runUser", () => {
       balance: usdBalance(budget.toString(), "0"),
       chat: async () => {
         calls += 1;
-        return { data: { choices: [{ message: { content: '{"summary":"Done.","actionItems":[],"risks":[]}' } }] }, status: 200, requestId: "req-doc", trace: { billing: { total_cost_usd_micro: budget.toString() } } };
+        const cost = calls === 1 ? reported : 1n;
+        return { data: { choices: [{ message: { content: '{"summary":"Done.","actionItems":[],"risks":[]}' } }] }, status: 200, requestId: "req-doc", trace: { billing: { total_cost_usd_micro: cost.toString() } } };
+      },
+    });
+    await run(h, { config: { ...config, SAFETY_MARGIN_PCT: 0 } });
+    expect(calls).toBe(2);
+    expect(h.tasks.get("first")).toMatchObject({ status: "DONE", estCostUsdMicro: estimate, actualCostUsdMicro: reported });
+    expect(h.tasks.get("second")?.status).toBe("DONE");
+  });
+
+  it("replans the rest of the night when a reported cost blows past the estimate", async () => {
+    const priced = { ...chatModel, pricing_usd: { prompt: "0.0001", completion: "0.0006" } };
+    const estimate = docEstimate(priced);
+    const reported = (estimate * COST_DRIFT_PERCENT) / 100n + 1n;
+    const budget = estimate * 2n;
+    expect(costDrifted(estimate, reported)).toBe(true);
+    expect(budget - reported).toBeLessThan(estimate);
+    let calls = 0;
+    const h = harness({
+      tasks: [doc("first"), doc("second")],
+      models: [priced],
+      balance: usdBalance(budget.toString(), "0"),
+      chat: async () => {
+        calls += 1;
+        return { data: { choices: [{ message: { content: '{"summary":"Done.","actionItems":[],"risks":[]}' } }] }, status: 200, requestId: "req-doc", trace: { billing: { total_cost_usd_micro: reported.toString() } } };
       },
     });
     await run(h, { config: { ...config, SAFETY_MARGIN_PCT: 0 } });
     expect(calls).toBe(1);
-    expect(h.tasks.get("first")?.status).toBe("DONE");
-    expect(h.tasks.get("second")?.status).toBe("DEFERRED");
+    expect(h.tasks.get("first")).toMatchObject({ status: "DONE", actualCostUsdMicro: reported });
+    expect(h.tasks.get("second")).toMatchObject({ status: "DEFERRED", error: "The task does not fit in the remaining budget." });
+  });
+
+  it("replans a zero estimate when the Router reports any positive cost", async () => {
+    const freeChat = { ...chatModel, pricing_usd: { prompt: "0", completion: "0" } };
+    const imageModel = { id: "z-image-turbo", type: "text-to-image", verifiability: "TeeML", pricing_usd: { image: "0.02" } };
+    const entries = buildCatalog([freeChat, imageModel]);
+    const chat = entries.find((entry) => entry.kind === "chat");
+    const image = entries.find((entry) => entry.kind === "image");
+    if (!chat || !image) throw new Error("missing catalog entry");
+    const imageEstimate = estimateCostMicro("IMAGE_FROM_PROMPT", { bytes: 0, prompt: "a red balloon" }, { chat, image });
+    expect(docEstimate(freeChat)).toBe(0n);
+    expect(imageEstimate).toBeGreaterThanOrEqual(10_000n);
+    expect(costDrifted(0n, imageEstimate)).toBe(true);
+    let images = 0;
+    const h = harness({
+      tasks: [doc("note"), { id: "poster", type: "IMAGE_FROM_PROMPT", priority: 2, createdAt: new Date("2026-11-06T18:00:00Z"), inputPath: null, inputMeta: {}, prompt: "a red balloon" }],
+      models: [freeChat, imageModel],
+      balance: usdBalance(imageEstimate.toString(), "0"),
+      chat: async () => ({ data: { choices: [{ message: { content: '{"summary":"Done.","actionItems":[],"risks":[]}' } }] }, status: 200, requestId: "req-doc", trace: { billing: { total_cost_usd_micro: imageEstimate.toString() } } }),
+      generateImage: async () => {
+        images += 1;
+        throw new Error("the image task should have been deferred");
+      },
+    });
+    await run(h, { config: { ...config, SAFETY_MARGIN_PCT: 0 } });
+    expect(images).toBe(0);
+    expect(h.tasks.get("note")).toMatchObject({ status: "DONE", estCostUsdMicro: 0n, actualCostUsdMicro: imageEstimate });
+    expect(h.tasks.get("poster")).toMatchObject({ status: "DEFERRED", error: "The task does not fit in the remaining budget." });
+  });
+
+  it("does not replan when the response has no reported cost", async () => {
+    const priced = { ...chatModel, pricing_usd: { prompt: "0.0001", completion: "0.0006" } };
+    const estimate = docEstimate(priced);
+    const budget = estimate * 2n;
+    expect(costDrifted(estimate, undefined)).toBe(false);
+    let calls = 0;
+    const h = harness({
+      tasks: [doc("first"), doc("second")],
+      models: [priced],
+      balance: usdBalance(budget.toString(), "0"),
+      chat: async () => {
+        calls += 1;
+        return { data: { choices: [{ message: { content: '{"summary":"Done.","actionItems":[],"risks":[]}' } }] }, status: 200, requestId: "req-doc" };
+      },
+    });
+    await run(h, { config: { ...config, SAFETY_MARGIN_PCT: 0 } });
+    expect(calls).toBe(2);
+    expect(h.tasks.get("first")).toMatchObject({ status: "DONE", actualCostUsdMicro: null });
+    expect(h.tasks.get("second")?.status).toBe("DONE");
+  });
+
+  it("drops the remaining queue when the model that failed is no longer usable", async () => {
+    const cheap = { id: "lite-chat", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0.00000008", completion: "0.00000048" } };
+    const premium = { id: "glm-5.3", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0.0001", completion: "0.0006" } };
+    const cheapCost = docEstimate(cheap);
+    const premiumCost = docEstimate(premium);
+    const budget = 10_000n;
+    // Both tasks fit on lite, and after the failure the leftover still covers another lite call.
+    // They are deferred only because that model was removed and glm does not fit.
+    expect(cheapCost * 2n).toBeLessThanOrEqual(budget);
+    expect(budget - cheapCost).toBeGreaterThanOrEqual(cheapCost);
+    expect(premiumCost).toBeGreaterThan(budget);
+    const models: string[] = [];
+    const h = harness({
+      tasks: [doc("first"), doc("second")],
+      models: [cheap, premium],
+      balance: usdBalance(budget.toString(), "0"),
+      chat: async (_sk, body) => {
+        models.push(body.model);
+        throw new RouterError({ status: 400, code: "model_not_capable", message: "model cannot serve this", requestId: "req-doc" });
+      },
+    });
+    await run(h, { config: { ...config, SAFETY_MARGIN_PCT: 0 } });
+    expect(models).toEqual(["lite-chat"]);
+    expect(h.tasks.get("first")?.status).toBe("FAILED");
+    expect(h.tasks.get("second")).toMatchObject({ status: "DEFERRED", error: "The task does not fit in the remaining budget." });
+  });
+
+  it("replans after a drifted cost even when storing the output fails", async () => {
+    const priced = { ...chatModel, pricing_usd: { prompt: "0.0001", completion: "0.0006" } };
+    const estimate = docEstimate(priced);
+    const reported = (estimate * COST_DRIFT_PERCENT) / 100n + 1n;
+    const h = harness({
+      tasks: [doc("first"), doc("second")],
+      models: [priced],
+      balance: usdBalance((estimate * 2n).toString(), "0"),
+      chat: async () => ({ data: { choices: [{ message: { content: '{"summary":"Done.","actionItems":[],"risks":[]}' } }] }, status: 200, requestId: "req-doc", trace: { billing: { total_cost_usd_micro: reported.toString() } } }),
+    });
+    h.storage.upload = async () => {
+      throw new Error("indexer down");
+    };
+    await run(h, { config: { ...config, SAFETY_MARGIN_PCT: 0 } });
+    expect(h.tasks.get("first")).toMatchObject({ status: "FAILED", actualCostUsdMicro: reported });
+    expect(h.tasks.get("first")?.error).toContain("indexer down");
+    expect(h.tasks.get("second")).toMatchObject({ status: "DEFERRED", error: "The task does not fit in the remaining budget." });
+  });
+
+  it("does not start a queued task on a stale model while a replan is still writing", async () => {
+    const cheap = { id: "lite-chat", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0.00000008", completion: "0.00000048" } };
+    const premium = { id: "glm-5.3", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0.0001", completion: "0.0006" } };
+    const cheapCost = docEstimate(cheap);
+    const premiumCost = docEstimate(premium);
+    // Four cheap bases plus one upgrade. The high-priority task is the one that starts on glm.
+    const budget = cheapCost * 3n + premiumCost;
+    const reported = premiumCost + 1n;
+    const left = budget - reported - cheapCost;
+    expect(costDrifted(cheapCost, reported)).toBe(true);
+    expect(left).toBeGreaterThanOrEqual(cheapCost);
+    expect(left).toBeLessThan(cheapCost * 2n);
+    expect(budget).toBeGreaterThanOrEqual(10_000n);
+    const seen: string[] = [];
+    let releaseHolder!: () => void;
+    const holderGate = new Promise<void>((resolve) => {
+      releaseHolder = resolve;
+    });
+    const h = harness({
+      tasks: [doc("runner"), doc("holder"), doc("drop"), doc("switch", { priority: 3 })],
+      models: [cheap, premium],
+      balance: usdBalance(budget.toString(), "0"),
+      chat: async (_sk, body, options) => {
+        const id = options?.clientRequestId?.split("-")[0] ?? "";
+        seen.push(`${id}:${body.model}`);
+        if (id === "holder") await holderGate;
+        const cost = id === "runner" ? reported : 1n;
+        return { data: { choices: [{ message: { content: '{"summary":"Done.","actionItems":[],"risks":[]}' } }] }, status: 200, requestId: `req-${id}`, trace: { billing: { total_cost_usd_micro: cost.toString() } } };
+      },
+    });
+    const updateTask = h.store.updateTask.bind(h.store);
+    h.store.updateTask = async (id, patch) => {
+      if (id === "drop" && patch.status === "DEFERRED") {
+        releaseHolder();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      await updateTask(id, patch);
+    };
+    await run(h, { config: { ...config, SAFETY_MARGIN_PCT: 0, MAX_CONCURRENCY: 2 } });
+    expect(seen.some((row) => row.startsWith("drop:"))).toBe(false);
+    expect(seen).toContain("switch:lite-chat");
+    expect(seen.some((row) => row.startsWith("switch:") && row.endsWith("glm-5.3"))).toBe(false);
+    expect(h.tasks.get("runner")?.status).toBe("DONE");
+    expect(h.tasks.get("holder")?.status).toBe("DONE");
+    expect(h.tasks.get("drop")).toMatchObject({ status: "DEFERRED", error: "The task does not fit in the remaining budget." });
+    expect(h.tasks.get("switch")).toMatchObject({ status: "DONE", chosenModel: "lite-chat" });
   });
 
   it("drops a task whose decision comes back as complex when no model is good enough", async () => {

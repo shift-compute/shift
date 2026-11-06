@@ -29,6 +29,7 @@ export * from "./catalog/estimator";
 export * from "./optimizer/complexity";
 export * from "./optimizer/quality";
 export * from "./optimizer/optimizer";
+export * from "./optimizer/replan";
 export * from "./pipeline/budget";
 export * from "./pipeline/prisma-store";
 export * from "./pipeline/runUser";
