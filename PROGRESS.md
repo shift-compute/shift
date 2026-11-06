@@ -4,7 +4,7 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F6 — Delivery (F6.1 is live on Railway; F3.12 and F4.7 remain open, blocked on Router credits; F5 is optional)
-**Next item:** F5 if taken, or the blocked runs F3.12 / F4.7 once Router credits exist. Production commons seeding is an operator step, not a build item.
+**Next item:** QA.6 (limits and hardening), then QA.7–QA.9. F3.12 and F4.7 stay blocked on Router credits.
 **Commits so far:** 70 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
@@ -143,6 +143,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
   - A RUNNING night is stale after 10 minutes without a heartbeat, not 90. The worker refreshes `startedAt` every minute while the night runs, so a live night is not stolen. On boot the tick runs once immediately and can retake a stale RUNNING night that is still inside the window. FAILED and DONE nights are not retaken. No Router credits spent.
 - [x] QA.4 One bad step fails the anchor — `fix(core): skip a bad leaf and resume the anchor`
   - A step missing a model, a reported cost, a trust tier, or an output root is logged and left out of the tree. The other tasks are still anchored. If the Merkle root and manifest are already stored and `anchorTx` is missing, `anchorNight` reads `nights(nightId)` and sends the transaction only when the contract does not already have the night. No transaction hash is invented when the chain is already anchored. No Router credits spent.
+- [x] QA.5 Encrypt personal outputs before 0G Storage — `feat(core): encrypt personal outputs before storage`
+  - Personal files and the JSON document are AES-256-GCM under HKDF(`SHIFT_MASTER_KEY`, the account address) before `storage.upload`. The Merkle leaf and the `/verify` indexer link point at that ciphertext root. `GET /api/tasks/[id]/output` downloads and decrypts for the signed-in owner only, and `/nights/[id]` shows that result. Commons uploads stay public JSON. Another account address cannot open the blob, and a flipped byte fails. Nights anchored before this change still have plaintext roots. No Router credits spent.
 
 Planned commits: ~58 + a few `fix:` commits = within the 50–90 target.
 
@@ -215,6 +217,7 @@ Short entries: date — decision — reason. Example: `2026-11-06 — budget mod
 - 2026-11-06 — unrecorded Router charges on the ephemeral key are added after the run — `max_tokens` caps every chat call. Usage history rows for that key that we never stored are added to `spentUsdMicro`, and also to `donatedUsdMicro` when leftovers are donated, so `recordDonations` does not send the short figure. A chat that fails with no request id counts `max_tokens` × the completion price. A 0G-denominated `cost` is not read as micro-USD. F6.1 stays open.
 - 2026-11-06 — a night lock goes stale after 10 minutes without a heartbeat — the window is 50 minutes, so a 90 minute threshold could never be retaken before the hard stop. `startedAt` is refreshed every minute while the night runs. Boot runs one tick immediately. FAILED nights stay non-retryable. F6.1 stays open.
 - 2026-11-06 — one bad leaf no longer drops the whole night anchor — the step is logged and skipped. If the root is already stored and the tx hash is not, the worker reads the contract and sends `anchorNight` only when the night is not anchored yet. A hash is not invented for a night that is already on chain. F6.1 stays open.
+- 2026-11-06 — personal outputs are ciphertext on 0G Storage — the per-user key is HKDF of `SHIFT_MASTER_KEY` and the account address, then AES-256-GCM, same IV and tag sizes as the vault. The leaf commits to the ciphertext root. The owner decrypts through `GET /api/tasks/[id]/output`. Commons JSON stays public. Roots written before this change are still plaintext.
 
 ## Blockers
 - **The Router catalog changed after Phase 0.** At ~16:30 UTC on 2026-11-05 `GET /v1/models` returned 124 models, 9 of them TeeML (`0gm-1.0-35b-a3b`, `glm-5.3`, `laya`, `vela-2.0-9b`, `whisper-large-v3`, `z-image-turbo`, embeddings). Later the same day, with or without a key and with any trust-mode header, it returns 79 models, no `verifiability` field and none of those: no decision models, no speech-to-text, no private (TeeML) models. Shift's core (decision models, Whisper, private trust mode) depends on them. Ask 0G at the booth whether this is an outage or a permanent change; re-run `pnpm smoke` to refresh `docs/spike/models.json` (the committed copy is the earlier catalog). F3.1's loader accepts the reduced body: missing `verifiability` becomes trust `standard`, and an empty TeeML set does not throw. Private mode then has no chat model to plan with. F3.3 plans text tasks as `standard` and does not call `/v1/decisions` when that list also has no decision model. F4.3 leaves `RUNNING` commons rows untouched in that case and does not mark them accepted.

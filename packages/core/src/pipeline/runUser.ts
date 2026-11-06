@@ -624,7 +624,10 @@ async function runTaskBody(deps: RunUserDeps, sk: string, task: Prepared, option
   const actual = reportedCost(output.steps);
   if (gate.expired) return "ok";
   try {
-    const stored = await storeTaskOutput(deps.storage, { id: task.row.id, type: task.plan.type }, output);
+    const stored = await storeTaskOutput(deps.storage, { id: task.row.id, type: task.plan.type }, output, {
+      masterKey: deps.config.SHIFT_MASTER_KEY,
+      accountAddress: deps.user.accountAddress,
+    });
     if (gate.expired) return "ok";
     await deps.store.updateTask(task.row.id, {
       status: "DONE",

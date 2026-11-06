@@ -6,6 +6,7 @@ export * from "./zg/errors";
 export * from "./zg/router";
 export * from "./zg/schemas";
 export * from "./crypto/vault";
+export * from "./crypto/output-seal";
 export * from "./zg/ephemeral-keys";
 export * from "./connect/connect-account";
 export * from "./db/client";

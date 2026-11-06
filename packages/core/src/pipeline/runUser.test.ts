@@ -6,6 +6,7 @@ import { ANALYSIS_MAX_TOKENS, maxTokensCostMicro } from "../executors/chat-limit
 import { gateQuestionChars, pickGateModel } from "./commons-gate";
 import { complexityState } from "../optimizer/complexity";
 import { COST_DRIFT_PERCENT, costDrifted } from "../optimizer/replan";
+import { openOutput } from "../crypto/output-seal";
 import { sealSecret } from "../crypto/vault";
 import { RouterError } from "../zg/errors";
 import { createStorageClient, type StorageClient } from "../zg/storage";
@@ -291,7 +292,9 @@ describe("runUser", () => {
     expect(task?.chosenModel).toBe("0gm-1.0-35b-a3b");
     expect(task?.actualCostUsdMicro).toBe(100n);
     expect(task?.outputRoot).toBe(`0x${createHash("sha256").update(h.uploads[0]!).digest("hex")}`);
-    expect(JSON.parse(new TextDecoder().decode(h.uploads[0]!)).result.summary).toBe("A short summary.");
+    const storedPlain = openOutput(h.uploads[0]!, KEY, ADDRESS);
+    expect(JSON.parse(new TextDecoder().decode(storedPlain)).result.summary).toBe("A short summary.");
+    expect(new TextDecoder().decode(h.uploads[0]!)).not.toContain("A short summary.");
     const saved = [...h.runs.values()][0];
     expect(saved?.spentUsdMicro).toBe(100n);
     expect(saved?.creditUsed).toBe("40");
