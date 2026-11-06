@@ -15,12 +15,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en">
       <body className="min-h-screen">
         <header className="border-b border-night">
-          <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-6 py-4">
             <a href="/" className="font-display text-xl font-semibold text-paper no-underline">
               Shift
             </a>
-            <nav className="flex items-center gap-6 text-sm">
+            <nav className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
               <a href="/queue">Queue</a>
+              <a href="/commons">Commons</a>
               <a href="/verify">Verify</a>
               <a href="/connect">Connect</a>
               <span className="text-haze">0G Galileo testnet</span>
