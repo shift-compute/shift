@@ -4,8 +4,8 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F3 — Optimizer and anchoring (F0 closed with open items, see Blockers)
-**Next item:** F3.2
-**Commits so far:** 50 (target for the project: 50–90)
+**Next item:** F3.3
+**Commits so far:** 51 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -78,7 +78,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
 ## F3 — Optimizer and anchoring (plan §10, §14, §15)
 - [x] F3.1 Model catalog loader + price normalization to micro-USD — `feat(core): add catalog loader and pricing cache`
   - `buildCatalog`, atto-USD parsing and TeeML/TeeTLS trust mapping were already in `packages/core/src/catalog/catalog.ts` (the estimator and the optimizer already consume them). This commit adds `loadModelCatalog`: `GET /v1/models` through the Router client, with a 10-minute in-memory cache (plan §9.3). The wei↔micro-USD helpers (`impliedMicroUsdPerOg`, `ogWeiToMicroUsd`, `microUsdToOgWei`) now live in the catalog module and `decideBudget` calls them. No wei+USD pair still fails the user (`no_rate`) instead of inventing a rate. Per-token prices stay in atto-USD because they are smaller than one micro-USD; rounded totals are micro-USD. Limitation: a list with no `verifiability` and no TeeML models loads without throwing (those entries are `standard`, and the private candidate set is empty). The live Router sometimes returns that 79-model catalog (see Blockers), so private mode then has nothing to plan. Tests use `docs/spike/models.json` and synthetic bodies. No credit spend.
-- [ ] F3.2 Cost estimator — `feat(core): add cost estimator`
+- [x] F3.2 Cost estimator — `feat(core): complete cost estimator`
+  - Chat, audio and image estimates (×1.15, atto→micro ceil) were already in `packages/core/src/catalog/estimator.ts` and exported from `@shift/core`; the optimizer already calls `estimateCostMicro`. This commit adds `estimateDecisionMicro` for the complexity call (input tokens × catalog prompt price, same padding and ceil), rejects a model of the wrong kind, and clamps non-finite sizes so a bad length cannot estimate a negative cost. Transcription still treats `pricing_usd.prompt` as USD per second (the Router does not document the unit). Image cost is the flat per-image price plus the refine chat the executor runs; if the image model bills input tokens, those are the planned revised prompt. z-image-turbo has no size-tier variants, so `pricing_usd.variants` is not read. The file stays next to the catalog it prices (STRUCTURE.md lists an `optimizer/` estimator). Planning only: the Router's reported cost is still the real one. No credit spend.
 - [ ] F3.3 Complexity classification with decision models — `feat(core): classify task complexity with decision models`
 - [ ] F3.4 Budget optimizer (base + greedy upgrades) — `feat(core): add budget optimizer`
 - [ ] F3.5 Adaptive replanning during execution — `feat(core): replan when real cost drifts`
