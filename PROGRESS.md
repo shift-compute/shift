@@ -3,9 +3,9 @@
 Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
-**Current phase:** F4 — Commons (F3.12 and F4.7 remain open: blocked on Router credits)
-**Next item:** F6.1
-**Commits so far:** 67 (target for the project: 50–90)
+**Current phase:** F6 — Delivery (F3.12 and F4.7 remain open: blocked on Router credits; F6.1 deploy is not done)
+**Next item:** F6.3 (F6.1 stays open, awaiting deploy)
+**Commits so far:** 65 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -124,7 +124,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
 
 ## F6 — Delivery (plan §24, §25)
 - [ ] F6.1 Deploy web + worker + Postgres; live demo link — `chore: deploy web and worker`
-- [ ] F6.2 README for judges — `docs: write README for judges`
+- [x] F6.2 README for judges — `docs: write README for judges`
+  - Judge-facing README: Galileo ShiftLedger address, local run, `/verify?rid=` flow, commons license, and empty placeholders for the live URL, request-id table, and video. No request ids, anchor txs, or manifest roots were invented. F6.1 stays open (no deploy). F3.12 and F4.7 stay blocked on 0 Router balance.
 - [ ] F6.3 Request ID table, contract and storage links in README — `docs: add verifiable run evidence`
 - [ ] F6.4 Demo video link + submission details — `docs: add demo video and submission info`
 
@@ -183,6 +184,7 @@ Short entries: date — decision — reason. Example: `2026-11-06 — budget mod
 - 2026-11-06 — the commons page sums `NightRun.donatedUsdMicro` instead of reading ShiftLedger — `totalDonatedUsdMicro` on the contract only includes nights that were anchored before `recordDonations`. A commons-only night keeps its amount in the database (F4.4), so a public RPC read would hide it. No event scan was added.
 - 2026-11-06 — the web dev server loads `pdf-parse` from Node instead of webpack — webpack evaluates the package's ESM build while importing `@shift/core`, and that throws before any API route runs. Node loads the same package. Document extraction still imports it when a PDF is processed.
 - 2026-11-06 — the night strip is the only bold surface, on the home page, the queue and a night's results — block width is cost share (preview estimates, or reported micro-USD on a recorded night). First light is a `DONE` night. Home keeps the first preview while a run is in progress so a finished task keeps its estimated width, and status polls hit the database rather than the Router. F4.7 stays blocked on the 0 Router balance, same as F3.12, so the next build item is F6.1.
+- 2026-11-06 — the judge README ships before deploy and before a real run — F6.1 is still open and the Router balance is 0, so the live URL, request-id table, and video stay empty until F6.1, F6.3, and F6.4. No rows were invented. Chain and storage stay on Galileo (chain ID 16602).
 
 ## Blockers
 - **The Router catalog changed after Phase 0.** At ~16:30 UTC on 2026-11-05 `GET /v1/models` returned 124 models, 9 of them TeeML (`0gm-1.0-35b-a3b`, `glm-5.3`, `laya`, `vela-2.0-9b`, `whisper-large-v3`, `z-image-turbo`, embeddings). Later the same day, with or without a key and with any trust-mode header, it returns 79 models, no `verifiability` field and none of those: no decision models, no speech-to-text, no private (TeeML) models. Shift's core (decision models, Whisper, private trust mode) depends on them. Ask 0G at the booth whether this is an outage or a permanent change; re-run `pnpm smoke` to refresh `docs/spike/models.json` (the committed copy is the earlier catalog). F3.1's loader accepts the reduced body: missing `verifiability` becomes trust `standard`, and an empty TeeML set does not throw. Private mode then has no chat model to plan with. F3.3 plans text tasks as `standard` and does not call `/v1/decisions` when that list also has no decision model. F4.3 leaves `RUNNING` commons rows untouched in that case and does not mark them accepted.
