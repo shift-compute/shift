@@ -96,7 +96,7 @@ export function Verifier({ initialRequestId }: { initialRequestId: string }) {
 
   return (
     <div className="space-y-8">
-      <form onSubmit={onSubmit} className="max-w-3xl">
+      <form onSubmit={onSubmit} className="surface-card max-w-3xl">
         <label htmlFor="request-id" className="block text-haze">
           Request id
         </label>
@@ -109,9 +109,9 @@ export function Verifier({ initialRequestId }: { initialRequestId: string }) {
             autoComplete="off"
             spellCheck={false}
             placeholder="Paste a request id"
-            className="min-w-0 flex-1 rounded-full border border-ink/15 bg-surface px-4 py-2 font-mono text-ink placeholder:text-muted/70"
+            className="field-input min-w-0 flex-1 font-mono"
           />
-          <button type="submit" disabled={draft.trim().length === 0} className="rounded-full bg-teal px-5 py-2 font-semibold text-paper shadow-sm transition-colors duration-200 hover:bg-ink disabled:opacity-50">
+          <button type="submit" disabled={draft.trim().length === 0} className="btn-solid">
             Verify
           </button>
         </div>
@@ -120,14 +120,14 @@ export function Verifier({ initialRequestId }: { initialRequestId: string }) {
       <div aria-live="polite">
         {panel.phase === "loading" && <p className="text-haze">Loading this result…</p>}
         {panel.phase === "empty" && <p className="text-haze">Paste a request id to verify it against the anchored batch.</p>}
-        {panel.phase === "invalid" && <p className="border-l-4 border-teal pl-3">That request id is not valid.</p>}
+        {panel.phase === "invalid" && <p className="surface-card-warn rounded-xl bg-white/70 py-2 pl-3">That request id is not valid.</p>}
         {panel.phase === "not_found" && (
           <p className="text-haze">No anchored result uses this request id. Results show up here after a night is anchored.</p>
         )}
         {panel.phase === "unavailable" && (
           <div className="space-y-3">
-            <p className="border-l-4 border-teal pl-3">We could not load this result. Try again in a moment.</p>
-            <button type="button" onClick={() => setAttempt((value) => value + 1)} className="rounded-md border border-haze/40 px-4 py-2">
+            <p className="surface-card-warn rounded-xl bg-white/70 py-2 pl-3">We could not load this result. Try again in a moment.</p>
+            <button type="button" onClick={() => setAttempt((value) => value + 1)} className="btn-quiet">
               Try again
             </button>
           </div>
@@ -147,7 +147,7 @@ function Result({ body, local, chain, onRetry }: { body: VerifyResponse; local: 
     <div className="max-w-3xl space-y-8">
       <ChainPanel chain={chain} body={body} onRetry={onRetry} />
       <LocalPanel local={local} hasRoot={body.merkleRoot !== null} />
-      <section aria-label="Result" className="space-y-4 rounded-md bg-night p-5">
+      <section aria-label="Result" className="surface-card surface-card-hover space-y-4">
         <h2 className="text-2xl font-semibold">Result</h2>
         <dl className="grid grid-cols-1 gap-y-3 sm:grid-cols-[12rem_1fr] sm:gap-x-6">
           <dt className="text-haze">Model</dt>
@@ -218,7 +218,7 @@ function Result({ body, local, chain, onRetry }: { body: VerifyResponse; local: 
           </dd>
         </dl>
       </section>
-      <section aria-label="Leaf values" className="space-y-4">
+      <section aria-label="Leaf values" className="surface-card space-y-4">
         <h2 className="text-2xl font-semibold">Leaf values</h2>
         <dl className="grid grid-cols-1 gap-y-3 sm:grid-cols-[12rem_1fr] sm:gap-x-6">
           {VALUE_LABELS.map((label, index) => (
@@ -226,7 +226,7 @@ function Result({ body, local, chain, onRetry }: { body: VerifyResponse; local: 
           ))}
         </dl>
       </section>
-      <section aria-label="Merkle proof" className="space-y-3">
+      <section aria-label="Merkle proof" className="surface-card space-y-3">
         <h2 className="text-2xl font-semibold">Merkle proof</h2>
         {body.proof.length === 0 ? (
           <p className="text-haze">This leaf is the whole tree, so the proof is empty.</p>
@@ -274,7 +274,7 @@ function LocalPanel({ local, hasRoot }: { local: LocalProofCheck; hasRoot: boole
           ? "The proof connects this leaf to the stored Merkle root."
           : "The proof does not reach the stored Merkle root.";
   return (
-    <section aria-label="Leaf hash" className="space-y-2 rounded-md bg-night p-5">
+    <section aria-label="Leaf hash" className="surface-card surface-card-hover space-y-2">
       <h2 className="text-2xl font-semibold">Checked in this browser</h2>
       <p>{hash}</p>
       {proof && <p>{proof}</p>}
@@ -289,7 +289,7 @@ function ChainPanel({ chain, body, onRetry }: { chain: ChainState; body: VerifyR
   }
   const confirmed = chain.status === "confirmed";
   return (
-    <section aria-label="On-chain check" className={`space-y-3 rounded-md p-5 ${confirmed ? "bg-night" : "border-l-4 border-teal bg-night"}`}>
+    <section aria-label="On-chain check" className={`surface-card space-y-3 ${confirmed ? "" : "surface-card-warn"}`}>
       <h2 className={`text-2xl font-semibold ${confirmed ? "text-light" : ""}`}>{chainTitle(chain)}</h2>
       <p className="text-haze">{chainDetail(chain)}</p>
       {chain.chainRoot && <p className="break-all text-sm">On-chain root {chain.chainRoot}</p>}
@@ -300,7 +300,7 @@ function ChainPanel({ chain, body, onRetry }: { chain: ChainState; body: VerifyR
           </a>
         )}
         {chain.status === "unavailable" && (
-          <button type="button" onClick={onRetry} className="rounded-md border border-haze/40 px-4 py-2">
+          <button type="button" onClick={onRetry} className="btn-quiet">
             Try again
           </button>
         )}

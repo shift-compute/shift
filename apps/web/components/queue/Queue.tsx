@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { NightStrip } from "../night/NightStrip";
 import { RunNow } from "./RunNow";
 import { TonightEstimate } from "./TonightEstimate";
+import { StatusBadge, type BadgeTone } from "../ui/StatusBadge";
 import { stripFromSource } from "../../lib/night-strip";
 import { readPreview, type PreviewPanel } from "./preview-state";
 
@@ -40,6 +41,7 @@ const STATUS_LABEL: Record<string, string> = {
   DEFERRED: "Moved to the next night",
   CANCELLED: "Cancelled",
 };
+const STATUS_TONE: Record<string, BadgeTone> = { QUEUED: "wait", PLANNED: "active", RUNNING: "active", DONE: "done", FAILED: "bad", DEFERRED: "wait", CANCELLED: "neutral" };
 const PRIORITY_LABEL = { 1: "Low", 2: "Normal", 3: "High" } as const;
 const CANCELLABLE = new Set(["QUEUED", "PLANNED", "DEFERRED"]);
 
@@ -131,7 +133,7 @@ export function Queue() {
 
   return (
     <div className="space-y-10">
-      <form onSubmit={submit} className="max-w-xl space-y-4">
+      <form onSubmit={submit} className="surface-card max-w-xl space-y-4">
         <div>
           <label htmlFor="task-type" className="block text-haze">
             What should Shift do?
@@ -140,7 +142,7 @@ export function Queue() {
             id="task-type"
             value={type}
             onChange={(e) => setType(e.target.value as TaskRow["type"])}
-            className="mt-1 w-full rounded-md border border-haze/40 bg-night px-3 py-2"
+            className="field-input mt-1"
           >
             {Object.entries(TYPE_LABEL).map(([value, label]) => (
               <option key={value} value={value}>
@@ -155,7 +157,7 @@ export function Queue() {
             <label htmlFor="task-prompt" className="block text-haze">
               Describe the image
             </label>
-            <textarea id="task-prompt" name="prompt" required minLength={3} maxLength={1000} rows={3} className="mt-1 w-full rounded-md border border-haze/40 bg-night px-3 py-2" />
+            <textarea id="task-prompt" name="prompt" required minLength={3} maxLength={1000} rows={3} className="field-input mt-1" />
           </div>
         ) : (
           <div>
@@ -171,18 +173,18 @@ export function Queue() {
           <label htmlFor="task-priority" className="block text-haze">
             Priority
           </label>
-          <select id="task-priority" name="priority" defaultValue="2" className="mt-1 rounded-md border border-haze/40 bg-night px-3 py-2">
+          <select id="task-priority" name="priority" defaultValue="2" className="field-input mt-1 w-auto">
             <option value="3">High: run first</option>
             <option value="2">Normal</option>
             <option value="1">Low: run if there is room</option>
           </select>
         </div>
 
-        <button type="submit" disabled={busy} className="rounded-full bg-teal px-5 py-2 font-semibold text-paper shadow-sm transition-colors duration-200 hover:bg-ink disabled:opacity-60">
+        <button type="submit" disabled={busy} className="btn-solid">
           {busy ? "Adding…" : "Add to tonight's queue"}
         </button>
         {message && (
-          <p role="alert" className="border-l-4 border-teal pl-3">
+          <p role="alert" className="surface-card-warn rounded-xl bg-white/70 py-2 pl-3">
             {message}
           </p>
         )}
@@ -201,19 +203,22 @@ export function Queue() {
         ) : tasks.length === 0 ? (
           <p className="mt-3 text-haze">Nothing queued yet. Add a task above and Shift will pick it up before the reset.</p>
         ) : (
-          <ul className="mt-4 divide-y divide-haze/20">
+          <ul className="mt-4 space-y-3">
             {tasks.map((t) => (
-              <li key={t.id} className="flex items-center justify-between gap-4 py-3">
+              <li key={t.id} className="surface-card surface-card-hover flex items-center justify-between gap-4 !p-4">
                 <div>
-                  <p className="font-semibold">{TYPE_LABEL[t.type]}</p>
+                  <p className="flex flex-wrap items-center gap-2 font-semibold">
+                    {TYPE_LABEL[t.type]}
+                    <StatusBadge tone={STATUS_TONE[t.status]}>{STATUS_LABEL[t.status] ?? t.status}</StatusBadge>
+                  </p>
                   <p className="text-sm text-haze">
-                    {STATUS_LABEL[t.status] ?? t.status} · {PRIORITY_LABEL[t.priority as 1 | 2 | 3] ?? "Normal"} priority
+                    {PRIORITY_LABEL[t.priority as 1 | 2 | 3] ?? "Normal"} priority
                     {t.inputBytes !== null && ` · ${size(t.inputBytes)}`}
                     {t.prompt && ` · “${t.prompt.length > 60 ? `${t.prompt.slice(0, 60)}…` : t.prompt}”`}
                   </p>
                 </div>
                 {CANCELLABLE.has(t.status) && (
-                  <button type="button" onClick={() => cancel(t.id)} className="text-sm underline">
+                  <button type="button" onClick={() => cancel(t.id)} className="btn-quiet !min-h-9 text-sm">
                     Cancel
                   </button>
                 )}

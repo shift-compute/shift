@@ -30,13 +30,13 @@ export function SpendingForm({ initial }: { initial?: { mode: Mode; budgetText: 
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-10 max-w-xl">
+    <form onSubmit={onSubmit} className="mt-8 max-w-xl border-t border-ink/10 pt-6">
       <fieldset>
         <legend className="text-lg font-semibold">How should Shift spend?</legend>
         <div className="mt-3 space-y-3">
           {OPTIONS.map((o) => (
             <label key={o.value} className="flex cursor-pointer gap-3">
-              <input type="radio" name="mode" value={o.value} checked={mode === o.value} onChange={() => setMode(o.value)} className="mt-1.5 accent-sodium" />
+              <input type="radio" name="mode" value={o.value} checked={mode === o.value} onChange={() => setMode(o.value)} className="mt-1.5 accent-teal" />
               <span>
                 <span className="block font-semibold">{o.title}</span>
                 <span className="block text-haze">{o.body}</span>
@@ -55,20 +55,20 @@ export function SpendingForm({ initial }: { initial?: { mode: Mode; budgetText: 
             value={budget}
             onChange={(e) => setBudget(e.target.value)}
             placeholder="2.50"
-            className="mt-1 w-40 rounded-full border border-ink/15 bg-surface px-4 py-2 text-ink placeholder:text-muted/70"
+            className="field-input mt-1 w-40"
           />
         </div>
       )}
 
       <label className="mt-5 flex cursor-pointer gap-3">
-        <input type="checkbox" checked={donate} onChange={(e) => setDonate(e.target.checked)} className="mt-1.5 accent-sodium" />
+        <input type="checkbox" checked={donate} onChange={(e) => setDonate(e.target.checked)} className="mt-1.5 accent-teal" />
         <span>
           <span className="block font-semibold">Donate what is left to the commons</span>
           <span className="block text-haze">Unused budget translates Ethereum docs into Hindi and Marathi, and every donation is recorded.</span>
         </span>
       </label>
 
-      <button type="submit" disabled={status.kind === "saving"} className="mt-6 rounded-full bg-teal px-5 py-2 font-semibold text-paper shadow-sm transition-colors duration-200 hover:bg-ink disabled:opacity-50">
+      <button type="submit" disabled={status.kind === "saving"} className="btn-solid mt-6">
         {status.kind === "saving" ? "Saving…" : "Save"}
       </button>
       <div aria-live="polite" className="mt-3">

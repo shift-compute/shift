@@ -1,4 +1,5 @@
 import { formatAmount } from "../../lib/format";
+import { StatTile } from "../ui/StatTile";
 import type { PreviewPanel, TonightPreview } from "./preview-state";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -37,7 +38,7 @@ function modelLine(item: TonightPreview["assignments"][number]): string {
 
 export function TonightEstimate({ panel, tasks }: { panel: Panel; tasks: TaskHint[] }) {
   return (
-    <section aria-label="Tonight's estimate" aria-busy={panel.phase === "loading"} className="max-w-xl space-y-4 rounded-md bg-night p-5">
+    <section aria-label="Tonight's estimate" aria-busy={panel.phase === "loading"} className="surface-card max-w-xl space-y-4">
       <div>
         <h2 className="text-2xl font-semibold">Tonight's estimate</h2>
         <p className="mt-1 text-sm text-haze">
@@ -49,15 +50,15 @@ export function TonightEstimate({ panel, tasks }: { panel: Panel; tasks: TaskHin
           Estimating tonight…
         </p>
       )}
-      {panel.phase === "unavailable" && <p className="border-l-4 border-teal pl-3">We could not reach the server. Try again in a moment.</p>}
+      {panel.phase === "unavailable" && <p className="surface-card-warn rounded-xl bg-white/70 py-2 pl-3">We could not reach the server. Try again in a moment.</p>}
       {panel.phase === "reconnect" && (
-        <p className="border-l-4 border-teal pl-3">
+        <p className="surface-card-warn rounded-xl bg-white/70 py-2 pl-3">
           Your management key is no longer valid. <a href="/connect">Connect your 0G account</a> again to see tonight's estimate.
         </p>
       )}
       {panel.phase === "empty" && <p className="text-haze">{panel.message}</p>}
       {panel.phase === "message" && (
-        <p role="alert" className="border-l-4 border-teal pl-3">
+        <p role="alert" className="surface-card-warn rounded-xl bg-white/70 py-2 pl-3">
           {panel.message}
         </p>
       )}
@@ -69,19 +70,16 @@ export function TonightEstimate({ panel, tasks }: { panel: Panel; tasks: TaskHin
 function Ready({ preview, tasks }: { preview: TonightPreview; tasks: TaskHint[] }) {
   return (
     <div className="space-y-4">
-      <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2">
-        <dt className="text-haze">Budget for tonight</dt>
-        <dd className="font-semibold text-teal">{formatAmount(preview.budgetMicro, "usd")}</dd>
-        <dt className="text-haze">Estimated spend</dt>
-        <dd>{formatAmount(preview.spentEstimateMicro, "usd")}</dd>
-        <dt className="text-haze">Left for the commons queue</dt>
-        <dd className="font-semibold text-light">{formatAmount(preview.remainingMicro, "usd")}</dd>
-      </dl>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatTile label="Budget for tonight" value={formatAmount(preview.budgetMicro, "usd")} />
+        <StatTile label="Estimated spend" value={formatAmount(preview.spentEstimateMicro, "usd")} />
+        <StatTile label="Left for the commons queue" value={formatAmount(preview.remainingMicro, "usd")} />
+      </div>
 
       {preview.assignments.length === 0 ? (
         <p className="text-sm text-haze">Nothing is assigned tonight. What remains stays for the commons queue.</p>
       ) : (
-        <ul className="divide-y divide-haze/20">
+        <ul className="divide-y divide-ink/10">
           {preview.assignments.map((item) => (
             <li key={item.taskId} className="flex items-baseline justify-between gap-4 py-2">
               <div>

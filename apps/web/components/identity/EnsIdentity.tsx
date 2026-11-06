@@ -45,7 +45,7 @@ export function EnsIdentity() {
   const { identity } = state;
   const url = safeHttpUrl(identity.url);
   return (
-    <section aria-label="Shift identity on ENS" className="space-y-1 rounded-2xl border border-ink/10 bg-surface p-4 text-sm shadow-sm">
+    <section aria-label="Shift identity on ENS" className="surface-card space-y-1 !p-4 text-sm">
       <p>
         <a href={ensAppUrl(identity.name)} target="_blank" rel="noreferrer" className="font-semibold">
           {identity.name}

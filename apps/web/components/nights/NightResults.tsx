@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { NightStrip } from "../night/NightStrip";
 import { TaskOutput } from "./TaskOutput";
+import { StatTile } from "../ui/StatTile";
+import { StatusBadge, type BadgeTone } from "../ui/StatusBadge";
 import { formatAmount } from "../../lib/format";
 import { stripFromNight } from "../../lib/night-strip";
 import {
@@ -36,6 +38,8 @@ const TASK_STATUS: Record<string, string> = {
   DEFERRED: "Moved to the next night",
   CANCELLED: "Cancelled",
 };
+
+const TASK_TONE: Record<string, BadgeTone> = { QUEUED: "wait", PLANNED: "active", RUNNING: "active", DONE: "done", FAILED: "bad", DEFERRED: "wait", CANCELLED: "neutral" };
 
 export function NightResults({ nightId }: { nightId: string }) {
   const [panel, setPanel] = useState<NightPanel | { phase: "loading" }>({ phase: "loading" });
@@ -73,10 +77,10 @@ export function NightResults({ nightId }: { nightId: string }) {
     );
   }
   if (panel.phase === "invalid") {
-    return <p className="border-l-4 border-teal pl-3">That night id is not valid.</p>;
+    return <p className="surface-card-warn rounded-xl bg-white/70 py-2 pl-3">That night id is not valid.</p>;
   }
   if (panel.phase === "unavailable") {
-    return <p className="border-l-4 border-teal pl-3">We could not load this night. Try again in a moment.</p>;
+    return <p className="surface-card-warn rounded-xl bg-white/70 py-2 pl-3">We could not load this night. Try again in a moment.</p>;
   }
   if (panel.phase === "empty") {
     return <p className="text-haze">No night with this id has been recorded. Nights show up here after a shift runs.</p>;
@@ -128,11 +132,13 @@ function Batch({ night }: { night: PublicNight }) {
   const started = night.startedAt ? formatUtc(night.startedAt) : null;
   const finished = night.finishedAt ? formatUtc(night.finishedAt) : null;
   return (
-    <section aria-label="Anchored batch" className="max-w-3xl space-y-4 rounded-md bg-night p-5">
+    <section aria-label="Anchored batch" className="surface-card max-w-3xl space-y-4">
       <h2 className="text-2xl font-semibold">Anchored batch</h2>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <StatTile label="Results in the batch" value={String(night.itemCount)} />
+        <StatTile label="Status" value={nightStatusLabel(night.status)} />
+      </div>
       <dl className="grid grid-cols-1 gap-y-3 sm:grid-cols-[12rem_1fr] sm:gap-x-6">
-        <dt className="text-haze">Status</dt>
-        <dd>{nightStatusLabel(night.status)}</dd>
         <dt className="text-haze">Merkle root</dt>
         <dd className="break-all">{night.merkleRoot ?? "Not recorded"}</dd>
         <dt className="text-haze">Manifest root</dt>
@@ -151,8 +157,6 @@ function Batch({ night }: { night: PublicNight }) {
             "Not anchored yet"
           )}
         </dd>
-        <dt className="text-haze">Results in the batch</dt>
-        <dd>{night.itemCount}</dd>
         {started && (
           <>
             <dt className="text-haze">Started</dt>
@@ -172,19 +176,16 @@ function Batch({ night }: { night: PublicNight }) {
 
 function Spending({ spending }: { spending: NightSpending }) {
   return (
-    <section aria-label="Credit and deposit" className="max-w-xl space-y-4 rounded-md bg-night p-5">
+    <section aria-label="Credit and deposit" className="surface-card max-w-xl space-y-4">
       <div>
         <h2 className="text-2xl font-semibold">Credit and deposit</h2>
         <p className="mt-1 text-sm text-haze">Taken from the Router usage history for this run.</p>
       </div>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2">
-        <dt className="text-haze">Credits spent</dt>
-        <dd className="font-semibold text-light">{spending.creditUsed === null ? "Not recorded" : formatAmount(spending.creditUsed, spending.currency)}</dd>
-        <dt className="text-haze">Deposit spent</dt>
-        <dd>{spending.depositUsed === null ? "Not recorded" : formatAmount(spending.depositUsed, spending.currency)}</dd>
-        <dt className="text-haze">Accounted cost</dt>
-        <dd>{formatAmount(spending.spentUsdMicro, "usd")}</dd>
-      </dl>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatTile label="Credits spent" value={spending.creditUsed === null ? "Not recorded" : formatAmount(spending.creditUsed, spending.currency)} />
+        <StatTile label="Deposit spent" value={spending.depositUsed === null ? "Not recorded" : formatAmount(spending.depositUsed, spending.currency)} />
+        <StatTile label="Accounted cost" value={formatAmount(spending.spentUsdMicro, "usd")} />
+      </div>
     </section>
   );
 }
@@ -193,18 +194,18 @@ function ProvenanceCard({ task }: { task: NightTaskResult }) {
   const title = TYPE_LABEL[task.type];
   const prompt = task.prompt && task.prompt.length > 80 ? `${task.prompt.slice(0, 80)}…` : task.prompt;
   return (
-    <article aria-labelledby={`task-${task.id}`} className="space-y-4 rounded-md bg-night p-5">
+    <article aria-labelledby={`task-${task.id}`} className="surface-card surface-card-hover space-y-4">
       <div>
         <h3 id={`task-${task.id}`} className="text-xl font-semibold">
           {title}
         </h3>
-        <p className="text-sm text-haze">
-          {TASK_STATUS[task.status] ?? task.status}
-          {prompt ? ` · “${prompt}”` : ""}
+        <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-haze">
+          <StatusBadge tone={TASK_TONE[task.status]}>{TASK_STATUS[task.status] ?? task.status}</StatusBadge>
+          {prompt ? <span>{`“${prompt}”`}</span> : null}
         </p>
       </div>
       {task.error && (
-        <p role="alert" className="border-l-4 border-teal pl-3">
+        <p role="alert" className="surface-card-warn rounded-xl bg-white/70 py-2 pl-3">
           {task.error}
         </p>
       )}

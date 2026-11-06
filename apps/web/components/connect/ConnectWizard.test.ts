@@ -18,7 +18,7 @@ describe("ConnectWizard session", () => {
     expect(html).toContain("0xdbdc…f88f");
     expect(html).toContain("value=\"0.2\"");
     expect(html).toContain("Reading your balance");
-    expect(html).toContain("type=\"checkbox\" class=\"mt-1.5 accent-sodium\" checked=\"\"");
+    expect(html).toContain("type=\"checkbox\" class=\"mt-1.5 accent-teal\" checked=\"\"");
     expect(html).not.toContain("id=\"mk\"");
     expect(html).not.toContain("4865042");
     expect(html).not.toContain("mk-");
@@ -50,6 +50,6 @@ describe("ConnectedPanel", () => {
     expect(html).toContain("0 USD");
     expect(html).not.toContain("4865042");
     expect(html).toContain("value=\"0.2\"");
-    expect(html).toContain("type=\"checkbox\" class=\"mt-1.5 accent-sodium\" checked=\"\"");
+    expect(html).toContain("type=\"checkbox\" class=\"mt-1.5 accent-teal\" checked=\"\"");
   });
 });

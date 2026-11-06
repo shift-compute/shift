@@ -1,3 +1,4 @@
+import { InnerPage } from "../../components/ui/InnerPage";
 import { ConnectWizard } from "../../components/connect/ConnectWizard";
 import type { SessionProp } from "../../components/connect/session-state";
 import { consoleUrlFor } from "../../lib/console-url";
@@ -18,12 +19,12 @@ export default async function ConnectPage() {
     ? `${session.account?.address ?? ""}:${session.mode ?? ""}:${session.nightlyBudgetUsdMicro ?? ""}:${String(session.donateLeftover)}`
     : "signed-out";
   return (
-    <>
+    <InnerPage>
       <h1 className="text-4xl font-semibold">Connect your 0G account</h1>
       <p className="mt-3 mb-10 max-w-2xl text-lg text-haze">
         0G has no sign-in for third-party apps, so you give Shift a management key with the smallest set of permissions that works.
       </p>
       <ConnectWizard key={key} consoleUrl={consoleUrl} session={session} />
-    </>
+    </InnerPage>
   );
 }

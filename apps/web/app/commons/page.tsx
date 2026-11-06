@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { InnerPage } from "../../components/ui/InnerPage";
 import { CommonsBoard } from "../../components/commons/CommonsBoard";
 
 export const metadata: Metadata = {
@@ -8,12 +9,12 @@ export const metadata: Metadata = {
 
 export default function CommonsPage() {
   return (
-    <div className="space-y-6">
+    <InnerPage>
       <h1 className="text-3xl font-semibold">Commons</h1>
       <p className="max-w-2xl text-haze">
         Leftover compute translates public Ethereum documentation into Hindi and Marathi. A translation is kept when the decision model says both versions match the source. Rejected ones stay on this page so the filter is visible.
       </p>
       <CommonsBoard />
-    </div>
+    </InnerPage>
   );
 }

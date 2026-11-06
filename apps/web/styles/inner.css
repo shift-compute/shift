@@ -1,0 +1,246 @@
+/*
+ * Inner pages (/connect, /queue, /commons, /verify, /nights/[id]).
+ * Every selector here is a class that only the inner pages use, so the home
+ * page is untouched. No blurred orbs: the top band is a flat gradient.
+ */
+.inner-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgb(169 203 227 / 0.38) 0, rgb(169 203 227 / 0.12) 14rem, rgb(169 203 227 / 0) 26rem),
+    radial-gradient(rgb(15 23 42 / 0.16) 1.1px, transparent 1.1px) 0 0 / 22px 22px;
+  -webkit-mask-image: linear-gradient(180deg, black 0, black 18rem, transparent 90%);
+  mask-image: linear-gradient(180deg, black 0, black 18rem, transparent 90%);
+}
+
+.surface-card {
+  background: rgb(255 255 255 / 0.9);
+  border: 1px solid rgb(15 23 42 / 0.09);
+  border-radius: 1.5rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 12px 32px -12px rgb(15 23 42 / 0.12);
+  transition:
+    transform 180ms ease-out,
+    box-shadow 180ms ease-out,
+    border-color 180ms ease-out,
+    background-color 180ms ease-out;
+}
+
+.surface-card-hover:hover {
+  box-shadow: 0 2px 4px rgb(15 23 42 / 0.05), 0 18px 40px -12px rgb(15 23 42 / 0.18);
+  border-color: rgb(23 94 131 / 0.25);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .surface-card-hover:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.surface-card-warn {
+  border-left: 4px solid var(--color-teal);
+}
+
+.stat-tile {
+  border-radius: 1rem;
+  background: rgb(169 203 227 / 0.22);
+  padding: 0.75rem 1rem;
+}
+
+.stat-tile-value {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--color-ink);
+}
+
+.stat-tile-label {
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+
+.field-input {
+  width: 100%;
+  min-height: 3rem;
+  border-radius: 1rem;
+  border: 1px solid rgb(15 23 42 / 0.18);
+  background: #fff;
+  padding: 0.5rem 1rem;
+  color: var(--color-ink);
+  transition: border-color 150ms ease-out, box-shadow 150ms ease-out;
+}
+
+.field-input:focus-visible {
+  outline: none;
+  border-color: var(--color-teal);
+  box-shadow: 0 0 0 3px rgb(23 94 131 / 0.25);
+}
+
+.btn-quiet {
+  min-height: 3rem;
+  border-radius: 1rem;
+  border: 1px solid rgb(15 23 42 / 0.18);
+  background: #fff;
+  padding: 0 1rem;
+  color: var(--color-ink);
+  transition: border-color 150ms ease-out;
+}
+
+.btn-quiet:hover {
+  border-color: var(--color-teal);
+}
+
+.btn-solid {
+  border-radius: 9999px;
+  background: var(--color-teal);
+  padding: 0.65rem 1.4rem;
+  font-weight: 600;
+  color: #fff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.12);
+  transition: background-color 150ms ease-out;
+}
+
+.btn-solid:hover:not(:disabled) {
+  background: var(--color-ink);
+}
+
+/* Disabled stays readable: neutral gray with dark text, not a faded blue. */
+.btn-solid:disabled {
+  background: #e2e8f0;
+  color: #475569;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.125rem 0.65rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.status-badge[data-tone="active"] {
+  background: rgb(23 94 131 / 0.14);
+  color: #124a68;
+}
+
+.status-badge[data-tone="done"] {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge[data-tone="bad"] {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-badge[data-tone="wait"] {
+  background: #fef3c7;
+  color: #854d0e;
+}
+
+/* Connect stepper */
+.step-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2.5rem 1fr;
+  gap: 1rem;
+  width: 100%;
+  text-align: left;
+}
+
+.step-card[data-state="current"] {
+  border-color: var(--color-teal);
+  box-shadow: 0 0 0 1px var(--color-teal), 0 18px 40px -14px rgb(23 94 131 / 0.3);
+}
+
+.step-card[data-state="done"] {
+  background: rgb(248 250 252 / 0.9);
+}
+
+.step-card[data-state="done"] .step-body {
+  opacity: 0.8;
+}
+
+.step-badge {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  border: 2px solid rgb(15 23 42 / 0.2);
+  background: #fff;
+  font-weight: 600;
+  color: var(--color-muted);
+  transition: background-color 180ms ease-out, border-color 180ms ease-out, color 180ms ease-out;
+}
+
+.step-card[data-state="current"] .step-badge {
+  background: var(--color-teal);
+  border-color: var(--color-teal);
+  color: #fff;
+}
+
+.step-card[data-state="done"] .step-badge {
+  border-color: var(--color-teal);
+  color: var(--color-teal);
+}
+
+/* Thin line joining one badge to the next. Cards are 1.25rem apart. */
+.step-line {
+  position: absolute;
+  left: calc(1.5rem + 1.25rem - 1px);
+  top: calc(1.5rem + 2.5rem);
+  bottom: -2.75rem;
+  width: 2px;
+  background: rgb(15 23 42 / 0.14);
+}
+
+.step-card:focus-visible {
+  outline: 3px solid var(--color-teal);
+  outline-offset: 3px;
+  border-radius: 1.5rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .inner-enter > * {
+    animation: inner-in 320ms ease-out both;
+  }
+
+  .inner-enter > *:nth-child(2) {
+    animation-delay: 60ms;
+  }
+
+  .inner-enter > *:nth-child(3) {
+    animation-delay: 120ms;
+  }
+
+  .inner-enter > *:nth-child(n + 4) {
+    animation-delay: 180ms;
+  }
+}
+
+@keyframes inner-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surface-card-hover:hover {
+    transform: none;
+  }
+}
