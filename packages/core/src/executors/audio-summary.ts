@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SUMMARY_MAX_TOKENS } from "./chat-limits";
 import { chatText, ExecutorOutputError, parseModelJson } from "./json-output";
 import { recordStep } from "./step";
 import { clientRequestId, type ExecutorContext, type ExecutorResult } from "./types";
@@ -47,6 +48,7 @@ export async function runAudioSummary(ctx: ExecutorContext, input: AudioInput): 
     ctx.sk,
     {
       model: ctx.models.chat,
+      max_tokens: SUMMARY_MAX_TOKENS,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: transcript },

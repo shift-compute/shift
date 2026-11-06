@@ -29,7 +29,7 @@ describe("runImageFromPrompt", () => {
 
   it("refines the idea, generates the image and returns it as a file", async () => {
     const generateImage = vi.fn().mockResolvedValue({ data: { data: [{ b64_json: PNG_B64 }] }, status: 200, requestId: "req-img" });
-    const { ctx } = make(generateImage, { chat: "chat-m", image: "img-m" });
+    const { ctx, chat } = make(generateImage, { chat: "chat-m", image: "img-m" });
     const out = await runImageFromPrompt(ctx, "a lighthouse");
 
     expect(out.result).toEqual({ prompt: "a lighthouse", revisedPrompt: "A lighthouse at dusk, warm light, oil painting", imageFile: "image.png" });
@@ -40,6 +40,7 @@ describe("runImageFromPrompt", () => {
       ["image", "img-m", "req-img"],
     ]);
     expect(generateImage.mock.calls[0]![1]).toMatchObject({ model: "img-m", prompt: "A lighthouse at dusk, warm light, oil painting", response_format: "b64_json" });
+    expect(chat.mock.calls[0]![1].max_tokens).toBe(200);
     expect(generateImage.mock.calls[0]![2]).toEqual({ trustMode: "private", clientRequestId: "t3-1-image" });
   });
 

@@ -36,6 +36,7 @@ describe("runAudioSummary", () => {
     expect(form.get("model")).toBe("stt-m");
     expect(form.get("response_format")).toBe("verbose_json");
     expect(chat.mock.calls[0]![1].messages[1].content).toBe("we met on Monday");
+    expect(chat.mock.calls[0]![1].max_tokens).toBe(600);
   });
 
   it("does not call the chat model when the transcript is empty", async () => {

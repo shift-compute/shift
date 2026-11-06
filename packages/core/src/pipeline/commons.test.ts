@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ATTO_PER_MICRO, buildCatalog, type CatalogEntry, type TrustLevel } from "../catalog/catalog";
 import { estimateTranslationMicro } from "../catalog/estimator";
+import { maxTokensCostMicro, translationMaxTokens } from "../executors/chat-limits";
 import { RouterError } from "../zg/errors";
 import {
   pickTranslationModels,
@@ -363,5 +364,31 @@ describe("runCommonsTranslations", () => {
     expect(outcome.stop).toBe("hard_stop");
     expect(outcome.translated).toBe(1);
     expect(rows[1]?.status).toBe("PENDING");
+  });
+
+  it("sends max_tokens and prices a failure that has no request id at the cap", async () => {
+    const rows = [item("c1")];
+    const bodies: number[] = [];
+    const outcome = await runCommonsTranslations({
+      commons: memory(rows),
+      chat: async (_sk, body) => {
+        bodies.push(body.max_tokens ?? 0);
+        throw new Error("socket closed before a request id");
+      },
+      sk: "sk-test",
+      catalog: tee,
+      remainingMicro: pairCost(),
+      userId: "user-1",
+      nightId: NIGHT,
+      hardStopUtc: "23:50",
+      now: () => new Date("2026-11-06T23:10:00Z"),
+      sleep: async () => undefined,
+    });
+    const cap = translationMaxTokens(SOURCE.length);
+    const worst = maxTokensCostMicro(cap, tee[0]!.completionAtto);
+    expect(bodies).toEqual([cap]);
+    expect(worst).toBeGreaterThan(0n);
+    expect(outcome).toMatchObject({ translated: 0, failed: 1, reportedMicro: worst, stop: "done" });
+    expect(rows[0]).toMatchObject({ status: "FAILED", costUsdMicro: worst, requestIds: [] });
   });
 });
