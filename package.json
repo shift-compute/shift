@@ -12,6 +12,7 @@
     "merkle-vector": "tsx scripts/merkle-vector.ts",
     "storage-check": "tsx scripts/storage-check.ts",
     "gen:router-types": "tsx scripts/gen-router-types.ts",
+    "seed:commons": "tsx scripts/seed-commons.ts",
     "build": "pnpm -r --if-present build",
     "typecheck": "tsc -p tsconfig.json && pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
