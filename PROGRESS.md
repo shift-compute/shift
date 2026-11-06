@@ -4,8 +4,8 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F2 — Execution (F0 closed with open items, see Blockers)
-**Next item:** F2.8
-**Commits so far:** 45 (target for the project: 50–90)
+**Next item:** F2.9
+**Commits so far:** 46 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -68,7 +68,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
 - [x] F2.6 0G Storage client for outputs — `feat(core): add 0G Storage client`
 - [x] F2.7 Worker: cron, night lock, runUser pipeline *(2 commits)* — `feat(worker): add scheduler and night lock` / `feat(worker): add per-user night pipeline`
   - `runUser` decrypts the management key in memory, caps an ephemeral key from the live balance (iAI uses `credit_balance` minus the safety margin and never the deposit; budget mode may also spend the deposit, up to the nightly cap) and runs the optimizer plus the three executors. Outputs go to the real storage client; request ids, traces and reported cost are stored on the task. The key is revoked before the function returns. A 0G balance is converted with the median rate implied by the live catalog's `pricing` (wei) and `pricing_usd`; if the catalog has no such pair the user is marked failed and no key is created. Commons (F4) and Merkle leaves (F3.8) are not in this step: leftover budget is logged and not spent, and leaves will be built from the stored steps. If a reported cost exceeds its estimate by more than 20%, the rest of that user's night is replanned (plan §8.3). Anchoring stays in F3.9.
-- [ ] F2.8 Key sweeper — `feat(worker): add ephemeral key sweeper`
+- [x] F2.8 Key sweeper — `feat(worker): add ephemeral key sweeper`
+  - Every 10 minutes, and once at process start, the worker revokes `NightRun` keys that are still alive and at least 2 hours old. It decrypts that user's management key in memory and calls `sweepOrphanedKeys`; `keyRevokedAt` is set only after the Router revoke succeeds, so a failure is retried next sweep. On start, `RUNNING` tasks with no Router request id in `steps` go back to `QUEUED`. Tasks that already recorded a request id stay `RUNNING`. The 10-minute sweep does not requeue: a live batch marks a task `RUNNING` before the request id exists.
 - [ ] F2.9 Run-now endpoint using the real pipeline — `feat(web): add run now endpoint`
 - [ ] F2.10 Unit tests: vault, executors' parsing, redaction — `test(core): cover vault, executors and log redaction`
 
