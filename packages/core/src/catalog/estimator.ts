@@ -38,42 +38,81 @@ export interface EstimateModels {
 }
 
 export function estimateAudioSeconds(size: Pick<TaskSize, "bytes" | "mime" | "durationSec">): number {
-  if (size.durationSec !== undefined) return Math.max(1, Math.ceil(size.durationSec));
+  if (size.durationSec !== undefined && Number.isFinite(size.durationSec)) return Math.max(1, Math.ceil(size.durationSec));
   const rate = size.mime === "audio/wav" ? ASSUMPTIONS.wavBytesPerSecond : ASSUMPTIONS.compressedBytesPerSecond;
-  return Math.max(1, Math.ceil(size.bytes / rate));
+  const bytes = Number.isFinite(size.bytes) && size.bytes > 0 ? size.bytes : 0;
+  return Math.max(1, Math.ceil(bytes / rate));
 }
 
 export function estimateDocChars(size: Pick<TaskSize, "bytes" | "mime" | "chars">): number {
-  const raw = size.chars ?? (size.mime === "application/pdf" ? Math.ceil(size.bytes * ASSUMPTIONS.pdfTextRatio) : size.bytes);
+  const bytes = Number.isFinite(size.bytes) && size.bytes > 0 ? size.bytes : 0;
+  const known = size.chars !== undefined && Number.isFinite(size.chars) ? size.chars : undefined;
+  const raw = known ?? (size.mime === "application/pdf" ? Math.ceil(bytes * ASSUMPTIONS.pdfTextRatio) : bytes);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
   return Math.min(raw, MAX_DOC_CHARS);
 }
 
-const tokens = (chars: number) => Math.ceil(chars / ASSUMPTIONS.charsPerToken);
+const tokens = (chars: number) => (Number.isFinite(chars) && chars > 0 ? Math.ceil(chars / ASSUMPTIONS.charsPerToken) : 0);
 
-function chatAtto(model: CatalogEntry, tokensIn: number, tokensOut: number): bigint {
-  return BigInt(tokensIn) * model.promptAtto + BigInt(tokensOut) * model.completionAtto;
+function count(n: number): bigint {
+  if (!Number.isSafeInteger(n) || n < 0) throw new Error("This input is too large to estimate.");
+  return BigInt(n);
 }
 
-/** Estimated cost of one task with one choice of models, in micro-USD, rounded up and padded by the safety factor. */
+function chatAtto(model: CatalogEntry, tokensIn: number, tokensOut: number): bigint {
+  return count(tokensIn) * model.promptAtto + count(tokensOut) * model.completionAtto;
+}
+
+function requireKind(model: CatalogEntry | undefined, kind: CatalogEntry["kind"], message: string): CatalogEntry {
+  if (!model || model.kind !== kind) throw new Error(message);
+  return model;
+}
+
+/** ×1.15, then round up to whole micro-USD. A positive remainder is never dropped; zero stays zero. */
+function withSafetyMicro(atto: bigint): bigint {
+  return attoToMicroCeil((atto * ASSUMPTIONS.safetyPercent) / 100n);
+}
+
+/**
+ * Estimated cost of one task with one choice of models, in micro-USD.
+ * Planning only: the Router reports the real cost after the call.
+ *
+ * Transcription reads `pricing_usd.prompt` as USD per second. The Router does not document that unit.
+ * Image cost is the flat per-image price plus the refine chat the executor runs. The TeeML image model
+ * publishes no size-tier variants. If an image model bills input tokens, those are the planned revised prompt.
+ */
 export function estimateCostMicro(type: TaskTypeName, size: TaskSize, models: EstimateModels): bigint {
+  const chat = requireKind(models.chat, "chat", "A chat model is required to estimate this task.");
   let atto: bigint;
   switch (type) {
     case "AUDIO_SUMMARY": {
-      if (!models.transcribe) throw new Error("A transcription model is required to estimate an audio task.");
+      const transcribe = requireKind(models.transcribe, "transcribe", "A transcription model is required to estimate an audio task.");
       const seconds = estimateAudioSeconds(size);
       const transcriptTokens = tokens(seconds * ASSUMPTIONS.transcriptCharsPerSecond);
-      atto = BigInt(seconds) * models.transcribe.promptAtto + chatAtto(models.chat, transcriptTokens + ASSUMPTIONS.promptOverheadTokens, ASSUMPTIONS.summaryOutputTokens);
+      atto = count(seconds) * transcribe.promptAtto + chatAtto(chat, transcriptTokens + ASSUMPTIONS.promptOverheadTokens, ASSUMPTIONS.summaryOutputTokens);
       break;
     }
     case "DOC_ANALYSIS":
-      atto = chatAtto(models.chat, tokens(estimateDocChars(size)) + ASSUMPTIONS.promptOverheadTokens, ASSUMPTIONS.analysisOutputTokens);
+      atto = chatAtto(chat, tokens(estimateDocChars(size)) + ASSUMPTIONS.promptOverheadTokens, ASSUMPTIONS.analysisOutputTokens);
       break;
     case "IMAGE_FROM_PROMPT": {
-      if (!models.image) throw new Error("An image model is required to estimate an image task.");
+      const image = requireKind(models.image, "image", "An image model is required to estimate an image task.");
       const promptTokens = tokens(size.prompt?.length ?? 0) + ASSUMPTIONS.promptOverheadTokens;
-      atto = chatAtto(models.chat, promptTokens, ASSUMPTIONS.refineOutputTokens) + models.image.imageAtto;
+      atto = chatAtto(chat, promptTokens, ASSUMPTIONS.refineOutputTokens) + image.imageAtto + count(ASSUMPTIONS.refineOutputTokens) * image.promptAtto;
       break;
     }
   }
-  return attoToMicroCeil((atto * ASSUMPTIONS.safetyPercent) / 100n);
+  return withSafetyMicro(atto);
+}
+
+/**
+ * Estimated cost of one decision-model call, in micro-USD (plan §10.3).
+ * Laya and Vela are billed on input tokens, so `chars` is the state plus the question text the caller will send.
+ * Output tokens are not invented: both TeeML decision models publish a completion price of 0.
+ * Same ×1.15 padding and ceil as task estimates. Planning only — F3.3 deducts this from the night budget.
+ */
+export function estimateDecisionMicro(model: CatalogEntry, chars: number): bigint {
+  const decision = requireKind(model, "decision", "A decision model is required to estimate a decision call.");
+  if (!Number.isFinite(chars) || chars < 0) throw new Error("Decision input length must be a non-negative finite number of characters.");
+  return withSafetyMicro(chatAtto(decision, tokens(chars), 0));
 }
