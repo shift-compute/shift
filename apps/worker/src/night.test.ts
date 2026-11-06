@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { sealSecret, type AnchorStore, type CommonsStore, type CompletedTask, type ConnectedUser, type LedgerClient, type OpenTask, type PipelineStore, type TaskPatch, type UserRouter, type WorkerConfig } from "@shift/core";
+import { getAddress } from "ethers";
+import { sealSecret, type AnchorStore, type CommonsStore, type CompletedTask, type ConnectedUser, type DonationStore, type LedgerClient, type OpenTask, type PipelineStore, type TaskPatch, type UserRouter, type WorkerConfig } from "@shift/core";
 import { runNight } from "./night";
 
 const KEY = Buffer.alloc(32, 4).toString("base64");
@@ -72,6 +73,12 @@ function emptyAnchor() {
   const ledger: LedgerClient = {
     anchorNight: async () => {
       throw new Error("empty night must not send a transaction");
+    },
+    readNight: async () => {
+      throw new Error("empty night must not read donations");
+    },
+    recordDonations: async () => {
+      throw new Error("empty night must not record donations");
     },
   };
   return { anchorStore, ledger, lookups: () => lookups };
@@ -212,6 +219,12 @@ describe("runNight", () => {
         expect(input.nightId).toBe(20261106n);
         return { txHash: `0x${"12".repeat(32)}` };
       },
+      readNight: async () => {
+        throw new Error("this night has no donation store");
+      },
+      recordDonations: async () => {
+        throw new Error("recordDonations must not be called");
+      },
     };
 
     await runNight({
@@ -232,9 +245,103 @@ describe("runNight", () => {
     });
 
     expect(itemCount).toBe(1);
-    const manifest = JSON.parse(new TextDecoder().decode(uploads[0]!)) as { donationsRecorded: boolean; leaves: { requestId: string }[] };
+    const manifest = JSON.parse(new TextDecoder().decode(uploads[0]!)) as { donationsRecorded: boolean; leaves: { requestId: string; isCommons: boolean }[] };
     expect(manifest.donationsRecorded).toBe(false);
-    expect(manifest.leaves.map((leaf) => leaf.requestId)).toEqual(["req-1"]);
+    expect(manifest.leaves.map((leaf) => [leaf.requestId, leaf.isCommons])).toEqual([["req-1", false]]);
+  });
+
+  it("records a positive donation after the anchor and skips an empty donation list", async () => {
+    const task: CompletedTask = {
+      id: "task-1",
+      owner: "0x1111111111111111111111111111111111111111",
+      outputRoot: `0x${"ab".repeat(32)}`,
+      steps: [{ step: "analyze", model: "0gm-1.0-35b-a3b", requestId: "req-1", costUsdMicro: "10", trust: "private" }],
+    };
+    const donor = "0x3333333333333333333333333333333333333333";
+    const donationTx = `0x${"45".repeat(32)}` as `0x${string}`;
+    const calls: string[] = [];
+    const saved: string[] = [];
+    const anchorStore: AnchorStore = {
+      completedTasks: async () => [task],
+      saveTree: async () => undefined,
+      saveManifestRoot: async () => undefined,
+      saveAnchorTx: async () => undefined,
+    };
+    const donations: DonationStore = {
+      donationsTx: async () => null,
+      positiveDonations: async () => [{ address: donor, amountUsdMicro: 9n }],
+      saveDonationsTx: async (_nightId, tx) => {
+        saved.push(tx);
+      },
+    };
+    const ledger: LedgerClient = {
+      anchorNight: async () => {
+        calls.push("anchor");
+        return { txHash: `0x${"12".repeat(32)}` };
+      },
+      readNight: async (nightId) => {
+        calls.push("read");
+        expect(nightId).toBe(20261106n);
+        return { anchored: true, donationsRecorded: false };
+      },
+      recordDonations: async (input) => {
+        calls.push("record");
+        expect(input).toEqual({ nightId: 20261106n, donors: [getAddress(donor)], amounts: [9n] });
+        return { txHash: donationTx };
+      },
+    };
+
+    await runNight({
+      config: { ...config, ZG_CHAIN_ID: 16602, LEDGER_CONTRACT_ADDRESS: "0xA3B6664b487FC01c4264977c9B92058A89C31Ed7" } as WorkerConfig,
+      nightId: 20261106n,
+      log: () => undefined,
+      store: memory([], []).store,
+      anchorStore,
+      donations,
+      ledger,
+      router: { listModels: async () => { throw new Error("the Router must not be called"); } } as unknown as UserRouter,
+      storage: {
+        upload: async () => ({ rootHash: `0x${"cd".repeat(32)}`, txHash: `0x${"ef".repeat(32)}` }),
+        download: async () => new Uint8Array(),
+      },
+    });
+    expect(calls).toEqual(["anchor", "read", "record"]);
+    expect(saved).toEqual([donationTx]);
+
+    const skipped: string[] = [];
+    const emptyDonations: DonationStore = {
+      donationsTx: async () => null,
+      positiveDonations: async () => [],
+      saveDonationsTx: async () => {
+        throw new Error("an empty donation list must not be stored");
+      },
+    };
+    await runNight({
+      config: { ...config, ZG_CHAIN_ID: 16602, LEDGER_CONTRACT_ADDRESS: "0xA3B6664b487FC01c4264977c9B92058A89C31Ed7" } as WorkerConfig,
+      nightId: 20261106n,
+      log: () => undefined,
+      store: memory([], []).store,
+      anchorStore,
+      donations: emptyDonations,
+      ledger: {
+        anchorNight: async () => {
+          skipped.push("anchor");
+          return { txHash: `0x${"12".repeat(32)}` };
+        },
+        readNight: async () => {
+          throw new Error("an empty donation list must not be read on-chain");
+        },
+        recordDonations: async () => {
+          throw new Error("an empty donation list must not be sent");
+        },
+      },
+      router: { listModels: async () => { throw new Error("the Router must not be called"); } } as unknown as UserRouter,
+      storage: {
+        upload: async () => ({ rootHash: `0x${"cd".repeat(32)}`, txHash: `0x${"ef".repeat(32)}` }),
+        download: async () => new Uint8Array(),
+      },
+    });
+    expect(skipped).toEqual(["anchor"]);
   });
 
   it("translates a pending commons item from leftover budget after personal tasks", async () => {

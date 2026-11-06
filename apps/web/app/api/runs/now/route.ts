@@ -33,7 +33,8 @@ function respond(result: RunNowResult): NextResponse {
 
 /**
  * Runs the real per-user pipeline now (plan §9.1). Same `runUser` as the nightly worker, for the signed-in user only,
- * then the same `anchorNight` when the batch has leaves. Manual nights use a unix-seconds id because `Night.id` is a BigInt.
+ * then the same `anchorNight` when the batch has leaves, and `recordDonations` when that night has a positive donation.
+ * Manual nights use a unix-seconds id because `Night.id` is a BigInt.
  */
 export async function POST() {
   const user = await getCurrentUser();

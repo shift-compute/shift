@@ -67,15 +67,18 @@ function fakes(tasks: CompletedTask[]) {
       throw new Error("download is not part of anchoring");
     },
   };
-  const ledger = {
+  const ledger: LedgerClient = {
     anchorNight: async (input: LedgerAnchor) => {
       anchored.push(input);
       return { txHash: TX };
     },
-    recordDonations: () => {
+    readNight: async () => {
+      throw new Error("anchorNight must not read donations");
+    },
+    recordDonations: async () => {
       throw new Error("recordDonations must not be called");
     },
-  } satisfies LedgerClient & { recordDonations: () => void };
+  };
   return { store, saved, storage, ledger, uploads, anchored };
 }
 

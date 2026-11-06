@@ -43,7 +43,9 @@ function startNightCron(): void {
         runNight: async (nightId) => {
           try {
             await runNight({ db, config, nightId, log });
-            // anchorNight has stored the root, manifest and tx when the batch had leaves. This update does not clear them.
+            // anchorNight has stored the root, manifest and anchor tx when the batch had leaves.
+            // recordNightDonations has stored donationsTx when the night had a positive donation.
+            // This update does not clear them.
             await db.night.update({ where: { id: nightId }, data: { status: "DONE", finishedAt: new Date() } });
           } catch (err) {
             await db.night.update({ where: { id: nightId }, data: { status: "FAILED", finishedAt: new Date() } });

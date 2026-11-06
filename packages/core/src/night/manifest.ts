@@ -16,7 +16,7 @@ export interface NightManifestLeaf {
   /** Reported cost in micro-USD, as a decimal string. */
   costUsdMicro: string;
   outputRoot: string;
-  /** Always false until the commons queue (F4) adds its own leaves. */
+  /** Personal steps are false. Commons rows are not leaves in this build (F4.4). */
   isCommons: boolean;
   /** Packed `LEAF_TYPES` values, in order, as decimal or hex strings. */
   values: string[];
@@ -26,7 +26,7 @@ export interface NightManifestLeaf {
 
 /**
  * The file uploaded to 0G Storage for one night (plan §13, §14.4).
- * `donationsRecorded` is false: this build does not call `recordDonations`.
+ * `donationsRecorded` stays false in this file: the manifest is uploaded before `recordDonations`, which is its own transaction.
  */
 export interface NightManifest {
   nightId: string;
