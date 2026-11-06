@@ -1,4 +1,4 @@
-import { anchorNight, createLedgerClient, createRouterClient, msUntilHardStop, prismaAnchorStore, prismaCommonsStore, prismaPipelineStore, redactString, runUser, type AnchorStore, type CatalogCache, type CommonsStore, type LedgerClient, type PipelineStore, type PrismaClient, type UserRouter, type WorkerConfig } from "@shift/core";
+import { anchorNight, createLedgerClient, createRouterClient, msUntilHardStop, prismaAnchorStore, prismaCommonsStore, prismaDonationStore, prismaPipelineStore, recordNightDonations, redactString, runUser, type AnchorStore, type CatalogCache, type CommonsStore, type DonationStore, type LedgerClient, type PipelineStore, type PrismaClient, type UserRouter, type WorkerConfig } from "@shift/core";
 import type { StorageClient } from "@shift/core/storage";
 
 export interface NightContext {
@@ -12,8 +12,10 @@ export interface NightContext {
   storage?: StorageClient;
   /** DONE tasks for the anchor. Unset in production: the night reads them from `db`. */
   anchorStore?: AnchorStore;
-  /** Signs `anchorNight`. Unset in production: built from the operator key. Tests pass a fake and never broadcast. */
+  /** Signs `anchorNight` and `recordDonations`. Unset in production: built from the operator key. Tests pass a fake and never broadcast. */
   ledger?: LedgerClient;
+  /** Positive `NightRun.donatedUsdMicro` totals. Unset in production: built from `db`. */
+  donations?: DonationStore;
   now?: () => Date;
   catalogCache?: CatalogCache;
   sleep?: (ms: number) => Promise<void>;
@@ -23,10 +25,11 @@ export interface NightContext {
 }
 
 /**
- * Runs every connected user's tasks for one night, then anchors the batch (plan §9.2).
+ * Runs every connected user's tasks for one night, then anchors the batch (plan §9.2, §14.4).
  * Users run one after another. Inside a user, tasks run up to `MAX_CONCURRENCY`.
- * An empty batch does not upload a manifest and does not send a transaction.
- * This function does not mark the night DONE; the caller does, and that update keeps the root and tx written here.
+ * An empty batch does not upload a manifest and does not send an anchor transaction.
+ * A positive donation is recorded after the anchor, and only when the night is anchored. An empty donation list is not sent.
+ * This function does not mark the night DONE; the caller does, and that update keeps the root and the transactions written here.
  */
 export async function runNight(ctx: NightContext): Promise<void> {
   const store = ctx.store ?? prismaPipelineStore(requiredDb(ctx));
@@ -82,7 +85,7 @@ async function finishAnchor(ctx: NightContext, storage: StorageClient | undefine
     address: ctx.config.LEDGER_CONTRACT_ADDRESS,
     privateKey: ctx.config.OPERATOR_PRIVATE_KEY,
   });
-  await anchorNight({
+  const anchored = await anchorNight({
     nightId: ctx.nightId,
     store: anchorStore,
     storage: client,
@@ -91,6 +94,15 @@ async function finishAnchor(ctx: NightContext, storage: StorageClient | undefine
     contractAddress: ctx.config.LEDGER_CONTRACT_ADDRESS,
     log: ctx.log,
     ...(ctx.now ? { now: ctx.now } : {}),
+  });
+  const donations = ctx.donations ?? (ctx.db ? prismaDonationStore(ctx.db) : undefined);
+  if (!donations) return;
+  await recordNightDonations({
+    nightId: ctx.nightId,
+    store: donations,
+    ledger,
+    justAnchored: anchored.anchored,
+    log: ctx.log,
   });
 }
 

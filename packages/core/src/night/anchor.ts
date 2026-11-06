@@ -42,7 +42,10 @@ export interface PersistedLeaf {
  * The caller still marks the night DONE or FAILED; these writes only fill the root, the manifest and the tx.
  */
 export interface AnchorStore {
-  /** DONE tasks for this night, in a stable order. Commons rows are not included (F4). */
+  /**
+   * DONE tasks for this night, in a stable order.
+   * Commons rows are not included. A commons leaf needs a per-request cost and a storage root, and a rejected row has neither (F4.4).
+   */
   completedTasks(nightId: bigint): Promise<CompletedTask[]>;
   /** Replaces this night's leaves and stores the Merkle root and count. */
   saveTree(nightId: bigint, root: string, itemCount: number, leaves: PersistedLeaf[]): Promise<void>;
@@ -88,7 +91,7 @@ interface BatchLeaf {
 /**
  * Anchors one night on 0G Chain (plan §14.4).
  * An empty batch returns without uploading and without a transaction.
- * `recordDonations` is not called: the contract would mark donations as recorded even when there are none.
+ * Donations are a later call (`recordNightDonations`), and only when a positive amount exists.
  */
 export async function anchorNight(deps: AnchorDeps): Promise<AnchorResult> {
   const log = deps.log ?? (() => undefined);
@@ -150,7 +153,8 @@ export async function anchorNight(deps: AnchorDeps): Promise<AnchorResult> {
 
 /**
  * One leaf per completed step that has a Router request id.
- * Several steps of one task share that task's output root. Commons items are not read here.
+ * Several steps of one task share that task's output root.
+ * Commons rows are not leaves. Each row stores one total and a list of request ids, and a rejected row has no output root.
  * A request id without a reported cost, a trust tier, or an output root fails the night: a leaf never invents them.
  */
 function collectBatchLeaves(tasks: readonly CompletedTask[]): BatchLeaf[] {

@@ -4,7 +4,9 @@ import {
   manualNightId,
   prismaAnchorStore,
   prismaCommonsStore,
+  prismaDonationStore,
   prismaPipelineStore,
+  recordNightDonations,
   redact,
   redactString,
   runUser,
@@ -184,7 +186,7 @@ export async function runCurrentUser(deps: {
   chainId: number;
   chainRpcUrl: string;
   ledgerAddress: string;
-  /** Operator key. Signs the anchor transaction and pays gas. Never log it. */
+  /** Operator key. Signs the anchor and donation transactions and pays gas. Never log it. */
   operatorKey: string;
 }): Promise<RunNowSummary> {
   const ledger = createLedgerClient({
@@ -193,13 +195,14 @@ export async function runCurrentUser(deps: {
     address: deps.ledgerAddress,
     privateKey: deps.operatorKey,
   });
+  const donations = prismaDonationStore(deps.db);
   return executeManualRun({
     ...deps,
     store: prismaPipelineStore(deps.db),
     commons: prismaCommonsStore(deps.db),
     hooks: prismaHooks(deps.db),
-    anchor: (nightId) =>
-      anchorNight({
+    anchor: async (nightId) => {
+      const anchored = await anchorNight({
         nightId,
         store: prismaAnchorStore(deps.db),
         storage: deps.storage,
@@ -208,7 +211,15 @@ export async function runCurrentUser(deps: {
         contractAddress: deps.ledgerAddress,
         log: deps.log,
         ...(deps.now ? { now: deps.now } : {}),
-      }),
+      });
+      await recordNightDonations({
+        nightId,
+        store: donations,
+        ledger,
+        justAnchored: anchored.anchored,
+        log: deps.log,
+      });
+    },
   });
 }
 
