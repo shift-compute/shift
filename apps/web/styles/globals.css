@@ -12,7 +12,8 @@
   --color-paper: #f8fafc; /* background */
   --color-ink: #0f172a; /* primary text, wordmark */
   --color-teal: #175e83; /* CTA, accent */
-  --color-skycard: #a9cbe3; /* secondary mark, done wash */
+  /* Lavender from the 0G logo (#b760fd) mixed toward white. Replaced Sky #a9cbe3. */
+  --color-skycard: #dcc6fe; /* secondary mark, done wash */
   --color-muted: #64748b; /* secondary text */
   --color-sodium: #f3a33c; /* night-strip spend only */
   --color-surface: #ffffff; /* cards */
@@ -26,6 +27,13 @@
   --font-display: "Geist Sans", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Geist Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Field washes as rgb triplets so alpha can vary. Both are 0G lavender;
+   before the 0G wash they were Sky 169 203 227 and Teal 23 94 131. */
+:root {
+  --sky-rgb: 233 218 255;
+  --orb-rgb: 214 182 254;
 }
 
 @layer base {
@@ -91,7 +99,7 @@
   animation: night-edge 1.8s ease-in-out infinite;
 }
 
-/* Home field. Sky and Teal only. The grid and orbs drift until reduced motion. */
+/* Home field. 0G lavender washes only. The grid and orbs drift until reduced motion. */
 .landing-ambient {
   position: fixed;
   inset: 0;
@@ -114,7 +122,7 @@
   translate: calc(var(--pull-x, 0) * 32px) calc(var(--pull-y, 0) * 22px);
 }
 
-/* Sky wash parked on the pointer. Hidden until it moves, so rest stays CardArt. */
+/* Lavender wash parked on the pointer. Hidden until it moves. */
 .landing-glow {
   position: absolute;
   top: 50%;
@@ -122,7 +130,7 @@
   width: 42rem;
   height: 42rem;
   border-radius: 9999px;
-  background: radial-gradient(circle, rgb(255 255 255 / 0.55), rgb(169 203 227 / 0.7) 40%, rgb(169 203 227 / 0) 70%);
+  background: radial-gradient(circle, rgb(255 255 255 / 0.55), rgb(var(--sky-rgb) / 0.7) 40%, rgb(var(--sky-rgb) / 0) 70%);
   opacity: 0;
   transition: opacity 420ms ease;
 }
@@ -155,7 +163,7 @@
   left: -14rem;
   width: 46rem;
   height: 46rem;
-  background: rgb(169 203 227 / 0.9);
+  background: rgb(var(--sky-rgb) / 0.9);
 }
 
 .landing-orb-teal {
@@ -163,7 +171,7 @@
   right: -10rem;
   width: 34rem;
   height: 34rem;
-  background: rgb(23 94 131 / 0.4);
+  background: rgb(var(--orb-rgb) / 0.4);
 }
 
 .landing-orb-low {
@@ -171,7 +179,7 @@
   left: 28%;
   width: 40rem;
   height: 26rem;
-  background: rgb(169 203 227 / 0.55);
+  background: rgb(var(--sky-rgb) / 0.55);
 }
 
 .status-dot {
@@ -381,7 +389,30 @@
   font-size: 0.875rem;
 }
 
+/* Network badge in the header: the 0G mark and the testnet, linking to the explorer. */
+.network-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 9999px;
+  padding: 0.2rem 0.75rem 0.2rem 0.25rem;
+  font-size: 0.875rem;
+  color: var(--color-ink);
+  text-decoration: none;
+  background: rgb(255 255 255 / 0.8);
+  box-shadow: 0 0 0 1px rgb(15 23 42 / 0.1), 0 1px 2px rgb(15 23 42 / 0.05);
+  transition:
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.network-pill:hover {
+  background: #fff;
+  box-shadow: 0 0 0 1px rgb(var(--orb-rgb) / 0.9), 0 6px 16px rgb(15 23 42 / 0.08);
+}
+
 .cta:focus-visible,
+.network-pill:focus-visible,
 .site-nav-link:focus-visible,
 .site-logo:focus-visible,
 .quiet-link:focus-visible {
@@ -413,7 +444,7 @@
 
   .site-nav-link:hover {
     color: var(--color-ink);
-    background: rgb(169 203 227 / 0.45);
+    background: rgb(var(--sky-rgb) / 0.45);
     box-shadow: inset 0 0 0 1px rgb(23 94 131 / 0.1);
   }
 
@@ -430,14 +461,39 @@
   }
 
   .cta-quiet:hover {
-    background: rgb(169 203 227 / 0.55);
+    background: rgb(var(--sky-rgb) / 0.55);
     box-shadow:
       0 12px 28px rgb(15 23 42 / 0.08),
       inset 0 0 0 1px rgb(23 94 131 / 0.18),
-      0 0 0 6px rgb(169 203 227 / 0.35);
+      0 0 0 6px rgb(var(--sky-rgb) / 0.35);
   }
 
   .lift-card:hover {
-    box-shadow: 0 22px 48px rgb(15 23 42 / 0.09);
+    box-shadow: 0 22px 48px rgb(var(--orb-rgb) / 0.35), 0 0 0 1px rgb(var(--orb-rgb) / 0.6);
+  }
+}
+
+/* "Running on 0G" belt. Edges fade into Paper; reduced motion parks it. */
+.marquee {
+  mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent);
+}
+
+.marquee-track {
+  animation: marquee 38s linear infinite;
+}
+
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
   }
 }
