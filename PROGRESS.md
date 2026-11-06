@@ -4,8 +4,8 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F3 — Optimizer and anchoring (F0 closed with open items, see Blockers)
-**Next item:** F3.6
-**Commits so far:** 54 (target for the project: 50–90)
+**Next item:** F3.7
+**Commits so far:** 55 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -86,7 +86,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
   - `optionsFor` and `planNight` were already in `packages/core/src/optimizer/optimizer.ts` and exported from `@shift/core`. This commit locks plan §10.4 with synthetic catalogs (no Router calls): the quality frontier, a cheap base by priority then `createdAt`, greedy upgrades by (Δquality × priority) / Δcost, same-price quality kept as the base, and `remainingMicro` left untouched for commons. Empty catalog, zero and negative budget, `no_model` vs `over_budget`, and a minimum quality the budget cannot buy are covered. `runUser` already writes `MIN_QUALITY` from F3.3 onto each text task before the execution `planNight`; the pre-key preview stays at floor 1 because classification needs the ephemeral key. Planning uses `candidates` as a trust floor (a looser mode still admits stricter models). A private plan does not silently switch to verified when TeeML is missing: the ephemeral key is pinned to private, and the Router returns 503 rather than downgrading (plan §7.4). No credit spend.
 - [x] F3.5 Adaptive replanning during execution — `feat(core): replan when real cost drifts`
   - `runUser` already replanned after a successful task when the reported cost was above 1.2× the estimate (or any positive cost on a zero estimate), and already removed the failed model on `exclude_model_and_replan` / `switch_provider_or_model` before planning again. This commit extracts `costDrifted` and `COST_DRIFT_PERCENT` (120) into `packages/core/src/optimizer/replan.ts` and exports them. A missing reported cost does not replan. Dequeue and replan share one turn, and tasks already inside an executor keep their estimate reserved, so a second worker cannot start a queued task on the pre-replan assignment. A storage failure still marks the task failed and replans when the cost drifted. Tests inject executors and synthetic costs. No credit spend.
-- [ ] F3.6 Optimizer tests — `test(core): cover optimizer edge cases`
+- [x] F3.6 Optimizer tests — `test(core): cover optimizer edge cases`
+  - F3.4 and F3.5 already covered the core matrix on synthetic catalogs: an empty catalog defers `no_model`; a zero or negative budget defers priced work `over_budget` (a free task is still assigned); bases follow priority then `createdAt`; upgrades use (Δquality × priority) / Δcost, and a same-price quality step is the base so it spends nothing; `minQuality: 3` drops cheaper chats; an all-standard catalog yields no private options; `remainingMicro` is left for commons; `costDrifted` is under, at, and over 1.2×, including estimate 0 and a missing report (`replan.test.ts`), with the runUser drift and exclude paths in `runUser.test.ts`. This commit adds the gaps: specialist models without a chat model defer every task `no_model`; private mode does not use TeeTLS or standard models when TeeML is absent, and a private chat still refuses a verified transcriber or image model; `MIN_QUALITY` floors keep the quality-2 base for simple and standard, and a complex task with no quality-3 model is `no_model` rather than a cheaper chat; a cheaper higher-quality chat dominates dearer ones; equal upgrade deltas go to the higher priority; the greedy loop applies a second upgrade when it still fits. No credit spend.
 - [ ] F3.7 Plan preview endpoint + UI — `feat(web): add tonight's plan preview`
 - [ ] F3.8 Merkle leaves and tree (LEAF_TYPES, parity) — `feat(core): add merkle leaf encoding and tree`
 - [ ] F3.9 Night manifest + anchorNight on 0G Chain — `feat(worker): anchor nightly batch on 0G Chain`

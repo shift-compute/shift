@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CatalogEntry } from "../catalog/catalog";
+import { MIN_QUALITY } from "./complexity";
 import { optionsFor, planNight, type Plan, type PlanTask } from "./optimizer";
 
 const e = (id: string, kind: CatalogEntry["kind"], over: Partial<CatalogEntry> = {}): CatalogEntry => ({ id, kind, trust: "private", promptAtto: 0n, completionAtto: 0n, imageAtto: 0n, ...over });
@@ -91,6 +92,35 @@ describe("optionsFor", () => {
     ]);
     expect(optionsFor(doc("a"), catalog, "verified").map((o) => o.models.chat.id)).toEqual(["0gm-1.0-35b-a3b", "glm-5.3"]);
     expect(optionsFor(doc("a"), catalog.map((c) => ({ ...c, trust: "standard" as const })), "private")).toEqual([]);
+  });
+
+  it("drops a dearer model when a cheaper one is already higher quality", () => {
+    const dominated: CatalogEntry[] = [
+      e("glm-5.3", "chat", { promptAtto: 100_000_000n, completionAtto: 200_000_000n }),
+      e("0gm-1.0-35b-a3b", "chat", { promptAtto: 1_000_000_000n, completionAtto: 2_000_000_000n }),
+      e("bulk-chat", "chat", { promptAtto: 4_000_000_000n, completionAtto: 8_000_000_000n }),
+    ];
+    const opts = optionsFor(doc("a"), dominated, "private");
+    expect(opts.map((o) => [o.models.chat.id, o.quality])).toEqual([["glm-5.3", 3]]);
+    const cost = opts[0]!.costMicro;
+    const plan = planNight([doc("a", 2, 0), doc("b", 1, 1)], dominated, "private", cost * 2n + 7n);
+    expect(plan.assignments.map((item) => [item.taskId, item.option.models.chat.id, item.option.quality])).toEqual([
+      ["a", "glm-5.3", 3],
+      ["b", "glm-5.3", 3],
+    ]);
+    expect(plan.spentEstimateMicro).toBe(cost * 2n);
+    expect(plan.remainingMicro).toBe(7n);
+  });
+
+  it("returns nothing when specialist models exist but no chat model does", () => {
+    const noChat: CatalogEntry[] = [
+      e("whisper-large-v3", "transcribe", { promptAtto: 1n }),
+      e("z-image-turbo", "image", { imageAtto: 1n }),
+      e("glm-5.3", "decision", { promptAtto: 1n }),
+    ];
+    expect(optionsFor(doc("notes"), noChat, "private")).toEqual([]);
+    expect(optionsFor(audio("voice"), noChat, "private")).toEqual([]);
+    expect(optionsFor(image("poster"), noChat, "private")).toEqual([]);
   });
 });
 
@@ -286,5 +316,117 @@ describe("planNight", () => {
       spentEstimateMicro: 0n,
       remainingMicro: 40n,
     });
+  });
+
+  it("defers every task when the catalog has no chat model", () => {
+    const noChat: CatalogEntry[] = [
+      e("whisper-large-v3", "transcribe", { promptAtto: 1n }),
+      e("z-image-turbo", "image", { imageAtto: 1n }),
+      e("glm-5.3", "decision", { promptAtto: 1n }),
+    ];
+    const plan = planNight([doc("later", 1, 2), audio("voice"), image("poster"), doc("sooner", 3, 0)], noChat, "private", 80n);
+    expect(plan.assignments).toEqual([]);
+    expect(plan.deferred).toEqual([
+      { taskId: "sooner", reason: "no_model" },
+      { taskId: "voice", reason: "no_model" },
+      { taskId: "poster", reason: "no_model" },
+      { taskId: "later", reason: "no_model" },
+    ]);
+    expect(plan.spentEstimateMicro).toBe(0n);
+    expect(plan.remainingMicro).toBe(80n);
+  });
+
+  it("does not fall back to verified models when private has no TeeML", () => {
+    const attested: CatalogEntry[] = [
+      e("glm-5.3", "chat", { trust: "verified", promptAtto: 1_000_000_000n, completionAtto: 2_000_000_000n }),
+      e("open-chat", "chat", { trust: "standard", promptAtto: 0n, completionAtto: 0n }),
+      e("whisper-large-v3", "transcribe", { trust: "verified", promptAtto: 1n }),
+      e("z-image-turbo", "image", { trust: "verified", imageAtto: 1n }),
+    ];
+    expect(optionsFor(doc("a"), attested, "private")).toEqual([]);
+    expect(optionsFor(audio("a"), attested, "private")).toEqual([]);
+    expect(optionsFor(image("a"), attested, "private")).toEqual([]);
+    expect(optionsFor(doc("a"), attested, "verified").map((o) => o.models.chat.id)).toEqual(["glm-5.3"]);
+    expect(optionsFor(audio("a"), attested, "verified")[0]!.models.transcribe?.id).toBe("whisper-large-v3");
+    expect(optionsFor(image("a"), attested, "verified")[0]!.models.image?.id).toBe("z-image-turbo");
+
+    const blocked = planNight([doc("notes", 3, 0), audio("voice"), image("poster")], attested, "private", 500n);
+    expect(blocked.assignments).toEqual([]);
+    expect(blocked.deferred).toEqual([
+      { taskId: "notes", reason: "no_model" },
+      { taskId: "voice", reason: "no_model" },
+      { taskId: "poster", reason: "no_model" },
+    ]);
+    expect(blocked.remainingMicro).toBe(500n);
+
+    const privateChat = e("0gm-1.0-35b-a3b", "chat", { promptAtto: 1_000_000_000n, completionAtto: 2_000_000_000n });
+    const mixed = [privateChat, ...attested];
+    const cost = optionsFor(doc("notes"), mixed, "private")[0]!.costMicro;
+    expect(optionsFor(audio("voice"), mixed, "private")).toEqual([]);
+    expect(optionsFor(image("poster"), mixed, "private")).toEqual([]);
+    const plan = planNight([doc("notes", 1, 0), audio("voice"), image("poster")], mixed, "private", cost + 4n);
+    expect(plan.assignments.map((item) => [item.taskId, item.option.models.chat.id])).toEqual([["notes", "0gm-1.0-35b-a3b"]]);
+    expect(plan.deferred).toEqual([
+      { taskId: "voice", reason: "no_model" },
+      { taskId: "poster", reason: "no_model" },
+    ]);
+    expect(plan.remainingMicro).toBe(4n);
+    expectClosed(plan, cost + 4n);
+  });
+
+  it("keeps a complexity floor and will not step down to a cheaper model", () => {
+    const simple: PlanTask = { ...doc("easy", 1, 1), minQuality: MIN_QUALITY.simple };
+    const standard: PlanTask = { ...doc("mid"), minQuality: MIN_QUALITY.standard };
+    const complex: PlanTask = { ...doc("hard", 3, 0), minQuality: MIN_QUALITY.complex };
+    expect(optionsFor(simple, catalog, "private").map((o) => o.models.chat.id)).toEqual(["0gm-1.0-35b-a3b", "glm-5.3"]);
+    expect(optionsFor(standard, catalog, "private").map((o) => o.models.chat.id)).toEqual(["0gm-1.0-35b-a3b", "glm-5.3"]);
+    expect(optionsFor(complex, catalog, "private").map((o) => o.models.chat.id)).toEqual(["glm-5.3"]);
+
+    const noPremium = catalog.filter((entry) => entry.id !== "glm-5.3");
+    expect(optionsFor(complex, noPremium, "private")).toEqual([]);
+    expect(optionsFor({ ...audio("voice"), minQuality: MIN_QUALITY.complex }, noPremium, "private")).toEqual([]);
+    expect(optionsFor({ ...image("poster"), minQuality: MIN_QUALITY.complex }, noPremium, "private")).toEqual([]);
+    const base = optionsFor(simple, noPremium, "private")[0]!.costMicro;
+    const unmet = planNight([complex, simple], noPremium, "private", base + 5n);
+    expect(unmet.assignments.map((item) => item.taskId)).toEqual(["easy"]);
+    expect(unmet.deferred).toEqual([{ taskId: "hard", reason: "no_model" }]);
+    expect(unmet.remainingMicro).toBe(5n);
+
+    const premium = optionsFor(complex, catalog, "private")[0]!.costMicro;
+    expect(premium).toBeGreaterThan(base);
+    const held = planNight([simple, complex], catalog, "private", base);
+    expect(held.assignments.map((item) => [item.taskId, item.option.models.chat.id])).toEqual([["easy", "0gm-1.0-35b-a3b"]]);
+    expect(held.deferred).toEqual([{ taskId: "hard", reason: "over_budget" }]);
+    expect(held.remainingMicro).toBe(0n);
+
+    expect(optionsFor({ ...audio("voice"), minQuality: MIN_QUALITY.complex }, catalog, "private").map((o) => [o.models.chat.id, o.models.transcribe?.id])).toEqual([
+      ["glm-5.3", "whisper-large-v3"],
+    ]);
+    expect(optionsFor({ ...image("poster"), minQuality: MIN_QUALITY.complex }, catalog, "private").map((o) => [o.models.chat.id, o.models.image?.id])).toEqual([
+      ["glm-5.3", "z-image-turbo"],
+    ]);
+  });
+
+  it("gives a matched upgrade delta to the higher priority, then keeps upgrading while it fits", () => {
+    const opts = optionsFor(doc("a"), catalog, "private");
+    const cheap = opts[0]!.costMicro;
+    const rich = opts[1]!.costMicro;
+    const delta = rich - cheap;
+    expect(delta).toBeGreaterThan(0n);
+    const one = planNight([doc("early-low", 1, 0), doc("late-high", 3, 9)], catalog, "private", cheap * 2n + delta);
+    expect(one.assignments.map((item) => [item.taskId, item.option.models.chat.id])).toEqual([
+      ["late-high", "glm-5.3"],
+      ["early-low", "0gm-1.0-35b-a3b"],
+    ]);
+    expect(one.remainingMicro).toBe(0n);
+    expectClosed(one, cheap * 2n + delta);
+
+    const both = planNight([doc("low", 1, 4), doc("high", 3, 1)], catalog, "private", rich * 2n);
+    expect(both.assignments.map((item) => [item.taskId, item.option.models.chat.id])).toEqual([
+      ["high", "glm-5.3"],
+      ["low", "glm-5.3"],
+    ]);
+    expect(both.remainingMicro).toBe(0n);
+    expectClosed(both, rich * 2n);
   });
 });
