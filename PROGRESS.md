@@ -5,7 +5,7 @@ Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.
 
 **Current phase:** F3 — Optimizer and anchoring (F0 closed with open items, see Blockers)
 **Next item:** F3.11
-**Commits so far:** 59 (target for the project: 50–90)
+**Commits so far:** 60 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -97,6 +97,7 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
 - [x] F3.10 Night results page with provenance cards — `feat(web): add night results with provenance`
   - `GET /api/nights/[id]` returns the public batch (merkle root, manifest root, anchor transaction) for any valid night id, and this user's task steps plus the credit/deposit split only when a session is present. A missing `tee_verified` stays null; the card reads that as no verdict, not a failure. Verify links point at `/verify?rid=` until F3.11. An id that is not a positive int64 is 404; a valid id with no row is an empty night. Keys, the ephemeral key id, balance blobs and the raw trace are not selected, and a key pasted into a stored string is stripped. No credit spend.
 - [ ] F3.11 Verify API + page with client-side on-chain check *(2 commits)* — `feat(web): add verify api` / `feat(web): add verify page with on-chain check`
+  - [x] 1/2 `GET /api/verify/[requestId]` is public. It returns the packed leaf, the proof, the night id, the manifest root, the output's 0G Storage root (and an indexer link), and the trace fields safe to show: provider, provider identity, `tee_verified`, and the trust tier packed into the leaf. A missing or non-boolean `tee_verified` stays null. A value that contains an `mk-` or `sk-` key is dropped; billing and the rest of the raw trace are not copied, and vault columns are not selected. An unknown id is 404. The browser hash helper matches `StandardMerkleTree.leafHash` / `verify` on the spike vector without importing `@shift/core` (server-only) or ethers v5. The page is 2/2. No credit spend.
 - [ ] F3.12 **Checkpoint H20:** real end-to-end run recorded below — `docs: record first real end-to-end run`
 
 ## F4 — Commons (plan §12)
