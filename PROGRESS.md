@@ -4,8 +4,8 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F3 — Optimizer and anchoring (F0 closed with open items, see Blockers)
-**Next item:** F3.10
-**Commits so far:** 58 (target for the project: 50–90)
+**Next item:** F3.11
+**Commits so far:** 59 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -94,7 +94,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
   - `encodeLeaf` / `leafFromStep` and `buildMerkleTree` in `packages/core/src/merkle` pack one completed inference step with the plan's `LEAF_TYPES` and OpenZeppelin `StandardMerkleTree` (double-hash). The step must carry a request id, a model and the cost the Router reported; a missing cost is an error. Trust names map to uint8 (standard 0, verified 1, private 2). The fixed spike vector matches the root, both leaf hashes and both proofs, and `forge test` still passes `test_LeafHashParityWithTypeScript` (7 passed). `scripts/merkle-vector.ts` now calls the same encoder. Nothing is written to `MerkleLeaf` and `anchorNight` is not called (F3.9). No credit spend.
 - [x] F3.9 Night manifest + anchorNight on 0G Chain — `feat(worker): anchor nightly batch on 0G Chain`
   - After `runUser`, `anchorNight` builds one leaf per DONE step that has a request id (model, reported micro-USD cost, trust tier, owner, shared output root), stores the root and each proof on `MerkleLeaf`, uploads `NightManifest.json` to 0G Storage, and calls `ShiftLedger.anchorNight` at `LEDGER_CONTRACT_ADDRESS` (Galileo `0xA3B6664b487FC01c4264977c9B92058A89C31Ed7`). The caller then marks the night DONE; that update keeps the root and tx. An empty batch does not upload and does not send a transaction. `recordDonations` is not called: the contract sets `donationsRecorded` even for an empty list, which would block F4. Commons leaves are not in the tree yet. The chain client is ethers (the same signer stack as 0G Storage) and is injected in tests, so CI never broadcasts and never spends Router credits. A live anchor happens when the worker or `POST /api/runs/now` finishes a non-empty night and the operator wallet has Galileo gas. Trust is stored on each new step; a request id with no cost, trust, or output root fails the night instead of inventing a leaf. If the transaction reverts, the caller marks the night FAILED and the stored root stays; a FAILED night is not retried.
-- [ ] F3.10 Night results page with provenance cards — `feat(web): add night results with provenance`
+- [x] F3.10 Night results page with provenance cards — `feat(web): add night results with provenance`
+  - `GET /api/nights/[id]` returns the public batch (merkle root, manifest root, anchor transaction) for any valid night id, and this user's task steps plus the credit/deposit split only when a session is present. A missing `tee_verified` stays null; the card reads that as no verdict, not a failure. Verify links point at `/verify?rid=` until F3.11. An id that is not a positive int64 is 404; a valid id with no row is an empty night. Keys, the ephemeral key id, balance blobs and the raw trace are not selected, and a key pasted into a stored string is stripped. No credit spend.
 - [ ] F3.11 Verify API + page with client-side on-chain check *(2 commits)* — `feat(web): add verify api` / `feat(web): add verify page with on-chain check`
 - [ ] F3.12 **Checkpoint H20:** real end-to-end run recorded below — `docs: record first real end-to-end run`
 
@@ -162,6 +163,7 @@ Short entries: date — decision — reason. Example: `2026-11-06 — budget mod
 - 2026-11-06 — a private night does not fall back to verified models when no TeeML model can run the task — the ephemeral key is pinned to `private`, and the Router answers 503 instead of downgrading (plan §7.4). The task is deferred with `no_model`. `candidates` still lets a stricter model satisfy a looser floor.
 - 2026-11-06 — complexity classification uses the strictest decision-model tier in the catalog and plans `standard` with no Router call when that catalog has no decision model — the live catalog sometimes has no TeeML models and no decision models (see Blockers). Model ids are never hard-coded.
 - 2026-11-06 — tonight's preview plans at quality floor 1 and does not call `/v1/decisions` — classification spends credits and needs an ephemeral key, so it stays in the real run. The preview still uses the live balance and catalog prices.
+- 2026-11-06 — night results are partially public — batch roots and the anchor transaction are readable without a session; task steps and the credit/deposit split are returned only for the signed-in user. A missing `tee_verified` is not a failure. An id that is not a positive int64 is 404; a valid id with no row is an empty night.
 - 2026-11-06 — `recordDonations` is skipped until a night has donations — an empty call still sets `donationsRecorded` on ShiftLedger, which would stop F4 from writing the real amounts. Commons leaves wait for the same phase.
 - 2026-11-06 — the worker signs `anchorNight` with ethers — the same library already pays for 0G Storage. The browser verifier in F3.11 can still use viem. Tests inject the client and do not broadcast.
 
