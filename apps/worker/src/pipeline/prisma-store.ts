@@ -1,0 +1,113 @@
+import { PrismaClient } from "@shift/core";
+import type { ConnectedUser, OpenTask, PipelineStore, RunPatch, TaskPatch } from "./store";
+
+type TaskData = NonNullable<Parameters<PrismaClient["task"]["update"]>[0]["data"]>;
+type RunData = NonNullable<Parameters<PrismaClient["nightRun"]["update"]>[0]["data"]>;
+
+function asJson<T>(value: unknown): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function bytes(value: Uint8Array): Buffer {
+  return Buffer.from(value);
+}
+
+/** Prisma backing for the night pipeline. Creates the Night row if a manual run reaches a user before the lock does. */
+export function prismaPipelineStore(db: PrismaClient): PipelineStore {
+  return {
+    async eligibleUsers() {
+      const users = await db.user.findMany({
+        where: {
+          mkCiphertext: { not: null },
+          mkIv: { not: null },
+          mkAuthTag: { not: null },
+          OR: [{ donateLeftover: true }, { tasks: { some: { status: { in: ["QUEUED", "DEFERRED"] } } } }],
+        },
+        orderBy: { id: "asc" },
+      });
+      const connected: ConnectedUser[] = [];
+      for (const user of users) {
+        if (!user.mkCiphertext || !user.mkIv || !user.mkAuthTag) continue;
+        connected.push({
+          id: user.id,
+          accountAddress: user.accountAddress,
+          mode: user.mode,
+          nightlyBudgetUsdMicro: user.nightlyBudgetUsdMicro,
+          donateLeftover: user.donateLeftover,
+          mkCiphertext: bytes(user.mkCiphertext),
+          mkIv: bytes(user.mkIv),
+          mkAuthTag: bytes(user.mkAuthTag),
+        });
+      }
+      return connected;
+    },
+
+    async openTasks(userId) {
+      const tasks = await db.task.findMany({
+        where: { userId, status: { in: ["QUEUED", "DEFERRED"] } },
+        orderBy: { createdAt: "asc" },
+      });
+      return tasks.map((task): OpenTask => ({
+        id: task.id,
+        type: task.type,
+        priority: task.priority,
+        createdAt: task.createdAt,
+        inputPath: task.inputPath,
+        inputMeta: task.inputMeta,
+        prompt: task.prompt,
+      }));
+    },
+
+    async findRun(nightId, userId) {
+      const run = await db.nightRun.findUnique({ where: { nightId_userId: { nightId, userId } } });
+      if (!run) return null;
+      return { id: run.id, status: run.status, ephemeralKeyId: run.ephemeralKeyId, keyRevokedAt: run.keyRevokedAt };
+    },
+
+    async createRun(nightId, userId) {
+      await db.night.upsert({ where: { id: nightId }, create: { id: nightId }, update: {} });
+      const run = await db.nightRun.create({ data: { nightId, userId, status: "RUNNING" }, select: { id: true } });
+      return { id: run.id };
+    },
+
+    async updateRun(id, patch) {
+      await db.nightRun.update({ where: { id }, data: runData(patch) });
+    },
+
+    async updateTask(id, patch) {
+      await db.task.update({ where: { id }, data: taskData(patch) });
+    },
+  };
+}
+
+function runData(patch: RunPatch): RunData {
+  const data: RunData = {};
+  if (patch.status !== undefined) data.status = patch.status;
+  if (patch.error !== undefined) data.error = patch.error;
+  if (patch.ephemeralKeyId !== undefined) data.ephemeralKeyId = patch.ephemeralKeyId;
+  if (patch.keyCreatedAt !== undefined) data.keyCreatedAt = patch.keyCreatedAt;
+  if (patch.keyRevokedAt !== undefined) data.keyRevokedAt = patch.keyRevokedAt;
+  if (patch.balanceBefore !== undefined) data.balanceBefore = asJson(patch.balanceBefore);
+  if (patch.balanceAfter !== undefined) data.balanceAfter = asJson(patch.balanceAfter);
+  if (patch.budgetUsdMicro !== undefined) data.budgetUsdMicro = patch.budgetUsdMicro;
+  if (patch.spentUsdMicro !== undefined) data.spentUsdMicro = patch.spentUsdMicro;
+  if (patch.donatedUsdMicro !== undefined) data.donatedUsdMicro = patch.donatedUsdMicro;
+  if (patch.creditUsed !== undefined) data.creditUsed = patch.creditUsed;
+  if (patch.depositUsed !== undefined) data.depositUsed = patch.depositUsed;
+  return data;
+}
+
+function taskData(patch: TaskPatch): TaskData {
+  const data: TaskData = {};
+  if (patch.status !== undefined) data.status = patch.status;
+  if (patch.nightId !== undefined) data.nightId = patch.nightId;
+  if (patch.complexity !== undefined) data.complexity = patch.complexity;
+  if (patch.chosenModel !== undefined) data.chosenModel = patch.chosenModel;
+  if (patch.estCostUsdMicro !== undefined) data.estCostUsdMicro = patch.estCostUsdMicro;
+  if (patch.actualCostUsdMicro !== undefined) data.actualCostUsdMicro = patch.actualCostUsdMicro;
+  if (patch.steps !== undefined) data.steps = asJson(patch.steps) as TaskData["steps"];
+  if (patch.outputRoot !== undefined) data.outputRoot = patch.outputRoot;
+  if (patch.outputTx !== undefined) data.outputTx = patch.outputTx;
+  if (patch.error !== undefined) data.error = patch.error;
+  return data;
+}
