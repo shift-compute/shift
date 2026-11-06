@@ -21,6 +21,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             </a>
             <nav className="flex items-center gap-6 text-sm">
               <a href="/queue">Queue</a>
+              <a href="/verify">Verify</a>
               <a href="/connect">Connect</a>
               <span className="text-haze">0G Galileo testnet</span>
             </nav>
