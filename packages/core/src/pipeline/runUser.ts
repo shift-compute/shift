@@ -192,6 +192,8 @@ async function runWithKey(deps: RunUserDeps, runId: string, mk: string, runnable
   }
   await store.updateRun(runId, { balanceBefore: balance.data, budgetUsdMicro: budget.budgetMicro });
 
+  // Classification needs the ephemeral key, so this check still uses the quality floor of 1.
+  // executePlan writes MIN_QUALITY onto each text task and calls planNight again with what that call left.
   const preview = planNight(runnable.map((task) => task.plan), catalog, "private", budget.budgetMicro);
   if (preview.assignments.length === 0) {
     for (const item of preview.deferred) await defer(store, deps.nightId, item.taskId, DEFER[item.reason]);
@@ -256,6 +258,8 @@ async function prepareOne(deps: RunUserDeps, row: OpenTask): Promise<{ ok: true;
     type: type.data,
     priority: row.priority,
     createdAt: row.createdAt,
+    // Floor until a text task is classified. executePlan replaces this with MIN_QUALITY from that verdict.
+    minQuality: 1,
     size: { bytes: meta.data.bytes ?? 0, ...(meta.data.mime ? { mime: meta.data.mime } : {}), ...(meta.data.durationSec !== undefined ? { durationSec: meta.data.durationSec } : {}), ...(meta.data.chars !== undefined ? { chars: meta.data.chars } : {}), ...(row.prompt ? { prompt: row.prompt } : {}) },
   };
 

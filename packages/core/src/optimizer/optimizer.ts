@@ -54,7 +54,8 @@ export function optionsFor(task: PlanTask, catalog: CatalogEntry[], trust: Trust
     return { models, quality: chatQuality(chat.id), costMicro: estimateCostMicro(task.type, task.size, models) };
   });
 
-  // Cheapest first; keep an option only when it is better than every cheaper one.
+  // Cheapest first. The same price keeps the higher quality, so a free step up is the base and not a later upgrade.
+  // A dearer option stays only when it is strictly better than every cheaper one.
   all.sort((a, b) => (a.costMicro < b.costMicro ? -1 : a.costMicro > b.costMicro ? 1 : b.quality - a.quality));
   const frontier: PlanOption[] = [];
   for (const o of all) if (frontier.length === 0 || o.quality > frontier[frontier.length - 1]!.quality) frontier.push(o);
