@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { candidates, type CatalogEntry } from "../catalog/catalog";
+import type { CatalogEntry } from "../catalog/catalog";
 import { loadModelCatalog, type CatalogCache } from "../catalog/loader";
 import { impliedMicroUsdPerOg } from "../catalog/rate";
 import type { WorkerConfig } from "../config";
@@ -13,7 +13,7 @@ import { recordStep } from "../executors/step";
 import { storeTaskOutput } from "../executors/store-output";
 import type { ExecutorResult, StepRecord } from "../executors/types";
 import { msUntilHardStop } from "../night/schedule";
-import { MIN_QUALITY, buildComplexityRequest, readComplexity, type Complexity } from "../optimizer/complexity";
+import { MIN_QUALITY, buildComplexityRequest, classificationSpendMicro, complexityState, pickDecisionModel, readComplexity, type Complexity } from "../optimizer/complexity";
 import { planNight, type PlanOption, type PlanTask } from "../optimizer/optimizer";
 import { redactString } from "../redact";
 import { TASK_TYPES } from "../tasks/task-input";
@@ -305,6 +305,7 @@ async function executePlan(deps: RunUserDeps, sk: string, tasks: Prepared[], cat
       status: "DEFERRED",
       nightId: deps.nightId,
       error: reason,
+      ...(task?.complexity ? { complexity: task.complexity } : {}),
       ...(task?.classifyStep ? { steps: [task.classifyStep] } : {}),
     });
   };
@@ -316,8 +317,14 @@ async function executePlan(deps: RunUserDeps, sk: string, tasks: Prepared[], cat
     }
     if (task.row.type === "AUDIO_SUMMARY") continue;
     const text = task.doc?.text ?? task.row.prompt ?? "";
-    const model = chooseDecisionModel(activeCatalog, `${task.row.type}\n${text}`.length);
-    if (!model) continue;
+    // The full task text picks Laya vs Vela. The request itself still sends the truncated state.
+    const model = pickDecisionModel(activeCatalog, `${task.row.type}\n${text}`.length);
+    if (!model) {
+      task.complexity = "standard";
+      task.plan.minQuality = MIN_QUALITY.standard;
+      deps.log(`user ${deps.user.id}: no decision model in the catalog; task ${task.row.id} is planned as standard`);
+      continue;
+    }
     const verdict = await classify(deps, sk, task, model, text);
     if (verdict === "stop") {
       stop = true;
@@ -325,7 +332,8 @@ async function executePlan(deps: RunUserDeps, sk: string, tasks: Prepared[], cat
     }
     task.complexity = verdict.complexity;
     task.plan.minQuality = MIN_QUALITY[verdict.complexity];
-    if (verdict.step) addCost(spend, [verdict.step], 0n);
+    const estimate = classificationSpendMicro({ model, stateChars: complexityState(`${task.row.type} task`, text).length }).micro;
+    if (verdict.step) addCost(spend, [verdict.step], estimate);
     task.classifyStep = verdict.step;
   }
   if (stop) {
@@ -491,7 +499,7 @@ async function classify(deps: RunUserDeps, sk: string, task: Prepared, model: Ca
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       const res = await deps.router.decide(sk, buildComplexityRequest(model.id, description, text), {
-        trustMode: "private",
+        trustMode: model.trust,
         clientRequestId: `${task.row.id}-${attempt}-classify`,
       });
       return { ...readComplexity(res.data), step: recordStep("classify", model.id, res) };
@@ -505,17 +513,6 @@ async function classify(deps: RunUserDeps, sk: string, task: Prepared, model: Ca
   // The classifier only chooses how much to spend, so a bad answer is "standard" and the task is not lost.
   deps.log(`user ${deps.user.id}: complexity of task ${task.row.id} fell back to standard (${failureText(last)})`);
   return { complexity: "standard" };
-}
-
-/** Smallest decision model whose context can hold the state; otherwise the largest one. Ids come from the catalog. */
-function chooseDecisionModel(catalog: CatalogEntry[], stateChars: number): CatalogEntry | undefined {
-  const models = candidates(catalog, "decision", "private").slice().sort((a, b) => a.id.localeCompare(b.id));
-  const tokens = Math.ceil(stateChars / 4);
-  const sized = models.filter((model) => model.contextLength !== undefined);
-  const fitting = sized.filter((model) => (model.contextLength ?? 0) >= tokens).sort((a, b) => (a.contextLength ?? 0) - (b.contextLength ?? 0));
-  if (fitting[0]) return fitting[0];
-  const largest = sized.slice().sort((a, b) => (b.contextLength ?? 0) - (a.contextLength ?? 0))[0];
-  return largest ?? models[0];
 }
 
 async function recordUsage(deps: RunUserDeps, mk: string, requestIds: string[], summary: RunPatch): Promise<void> {
