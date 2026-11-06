@@ -5,7 +5,7 @@ Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.
 
 **Current phase:** F2 — Execution (F0 closed with open items, see Blockers)
 **Next item:** F2.8
-**Commits so far:** 44 (target for the project: 50–90)
+**Commits so far:** 45 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -140,6 +140,7 @@ Short entries: date — decision — reason. Example: `2026-11-06 — budget mod
 - 2026-11-05 — decision-model questions use `{type, instructions, criteria}` objects, not arrays — verified with a real call (U7).
 - 2026-11-05 — `SMOKE_KEY_LIMIT_FIELD=credit_limit` (value in 0G units, as a string) — taken from the official OpenAPI spec (F0.2).
 - 2026-11-06 — submission deadline is Saturday 7 November 2026, 09:00 IST, and late submissions are not accepted — ETHGlobal Mumbai details and start pages. The plan's "8 November, 09:00 IST" date was wrong.
+- 2026-11-06 — forge-std v1.9.4 is vendored under `contracts/lib` — a clean clone failed `pnpm test:contracts` because the library was gitignored and only documented as a manual clone.
 
 ## Blockers
 - **The Router catalog changed after Phase 0.** At ~16:30 UTC on 2026-11-05 `GET /v1/models` returned 124 models, 9 of them TeeML (`0gm-1.0-35b-a3b`, `glm-5.3`, `laya`, `vela-2.0-9b`, `whisper-large-v3`, `z-image-turbo`, embeddings). Later the same day, with or without a key and with any trust-mode header, it returns 79 models, no `verifiability` field and none of those: no decision models, no speech-to-text, no private (TeeML) models. Shift's core (decision models, Whisper, private trust mode) depends on them. Ask 0G at the booth whether this is an outage or a permanent change; re-run `pnpm smoke` to refresh `docs/spike/models.json` (the committed copy is the earlier catalog).

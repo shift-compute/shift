@@ -6,8 +6,10 @@ contracts/broadcast/
 docs/spike/openapi.json
 docs/spike/openapi.yaml
 
-# Foundry deps (clone forge-std as described in docs/PHASE0_KIT.md)
-contracts/lib/
+# Other Foundry libraries. forge-std v1.9.4 is vendored so contract tests run on a clean clone.
+contracts/lib/*
+!contracts/lib/forge-std/
+!contracts/lib/forge-std/**
 
 # Local env and OS files
 .env.*
