@@ -26,22 +26,22 @@ export function ResetBar() {
 
   return (
     <div>
-      <div className="flex justify-between text-sm text-haze">
+      <div className="flex justify-between text-sm text-muted">
         <span>Now</span>
         <span>00:00 UTC</span>
       </div>
-      <div className="relative mt-2 h-2 overflow-hidden rounded-sm bg-night" aria-hidden="true">
+      <div className="relative mt-2 h-2 overflow-hidden rounded-full bg-skycard/70" aria-hidden="true">
         {elapsed !== null && (
-          <div className={`absolute inset-0 origin-left bg-sodium ${ease}`} style={{ transform: `scaleX(${elapsed})` }} />
+          <div className={`absolute inset-0 origin-left rounded-full bg-teal ${ease}`} style={{ transform: `scaleX(${elapsed})` }} />
         )}
         {elapsed !== null && (
           <div
-            className={`night-edge pointer-events-none absolute inset-y-0 w-0.5 -translate-x-1/2 bg-paper motion-reduce:animate-none ${edgeEase}`}
+            className={`night-edge pointer-events-none absolute inset-y-0 w-0.5 -translate-x-1/2 bg-ink motion-reduce:animate-none ${edgeEase}`}
             style={{ left: `${elapsed * 100}%` }}
           />
         )}
       </div>
-      <p className="mt-3 text-sm text-haze">This UTC day, advancing toward the 00:00 reset.</p>
+      <p className="mt-3 text-sm text-muted">This UTC day, advancing toward the 00:00 reset.</p>
     </div>
   );
 }

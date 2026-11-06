@@ -31,7 +31,7 @@ export function Countdown() {
   return (
     <section aria-label="Time until credits reset">
       <p className="text-haze">Credits reset in</p>
-      <p className="mt-1 font-display text-6xl font-semibold tabular-nums text-sodium sm:text-7xl">{now ? formatCountdown(msUntilCutoff(now)) : "--:--:--"}</p>
+      <p className="mt-1 font-display text-6xl font-semibold tabular-nums text-teal sm:text-7xl">{now ? formatCountdown(msUntilCutoff(now)) : "--:--:--"}</p>
       <p className="mt-2 text-haze">at 00:00 UTC{cutoff ? ` (${cutoffInIst(cutoff)} IST)` : ""}</p>
       {now && <p className="mt-4 text-lg">{PHASE_TEXT[nightPhase(now)]}</p>}
     </section>

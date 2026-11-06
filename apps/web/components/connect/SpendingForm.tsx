@@ -55,7 +55,7 @@ export function SpendingForm() {
             value={budget}
             onChange={(e) => setBudget(e.target.value)}
             placeholder="2.50"
-            className="mt-1 w-40 rounded-md border border-haze/40 bg-night px-3 py-2 text-paper placeholder:text-haze/60"
+            className="mt-1 w-40 rounded-full border border-ink/15 bg-surface px-4 py-2 text-ink placeholder:text-muted/70"
           />
         </div>
       )}
@@ -68,12 +68,12 @@ export function SpendingForm() {
         </span>
       </label>
 
-      <button type="submit" disabled={status.kind === "saving"} className="mt-6 rounded-md bg-sodium px-5 py-2 font-semibold text-sky disabled:opacity-50">
+      <button type="submit" disabled={status.kind === "saving"} className="mt-6 rounded-full bg-teal px-5 py-2 font-semibold text-paper shadow-sm transition-colors duration-200 hover:bg-ink disabled:opacity-50">
         {status.kind === "saving" ? "Saving…" : "Save"}
       </button>
       <div aria-live="polite" className="mt-3">
         {status.kind === "saved" && <p className="text-light">Saved. Shift will use this tonight.</p>}
-        {status.kind === "error" && <p role="alert" className="border-l-4 border-sodium pl-3">{status.message}</p>}
+        {status.kind === "error" && <p role="alert" className="border-l-4 border-teal pl-3">{status.message}</p>}
       </div>
     </form>
   );

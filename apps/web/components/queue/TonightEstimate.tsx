@@ -49,15 +49,15 @@ export function TonightEstimate({ panel, tasks }: { panel: Panel; tasks: TaskHin
           Estimating tonight…
         </p>
       )}
-      {panel.phase === "unavailable" && <p className="border-l-4 border-sodium pl-3">We could not reach the server. Try again in a moment.</p>}
+      {panel.phase === "unavailable" && <p className="border-l-4 border-teal pl-3">We could not reach the server. Try again in a moment.</p>}
       {panel.phase === "reconnect" && (
-        <p className="border-l-4 border-sodium pl-3">
+        <p className="border-l-4 border-teal pl-3">
           Your management key is no longer valid. <a href="/connect">Connect your 0G account</a> again to see tonight's estimate.
         </p>
       )}
       {panel.phase === "empty" && <p className="text-haze">{panel.message}</p>}
       {panel.phase === "message" && (
-        <p role="alert" className="border-l-4 border-sodium pl-3">
+        <p role="alert" className="border-l-4 border-teal pl-3">
           {panel.message}
         </p>
       )}
@@ -71,7 +71,7 @@ function Ready({ preview, tasks }: { preview: TonightPreview; tasks: TaskHint[] 
     <div className="space-y-4">
       <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2">
         <dt className="text-haze">Budget for tonight</dt>
-        <dd className="font-semibold text-sodium">{formatAmount(preview.budgetMicro, "usd")}</dd>
+        <dd className="font-semibold text-teal">{formatAmount(preview.budgetMicro, "usd")}</dd>
         <dt className="text-haze">Estimated spend</dt>
         <dd>{formatAmount(preview.spentEstimateMicro, "usd")}</dd>
         <dt className="text-haze">Left for the commons queue</dt>

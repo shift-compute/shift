@@ -72,10 +72,10 @@ export function NightResults({ nightId }: { nightId: string }) {
     );
   }
   if (panel.phase === "invalid") {
-    return <p className="border-l-4 border-sodium pl-3">That night id is not valid.</p>;
+    return <p className="border-l-4 border-teal pl-3">That night id is not valid.</p>;
   }
   if (panel.phase === "unavailable") {
-    return <p className="border-l-4 border-sodium pl-3">We could not load this night. Try again in a moment.</p>;
+    return <p className="border-l-4 border-teal pl-3">We could not load this night. Try again in a moment.</p>;
   }
   if (panel.phase === "empty") {
     return <p className="text-haze">No night with this id has been recorded. Nights show up here after a shift runs.</p>;
@@ -203,7 +203,7 @@ function ProvenanceCard({ task }: { task: NightTaskResult }) {
         </p>
       </div>
       {task.error && (
-        <p role="alert" className="border-l-4 border-sodium pl-3">
+        <p role="alert" className="border-l-4 border-teal pl-3">
           {task.error}
         </p>
       )}

@@ -109,9 +109,9 @@ export function Verifier({ initialRequestId }: { initialRequestId: string }) {
             autoComplete="off"
             spellCheck={false}
             placeholder="Paste a request id"
-            className="min-w-0 flex-1 rounded-md border border-haze/40 bg-night px-3 py-2 font-mono text-paper placeholder:text-haze/60"
+            className="min-w-0 flex-1 rounded-full border border-ink/15 bg-surface px-4 py-2 font-mono text-ink placeholder:text-muted/70"
           />
-          <button type="submit" disabled={draft.trim().length === 0} className="rounded-md bg-sodium px-5 py-2 font-semibold text-sky disabled:opacity-50">
+          <button type="submit" disabled={draft.trim().length === 0} className="rounded-full bg-teal px-5 py-2 font-semibold text-paper shadow-sm transition-colors duration-200 hover:bg-ink disabled:opacity-50">
             Verify
           </button>
         </div>
@@ -120,13 +120,13 @@ export function Verifier({ initialRequestId }: { initialRequestId: string }) {
       <div aria-live="polite">
         {panel.phase === "loading" && <p className="text-haze">Loading this result…</p>}
         {panel.phase === "empty" && <p className="text-haze">Paste a request id to verify it against the anchored batch.</p>}
-        {panel.phase === "invalid" && <p className="border-l-4 border-sodium pl-3">That request id is not valid.</p>}
+        {panel.phase === "invalid" && <p className="border-l-4 border-teal pl-3">That request id is not valid.</p>}
         {panel.phase === "not_found" && (
           <p className="text-haze">No anchored result uses this request id. Results show up here after a night is anchored.</p>
         )}
         {panel.phase === "unavailable" && (
           <div className="space-y-3">
-            <p className="border-l-4 border-sodium pl-3">We could not load this result. Try again in a moment.</p>
+            <p className="border-l-4 border-teal pl-3">We could not load this result. Try again in a moment.</p>
             <button type="button" onClick={() => setAttempt((value) => value + 1)} className="rounded-md border border-haze/40 px-4 py-2">
               Try again
             </button>
@@ -288,7 +288,7 @@ function ChainPanel({ chain, body, onRetry }: { chain: ChainState; body: VerifyR
   }
   const confirmed = chain.status === "confirmed";
   return (
-    <section aria-label="On-chain check" className={`space-y-3 rounded-md p-5 ${confirmed ? "bg-night" : "border-l-4 border-sodium bg-night"}`}>
+    <section aria-label="On-chain check" className={`space-y-3 rounded-md p-5 ${confirmed ? "bg-night" : "border-l-4 border-teal bg-night"}`}>
       <h2 className={`text-2xl font-semibold ${confirmed ? "text-light" : ""}`}>{chainTitle(chain)}</h2>
       <p className="text-haze">{chainDetail(chain)}</p>
       {chain.chainRoot && <p className="break-all text-sm">On-chain root {chain.chainRoot}</p>}
