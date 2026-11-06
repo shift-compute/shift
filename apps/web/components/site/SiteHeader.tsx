@@ -41,7 +41,16 @@ export function SiteHeader() {
               </a>
             ))}
           </nav>
-          <span className="px-1 text-sm text-muted">0G Galileo testnet</span>
+          <a
+            href="https://chainscan-galileo.0g.ai"
+            target="_blank"
+            rel="noreferrer"
+            className="network-pill"
+            title="0G Galileo testnet, chain 16602"
+          >
+            <img src="/brand/0g-logo.png" alt="0G" width={20} height={20} className="h-5 w-5 rounded-full" />
+            Galileo testnet
+          </a>
           <MotionLink href="/connect" className="cta cta-primary cta-sm">
             Connect 0G
           </MotionLink>

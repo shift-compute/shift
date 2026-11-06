@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { Reveal } from "../../components/landing/motion";
 import { InnerPage } from "../../components/ui/InnerPage";
+import { PageIntro } from "../../components/ui/PageIntro";
 import { EnsIdentity } from "../../components/identity/EnsIdentity";
 import { Verifier } from "../../components/verify/Verifier";
 
@@ -14,12 +16,15 @@ export default async function VerifyPage({ searchParams }: { searchParams: Promi
 
   return (
     <InnerPage>
-      <h1 className="text-3xl font-semibold">Verify a result</h1>
-      <p className="max-w-2xl text-haze">
+      <PageIntro eyebrow="ShiftLedger on 0G Chain" title="Verify a result.">
         Paste a request id, or open a link that already has one. This page recomputes the leaf and asks ShiftLedger whether that leaf sits in the anchored batch.
-      </p>
-      <Verifier initialRequestId={rid} />
-      <EnsIdentity />
+      </PageIntro>
+      <Reveal delay={0.45}>
+        <Verifier initialRequestId={rid} />
+      </Reveal>
+      <Reveal>
+        <EnsIdentity />
+      </Reveal>
     </InnerPage>
   );
 }
