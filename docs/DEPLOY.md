@@ -9,7 +9,7 @@ Railway project `shift`:
 - A volume is mounted at `/data` (`UPLOAD_DIR=/data/uploads`).
 
 They share `UPLOAD_DIR`, and a Railway volume cannot be attached to two services, so they are not split.
-`scripts/start-prod.sh` applies the migrations, then starts both processes. If either exits, the container exits and Railway restarts it.
+`scripts/start-prod.sh` applies the migrations, runs `pnpm seed:commons`, then starts both processes. If the seed fails, the container exits before either process starts. If either process exits, the container exits and Railway restarts it. `railway.json` sets `deploy.startCommand` to that script, so a dashboard start command does not replace it.
 
 Checked against that URL on 2026-11-06:
 
@@ -17,7 +17,7 @@ Checked against that URL on 2026-11-06:
 - `GET /api/session` returned `{"connected":false}`.
 - `GET /api/commons` returned `{"items":[],"donors":[],"totalDonatedUsdMicro":"0"}`.
 
-That empty `items` list is the public commons board. Seeding production is still an operator step (below) and is not recorded as done. `PENDING` rows would stay off this endpoint anyway: it lists accepted and rejected rows only. No funded inference run is recorded (F3.12 and F4.7 stay open).
+That empty `items` list is the public commons board. Production boots run `pnpm seed:commons` after migrations; `PENDING` rows still do not appear on `/api/commons` (it lists accepted and rejected rows only). No funded inference run is recorded (F3.12 and F4.7 stay open).
 
 Setting the `url` text record of `tryshift.eth` to this URL is still an operator step in the ENS app. This file does not record that record as set.
 
@@ -63,18 +63,18 @@ Do not set the `ZG_MK_KEY` or `SMOKE_*` variables: they are for the Phase 0 scri
 ## Before the first night
 
 - The worker runs a real batch inside its night window and spends the users' credits. Do not connect a real account until you mean it.
-- Seed the commons queue once: `pnpm seed:commons` against the production `DATABASE_URL` (see `scripts/seed-commons.ts`).
+- The commons queue is seeded on every container start (`pnpm seed:commons` after migrations; see `scripts/seed-commons.ts`). A re-run inserts missing `sourceRef`s, updates `PENDING` rows, and leaves other statuses alone. It does not spend Router credits. `PENDING` rows stay off `/api/commons`.
 - Check the logs for `tick` lines after 23:00 UTC. A FAILED night is not retried by design.
 
 ## What was checked
 
-The image was not built on the machine that wrote the Dockerfile (Docker Desktop was not running). On that machine, `pnpm --filter @shift/web build` succeeded with no `.env`, `prisma generate` succeeded with an empty `DATABASE_URL`, and `bash -n scripts/start-prod.sh` passed. Railway built the image. The live checks at the top of this file are the public proof the service is up. They do not include a commons seed or a funded inference run.
+The image was not built on the machine that wrote the Dockerfile (Docker Desktop was not running). On that machine, `pnpm --filter @shift/web build` succeeded with no `.env`, `prisma generate` succeeded with an empty `DATABASE_URL`, and `bash -n scripts/start-prod.sh` passed. Railway built the image. The live checks at the top of this file are the public proof the service is up. They do not include a funded inference run. `bash -n` does not execute `pnpm seed:commons`; that command runs on each production boot after migrations, and `PENDING` rows stay off `/api/commons`.
 
 ## Operator checklist
 
 Do these by hand. This file does not record them as done.
 
-1. After `pnpm seed:commons`, disable the Postgres public TCP proxy. The app should use the private Railway database URL.
+1. Disable the Postgres public TCP proxy. The app should use the private Railway database URL. Container boots already run `pnpm seed:commons`.
 2. Turn on 2FA for the Railway account that owns the project.
 3. Fund the operator wallet with the minimum Galileo gas it needs for storage uploads and `anchorNight`. Do not leave a large balance there.
 4. Connect only team accounts. Do not paste a personal `mk-` into the demo.
