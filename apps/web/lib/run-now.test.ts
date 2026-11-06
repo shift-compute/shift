@@ -2,7 +2,7 @@ import { createRateLimiter, type ConnectedUser, type OpenTask, type PipelineStor
 import type { StorageClient } from "@shift/core/storage";
 import { describe, expect, it, vi } from "vitest";
 import { StorageKeyError } from "./operator-key";
-import { executeManualRun, executeRunNow, type ManualRunHooks, type RunNowSummary, type RunNowUser } from "./run-now";
+import { executeManualRun, executeRunNow, requestIdsFromSteps, type ManualRunHooks, type RunNowSummary, type RunNowUser } from "./run-now";
 
 const NOW = new Date("2026-11-06T10:00:00.900Z");
 const NIGHT = 1793959200n;
@@ -39,6 +39,25 @@ function summary(over: Partial<RunNowSummary> = {}): RunNowSummary {
 function allow() {
   return { check: vi.fn(() => ({ allowed: true, retryAfterSeconds: 0 })) };
 }
+
+describe("requestIdsFromSteps", () => {
+  it("copies request ids and drops traces, duplicates, and key-shaped values", () => {
+    expect(
+      requestIdsFromSteps([
+        { step: "summarize", requestId: "req-doc-1234", trace: { authorization: MK } },
+        { requestId: "req-doc-1234" },
+        { requestId: "short" },
+        { requestId: SK },
+        { requestId: "  req-audio-1 " },
+      ]),
+    ).toEqual(["req-doc-1234", "req-audio-1"]);
+  });
+
+  it("returns nothing when steps are missing", () => {
+    expect(requestIdsFromSteps(null)).toEqual([]);
+    expect(requestIdsFromSteps({})).toEqual([]);
+  });
+});
 
 describe("executeRunNow", () => {
   it("rejects a missing session before any work", async () => {
@@ -137,7 +156,7 @@ describe("executeRunNow", () => {
       run: async (connected, nightId) => {
         seen.id = connected.id;
         seen.nightId = nightId;
-        return summary({ nightId: "999", error: `leaked ${MK}`, tasks: [{ id: "t1", type: "DOC_ANALYSIS", status: "FAILED", error: `saw ${SK}`, chosenModel: null, outputRoot: null }] });
+        return summary({ nightId: "999", error: `leaked ${MK}`, tasks: [{ id: "t1", type: "DOC_ANALYSIS", status: "FAILED", error: `saw ${SK}`, chosenModel: null, outputRoot: null, requestIds: [] }] });
       },
     });
     expect(seen).toEqual({ id: "user-1", nightId: NIGHT });
@@ -227,6 +246,7 @@ describe("executeManualRun", () => {
           error: patch.error ?? null,
           chosenModel: patch.chosenModel ?? null,
           outputRoot: patch.outputRoot ?? null,
+          requestIds: [],
         })),
       }),
     };

@@ -8,6 +8,10 @@ describe("formatAmount", () => {
     expect(formatAmount("10000", "usd")).toBe("0.01 USD");
     expect(formatAmount("1", "usd")).toBe("0.000001 USD");
     expect(formatAmount("0", "usd")).toBe("0 USD");
+    // Observed on the connect screen as the raw Router integer "4865042" with currency "usd".
+    expect(formatAmount("4865042", "usd")).toBe("4.865042 USD");
+    expect(formatAmount("22300", "usd")).toBe("0.0223 USD");
+    expect(formatAmount("200000", "usd")).toBe("0.2 USD");
   });
 
   it("reads 0G accounts as wei and keeps 18-digit values exact", () => {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { NightStrip } from "../night/NightStrip";
+import { RunNow } from "./RunNow";
 import { TonightEstimate } from "./TonightEstimate";
 import { stripFromSource } from "../../lib/night-strip";
 import { readPreview, type PreviewPanel } from "./preview-state";
@@ -190,6 +191,8 @@ export function Queue() {
       <NightStrip model={stripFromSource(preview, tasks ?? [])} busy={preview.phase === "loading"} />
 
       <TonightEstimate panel={preview} tasks={tasks ?? []} />
+
+      <RunNow tasks={tasks} queueFailed={tasks === null && message !== null} preview={preview} onFinished={() => void load()} />
 
       <section aria-label="Your tasks">
         <h2 className="text-2xl font-semibold">Your tasks</h2>

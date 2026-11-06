@@ -127,9 +127,10 @@ describe("GET /api/plan/preview", () => {
       qualityFloor: 1,
       complexity: "at_run_time",
       budgetMicro: "900000",
-      spentEstimateMicro: "9",
-      remainingMicro: "899991",
-      assignments: [{ taskId: "t1", model: "glm-5.3", costMicro: "9" }],
+      // glm-5.3, 4000-byte document, analysisOutputTokens 1700: 15.6975 micro-USD, ceil 16.
+      spentEstimateMicro: "16",
+      remainingMicro: "899984",
+      assignments: [{ taskId: "t1", model: "glm-5.3", costMicro: "16" }],
       deferred: [],
     });
     expect(JSON.stringify(body)).not.toContain(SECRET);

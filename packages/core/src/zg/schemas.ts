@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * Response shapes verified against the real Router in Phase 0 (docs/SPIKE_RESULTS.md).
  * Objects are loose on purpose: extra fields are kept, only what Shift relies on is required.
- * Amounts are strings in the account's currency units ("0g" = 0G units, "usd" = USD).
+ * Amounts are integer strings in base units. OpenAPI: "0g" is wei, "usd" is micro-USD (USD × 1e6).
  */
 
 export const accountSchema = z.looseObject({
