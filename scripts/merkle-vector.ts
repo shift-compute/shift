@@ -2,17 +2,32 @@
  * Generates a test vector to verify that the leaf hash in TypeScript
  * (OpenZeppelin StandardMerkleTree) matches the verification in Solidity.
  * The output is pasted into contracts/test/ShiftLedger.t.sol.
+ * Leaves are packed by the core encoder so this vector cannot drift from LEAF_TYPES.
  */
 import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
-import { keccak256, toUtf8Bytes } from "./lib/hash";
-
-export const LEAF_TYPES = ["bytes32", "address", "bytes32", "bytes32", "bytes32", "uint8", "uint64", "bool"] as const;
+import { encodeLeaf, LEAF_TYPES } from "../packages/core/src/merkle/leaf";
 
 const leaves = [
-  [keccak256(toUtf8Bytes("req-test-1")), "0x1111111111111111111111111111111111111111", keccak256(toUtf8Bytes("task-1")),
-   "0x" + "ab".repeat(32), keccak256(toUtf8Bytes("0gm-1.0-35b-a3b")), 2, 1234n, false],
-  [keccak256(toUtf8Bytes("req-test-2")), "0x2222222222222222222222222222222222222222", keccak256(toUtf8Bytes("commons-1")),
-   "0x" + "cd".repeat(32), keccak256(toUtf8Bytes("glm-5.3")), 2, 5678n, true],
+  encodeLeaf({
+    requestId: "req-test-1",
+    owner: "0x1111111111111111111111111111111111111111",
+    taskId: "task-1",
+    outputRoot: "0x" + "ab".repeat(32),
+    modelId: "0gm-1.0-35b-a3b",
+    trust: "private",
+    costUsdMicro: 1234n,
+    isCommons: false,
+  }),
+  encodeLeaf({
+    requestId: "req-test-2",
+    owner: "0x2222222222222222222222222222222222222222",
+    taskId: "commons-1",
+    outputRoot: "0x" + "cd".repeat(32),
+    modelId: "glm-5.3",
+    trust: "private",
+    costUsdMicro: 5678n,
+    isCommons: true,
+  }),
 ];
 
 const tree = StandardMerkleTree.of(leaves, [...LEAF_TYPES]);

@@ -36,3 +36,5 @@ export * from "./pipeline/prisma-store";
 export * from "./pipeline/runUser";
 export * from "./pipeline/store";
 export * from "./pipeline/uploads";
+export * from "./merkle/leaf";
+export * from "./merkle/tree";
