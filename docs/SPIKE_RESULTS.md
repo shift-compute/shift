@@ -29,7 +29,7 @@ The Router stays on mainnet because iAI and builder credits live there. Chain an
 | U8 | `x_0g_trace` with `verify_tee` | ⏳ | Same blocker as U3 (402 on the chat call). |
 | U9 | 0G Storage upload/download | ✅ | Package is `@0gfoundation/0g-ts-sdk`. A 60-byte JSON was uploaded and downloaded back with proof verification; SHA-256 matched. Root hash `0x35eb71f233c5020c97ddacd04435d0021a696633c5d1b6278a7fd296d135d589`. |
 | U10 | Chain ID, RPC, deploy | ✅ | Chain ID 16602. `ShiftLedger` is deployed at `0xA3B6664b487FC01c4264977c9B92058A89C31Ed7` with the operator wallet as owner. `forge test`: 7 passed, including TS ↔ Solidity leaf-hash parity. |
-| U11 | Submission deadline | ❓ | Needs a look at the ETHGlobal dashboard. The plan quotes November 8, 09:00 IST from one source. |
+| U11 | Submission deadline | ✅ | Saturday 7 November 2026, 09:00 IST. ETHGlobal does not accept late submissions (event details and start pages). The earlier "8 November" date was wrong. |
 | U12 | 0G allows delegated use of iAI credits | ❓ | Needs a direct answer from 0G (Gathin, booth). |
 
 ## Decisions
@@ -44,7 +44,7 @@ The Router stays on mainnet because iAI and builder credits live there. Chain an
 ## Still open before relying on iAI mode
 
 - Obtain Router credits for the team account, then re-run `pnpm smoke` to close U3 and U8 (and optionally `SMOKE_IMAGE=1` and `SMOKE_AUDIO_FILE` for image and audio traces).
-- Confirm U11 and U12.
+- Confirm U12. U11 is closed: the deadline is 7 November 2026, 09:00 IST.
 
 ## Later finding: the catalog changed
 
