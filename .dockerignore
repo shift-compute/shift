@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+**/.next
+.git
+.env
+.env.*
+!.env.example
+uploads
+contracts/out
+contracts/cache
+contracts/broadcast
+docs/spike/openapi.json
+docs/spike/openapi.yaml
+*.log
