@@ -29,6 +29,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
         <main className="mx-auto max-w-5xl px-6 py-10">{children}</main>
+        <footer className="border-t border-night">
+          <div className="mx-auto max-w-5xl px-6 py-4 text-sm text-haze">
+            <a href="https://app.ens.domains/tryshift.eth" target="_blank" rel="noreferrer">
+              tryshift.eth
+            </a>
+          </div>
+        </footer>
       </body>
     </html>
   );

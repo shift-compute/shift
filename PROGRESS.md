@@ -5,7 +5,7 @@ Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.
 
 **Current phase:** F6 — Delivery (F6.1 deploy is next; F3.12 and F4.7 remain open, blocked on Router credits; F5 is optional)
 **Next item:** F6.1 (deploy), or F5 if taken, or the blocked runs F3.12 / F4.7 once Router credits exist
-**Commits so far:** 67 (target for the project: 50–90)
+**Commits so far:** 68 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -123,6 +123,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
 - [ ] F5.3 Responsive, accessibility, reduced motion polish — `fix(web): polish responsive and accessibility`
 
 ## F6 — Delivery (plan §24, §25)
+- [x] F5.4 ENS identity: `tryshift.eth` on the verify page and footer — `feat(web): read tryshift.eth identity from ENS`
+  - `GET /api/identity` reads the name live from Ethereum mainnet with viem (Universal Resolver): address, primary name, `url`, `com.github` and a custom `shift.ledger` text record (`eip155:<chainId>:<address>`), and cross-checks that record against the configured ShiftLedger. The name is registered on ENS v2: ethers 6 (`resolveName`, `lookupAddress`) returned null for it, viem resolved it. A name that does not resolve is not cached. Limitation: `shift.ledger` is not published yet, so the page shows "not published" until the owner sets it in the ENS app (Edit profile, Advanced, custom text record). Name owner: `0x8fe18C629957ec75E6135C4125c71a72F670d177`, expires 2027-11-06.
 - [ ] F6.1 Deploy web + worker + Postgres; live demo link — `chore: deploy web and worker`
 - [x] F6.2 README for judges — `docs: write README for judges`
   - Judge-facing README: Galileo ShiftLedger address, local run, `/verify?rid=` flow, commons license, and empty placeholders for the live URL, request-id table, and video. No request ids, anchor txs, or manifest roots were invented. F6.1 stays open (no deploy). F3.12 and F4.7 stay blocked on 0 Router balance.
