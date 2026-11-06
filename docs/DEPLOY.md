@@ -1,8 +1,25 @@
 # Deploying Shift on Railway
 
-One Railway service runs the web app and the nightly worker in the same container, next to a Railway Postgres.
+The public app is [https://shift-production-b890.up.railway.app](https://shift-production-b890.up.railway.app).
+
+Railway project `shift`:
+
+- Service `Shift` runs the web app and the nightly worker in one container.
+- Postgres sits beside that service.
+- A volume is mounted at `/data` (`UPLOAD_DIR=/data/uploads`).
+
 They share `UPLOAD_DIR`, and a Railway volume cannot be attached to two services, so they are not split.
 `scripts/start-prod.sh` applies the migrations, then starts both processes. If either exits, the container exits and Railway restarts it.
+
+Checked against that URL on 2026-11-06:
+
+- `GET /` returned 200 and the L5c5 landing (`/brand/l5c5-lockup.png`).
+- `GET /api/session` returned `{"connected":false}`.
+- `GET /api/commons` returned `{"items":[],"donors":[],"totalDonatedUsdMicro":"0"}`.
+
+That empty `items` list is the public commons board. Seeding production is still an operator step (below) and is not recorded as done. `PENDING` rows would stay off this endpoint anyway: it lists accepted and rejected rows only. No funded inference run is recorded (F3.12 and F4.7 stay open).
+
+Setting the `url` text record of `tryshift.eth` to this URL is still an operator step in the ENS app. This file does not record that record as set.
 
 Files: `Dockerfile`, `railway.json`, `.dockerignore`, `scripts/start-prod.sh`.
 
@@ -12,9 +29,9 @@ Files: `Dockerfile`, `railway.json`, `.dockerignore`, `scripts/start-prod.sh`.
 2. In the same project: **New** → **Database** → **PostgreSQL**.
 3. On the Shift service: **Volumes** → add a volume mounted at `/data`. Set `UPLOAD_DIR=/data/uploads`. Without the volume, uploads vanish on every deploy.
 4. On the Shift service: **Variables**. Add the variables below. Reference the database with `${{Postgres.DATABASE_URL}}`.
-5. **Settings** → **Networking** → **Generate domain**. Set `PUBLIC_APP_URL` to that URL, then redeploy.
-6. Open `/` and `/api/session`. The second must return `{"connected":false}`.
-7. In the ENS app, set the `url` record of `tryshift.eth` to the public URL.
+5. **Settings** → **Networking** → **Generate domain**. The generated domain is `https://shift-production-b890.up.railway.app`. Set `PUBLIC_APP_URL` to that URL, then redeploy.
+6. Open `/` and `/api/session`. The second must return `{"connected":false}`. That is what the live URL returned on 2026-11-06.
+7. In the ENS app, set the `url` record of `tryshift.eth` to the public URL. That record is not recorded as set.
 
 ## Variables
 
@@ -25,7 +42,7 @@ Values for secrets are never written in this repo. Generate them once and paste 
 | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` |
 | `SHIFT_MASTER_KEY` | `openssl rand -base64 32`. Losing it makes every stored `mk-` key unreadable. |
 | `SESSION_SECRET` | `openssl rand -base64 48` |
-| `PUBLIC_APP_URL` | the generated Railway URL |
+| `PUBLIC_APP_URL` | `https://shift-production-b890.up.railway.app` |
 | `UPLOAD_DIR` | `/data/uploads` |
 | `ZG_ROUTER_BASE_URL` | `https://router-api.0g.ai/v1` |
 | `ZG_CHAIN_ID` | `16602` |
@@ -49,6 +66,6 @@ Do not set the `ZG_MK_KEY` or `SMOKE_*` variables: they are for the Phase 0 scri
 - Seed the commons queue once: `pnpm seed:commons` against the production `DATABASE_URL` (see `scripts/seed-commons.ts`).
 - Check the logs for `tick` lines after 23:00 UTC. A FAILED night is not retried by design.
 
-## Not tested
+## What was checked
 
-The image was written but not built on the machine that wrote it (Docker Desktop was not running). What was checked instead: `pnpm --filter @shift/web build` succeeds with no `.env`, `prisma generate` succeeds with an empty `DATABASE_URL`, and `bash -n scripts/start-prod.sh` passes. The first Railway build is the first real test of the `Dockerfile`.
+The image was not built on the machine that wrote the Dockerfile (Docker Desktop was not running). On that machine, `pnpm --filter @shift/web build` succeeded with no `.env`, `prisma generate` succeeded with an empty `DATABASE_URL`, and `bash -n scripts/start-prod.sh` passed. Railway built the image. The live checks at the top of this file are the public proof the service is up. They do not include a commons seed or a funded inference run.

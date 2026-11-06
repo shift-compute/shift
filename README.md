@@ -12,7 +12,7 @@ Built for ETHGlobal Mumbai 2026 (0G "Build with 0G PC", and the general finalist
 |---|---|
 | Network for the contract and storage | **0G Galileo testnet, chain ID 16602.** This project has no mainnet (chain ID 16661) deployment. |
 | ShiftLedger | [`0xA3B6664b487FC01c4264977c9B92058A89C31Ed7`](https://chainscan-galileo.0g.ai/address/0xA3B6664b487FC01c4264977c9B92058A89C31Ed7) |
-| Live demo | Not deployed yet. The URL lands here in F6.1. Until then, run it locally (below). |
+| Live demo | [https://shift-production-b890.up.railway.app](https://shift-production-b890.up.railway.app) — Railway project `shift`, service `Shift`, Postgres, volume at `/data`. A local run is still documented below. |
 | Demo video | Not recorded. No URL in this file. Placeholder and shot list: [Submission](#submission). Script: [plan §24](docs/SHIFT_PLAN.md). |
 | Real inference runs | **None recorded.** The team account still has `credit_balance` 0 and `deposit_balance` 0. F3.12 and F4.7 stay open. The [request-id table](#request-ids) is one waiting row until a funded run. |
 | Status log | [`PROGRESS.md`](PROGRESS.md) · Phase 0 write-up: [`docs/SPIKE_RESULTS.md`](docs/SPIKE_RESULTS.md) |
@@ -80,7 +80,7 @@ apps/worker       cron 23:00–23:50 UTC, sweeper, anchor, recordDonations
 
 ## Verifier
 
-Open `/verify?rid=<request id>` or paste an id on [`/verify`](apps/web/app/verify/page.tsx).
+Open `/verify?rid=<request id>` on the live app ([https://shift-production-b890.up.railway.app/verify](https://shift-production-b890.up.railway.app/verify)), or paste an id on [`/verify`](apps/web/app/verify/page.tsx). The same page is at `http://localhost:3000/verify` after `pnpm dev`.
 
 1. `GET /api/verify/[requestId]` returns the packed leaf, the proof, the night id, the manifest root, the output's storage root, and the trace fields safe to show (provider, provider identity, `tee_verified`, trust tier). Vault columns, billing, and raw secrets are not copied. An unknown id is 404.
 2. **In the browser**, the page recomputes the leaf hash (the same bytes as OpenZeppelin `StandardMerkleTree`) and checks the proof against the stored root.
@@ -100,7 +100,7 @@ For each item the donor can afford:
 2. A **decision model** is asked whether both translations carry the source meaning. Translation A is `ACCEPTED` only when `P(yes)` is at least `COMMONS_GATE_THRESHOLD` (default **0.75**). Otherwise the row is `REJECTED` and both texts stay visible.
 3. An accepted row is uploaded as CommonsOutput JSON (source, translation A, both translation models, the gate model, request ids, probability).
 
-`/commons` lists accepted and rejected rows and the donated micro-USD per 0G account. Pending and in-progress rows stay off the page. The page is empty until a real pair passes the gate.
+`/commons` lists accepted and rejected rows and the donated micro-USD per 0G account. Pending and in-progress rows stay off the page. The page is empty until a real pair passes the gate. On the live app, `GET /api/commons` currently returns `"items": []`. Seeding production (`pnpm seed:commons` against the production database) is a separate operator step and is not recorded as done. A seed inserts `PENDING` rows, which this page does not list, so the board stays empty until a funded pair is accepted or rejected.
 
 Commons rows are **not** in the Merkle tree. A row stores one aggregate cost and a flat list of request ids, and a rejected row has no storage root. A leaf would have to invent the per-request cost or root, which the anchor refuses to do. Personal leaves stay `isCommons: false`. Donation totals on `/commons` are summed from the database. The contract's `totalDonatedUsdMicro` only includes nights that were anchored before `recordDonations`, so a public RPC read would hide a commons-only night.
 
@@ -184,7 +184,7 @@ That object is a 60-byte probe (`{"app":"shift","check":"U9",...}`). The verifie
 
 ### How a judge checks a request id
 
-The path is `/verify?rid=<request id>` on a running app. Until F6.1 ships a live URL, that app is local (`pnpm dev`, then `http://localhost:3000/verify?rid=`). After a funded run, copy a request id from the table below:
+The path is `/verify?rid=<request id>` on the live app, [https://shift-production-b890.up.railway.app/verify?rid=](https://shift-production-b890.up.railway.app/verify). The same path works locally (`pnpm dev`, then `http://localhost:3000/verify?rid=`). After a funded run, copy a request id from the table below:
 
 1. Open `/verify?rid=` with that id, or paste the id on `/verify`.
 2. The page loads `GET /api/verify/[requestId]`: packed leaf, Merkle proof, night id, manifest root, output storage root, and the trace fields safe to show.
@@ -213,7 +213,7 @@ ETHGlobal Mumbai 2026, Jio World Convention Centre. Hacking started Thursday 5 N
 | Repository | https://github.com/shift-compute/shift |
 | Network | **0G Galileo testnet, chain ID 16602**, for ShiftLedger and for 0G Storage. This project has no mainnet (chain ID 16661) deployment. |
 | Contract | [`0xA3B6664b487FC01c4264977c9B92058A89C31Ed7`](https://chainscan-galileo.0g.ai/address/0xA3B6664b487FC01c4264977c9B92058A89C31Ed7) |
-| Live demo | Not deployed. F6.1 is still open. Until that URL exists, follow [Run it locally](#run-it-locally). |
+| Live demo | [https://shift-production-b890.up.railway.app](https://shift-production-b890.up.railway.app) |
 | Demo video | **Placeholder.** No URL is published below. Paste the link into the [demo video](#demo-video) line after a teammate records the cut. |
 | Sponsor prize named in the plan | 0G **"Build with 0G PC"** — $5,000 (1st $2,500 / 2nd $1,500 / 3rd $1,000). See [plan §2](docs/SHIFT_PLAN.md). |
 
@@ -221,7 +221,7 @@ Every project also goes through ETHGlobal's general finalist review. The form al
 
 ### How to demo
 
-Same path on a future live URL and on `http://localhost:3000` after `pnpm dev`:
+Same path on [https://shift-production-b890.up.railway.app](https://shift-production-b890.up.railway.app) and on `http://localhost:3000` after `pnpm dev`:
 
 1. **Connect** — `/connect`. Paste an `mk-` with `account:read`, `keys:create`, and `keys:manage`.
 2. **Queue** — `/queue`. Add an audio summary, a document analysis, and an image prompt. Tonight's plan and the night strip are on this page. The preview does not spend credits.
@@ -251,7 +251,7 @@ Shot list to film against. Times follow plan §24. The frames are the surfaces t
 
 ## For judges
 
-**Live demo URL (F6.1).** Not deployed. This line will be replaced with the real URL. There is no preview link to try yet.
+**Live demo URL (F6.1).** [https://shift-production-b890.up.railway.app](https://shift-production-b890.up.railway.app). Railway project `shift`: service `Shift` (web and worker in one container), Postgres, and a volume mounted at `/data`. Checked 2026-11-06: `/` returns the landing, `/api/session` returns `{"connected":false}`, and `/api/commons` returns no items. Production commons seeding has not been run. There is still no request id to verify (F3.12).
 
 **Demo video.** The placeholder and the shot list are in [Submission](#submission). This README has no video URL.
 
@@ -291,7 +291,7 @@ Later the same day, `GET /v1/models` returned **79 models, no `verifiability` fi
 - **U12 is unanswered.** Budget mode is primary until 0G confirms delegated iAI credit use.
 - **Commons work is off the Merkle tree** (see above). Donations on the contract exist only after an anchored night with a positive amount. No such transaction exists yet.
 - **The verifier trusts the database for the proof bytes**, then checks those bytes on-chain. It does not yet rebuild the batch from the storage manifest alone.
-- **Deploy is still open (F6.1).** The demo video is not recorded: [Submission](#submission) holds the placeholder and the shot list, and this file has no video URL. The request-id table is in [Verifiable evidence](#verifiable-evidence) and stays on the waiting row until a funded run (F3.12).
+- **The app is live; a funded run is not.** [https://shift-production-b890.up.railway.app](https://shift-production-b890.up.railway.app) (F6.1). The demo video is not recorded: [Submission](#submission) holds the placeholder and the shot list, and this file has no video URL. The request-id table is in [Verifiable evidence](#verifiable-evidence) and stays on the waiting row until a funded run (F3.12). `/api/commons` on that host returns an empty item list. Seeding that database is a separate operator step, and this file does not claim it was run.
 
 ## How we used AI
 

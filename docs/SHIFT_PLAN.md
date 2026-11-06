@@ -61,7 +61,7 @@ iAI is a **bonus**, not the main criterion (Gathin). That is why Shift works wit
 **0G deliverables** [VERIFIED]:
 - Name and short description.
 - Public GitHub repo (README + setup instructions).
-- Demo video **under 3 minutes** + live demo link.
+- Demo video **under 3 minutes** + live demo link: https://shift-production-b890.up.railway.app
 - Deployed contract addresses.
 - Team member names and contact (Telegram and X).
 
@@ -171,7 +171,7 @@ iAI is a **bonus**, not the main criterion (Gathin). That is why Shift works wit
 | Result encryption (Could) | `libsodium-wrappers` (crypto_box_seal) | Private key only in the browser |
 | Logs | `pino` with secret redaction | Redact `authorization`, `mk-`, `sk-` |
 | Tests | `vitest` + `forge test` | |
-| Hosting | Railway (web + worker + Postgres) | A persistent process is needed for the worker; Vercel does not work for the worker |
+| Hosting | Railway (web + worker + Postgres) | Live: https://shift-production-b890.up.railway.app (project `shift`, service `Shift`, volume `/data`). A persistent process is needed for the worker; Vercel does not work for the worker |
 
 > Pin exact versions in the lockfile. Do not use ranges without a lockfile.
 
@@ -933,7 +933,7 @@ Record the video with a real cycle already completed as a backup, but run a real
 - [ ] Name and short description.
 - [ ] Public repo with a steady commit history.
 - [ ] Demo video < 3 min.
-- [ ] Live demo link.
+- [ ] Live demo link: https://shift-production-b890.up.railway.app (the app is up; this box is the ETHGlobal form field).
 - [ ] Contract addresses.
 - [ ] Team members with Telegram and X.
 - [ ] Selected prizes: 0G (Build with 0G PC) + up to 2 more (Arkiv if Appendix A was done).
