@@ -38,7 +38,7 @@ export function usdStringToAtto(value: unknown): bigint {
   return BigInt(whole) * ATTO_PER_USD + BigInt(frac.padEnd(18, "0").slice(0, 18));
 }
 
-export function trustOf(verifiability: string | undefined): TrustLevel {
+export function trustOf(verifiability: string | null | undefined): TrustLevel {
   if (verifiability === "TeeML") return "private";
   if (verifiability === "TeeTLS") return "verified";
   return "standard";
@@ -46,8 +46,13 @@ export function trustOf(verifiability: string | undefined): TrustLevel {
 
 /**
  * Turns the Router's model list into the entries Shift can plan with. Types Shift does not use (video, speech output,
- * embeddings) are dropped. NOTE: the unit of a transcription model's price is not documented (U-open); it is read from
- * `pricing_usd.prompt` and treated as USD per second of audio by the estimator.
+ * embeddings) are dropped. Model ids are copied from the list; none are hard-coded here.
+ *
+ * A missing or unknown `verifiability` is trust `standard`. An empty TeeML set is a valid catalog: private mode then
+ * has no candidate, and this function does not invent one. That is the live-catalog limitation in PROGRESS.md
+ * (79 models, no TeeML). NOTE: the unit of a transcription model's price is not documented (U-open); it is read from
+ * `pricing_usd.prompt` and treated as USD per second of audio by the estimator. Per-token prices stay in atto-USD
+ * because they are smaller than one micro-USD; micro-USD is the unit of a rounded total.
  */
 export function buildCatalog(models: Model[]): CatalogEntry[] {
   const entries: CatalogEntry[] = [];

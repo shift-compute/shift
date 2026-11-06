@@ -48,8 +48,13 @@ export const apiKeyRevokedSchema = z.looseObject({ key_id: z.string() });
 export const modelSchema = z.looseObject({
   id: z.string(),
   type: z.string(),
-  verifiability: z.string().optional(),
-  pricing_usd: z.record(z.string(), z.unknown()).optional(),
+  /** Absent on the reduced catalog (see PROGRESS blockers). Null is treated the same as missing. */
+  verifiability: z.string().nullish(),
+  context_length: z.number().optional(),
+  image_capabilities: z.looseObject({ max_n: z.number().optional() }).optional(),
+  /** Native price in wei for a 0G account. Paired with `pricing_usd` to imply the conversion rate. */
+  pricing: z.record(z.string(), z.unknown()).nullish(),
+  pricing_usd: z.record(z.string(), z.unknown()).nullish(),
 });
 
 export const modelsListSchema = z.looseObject({ data: z.array(modelSchema) });

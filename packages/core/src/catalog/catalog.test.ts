@@ -15,6 +15,14 @@ describe("usdStringToAtto", () => {
     expect(usdStringToAtto(undefined)).toBe(0n);
     expect(usdStringToAtto("abc")).toBe(0n);
     expect(usdStringToAtto("-1")).toBe(0n);
+    expect(usdStringToAtto("")).toBe(0n);
+    // A JS number this small stringifies in scientific notation, which is not a catalog price.
+    expect(usdStringToAtto(0.00000008)).toBe(0n);
+  });
+
+  it("trims whitespace and keeps the first 18 fractional digits", () => {
+    expect(usdStringToAtto(" 0.027 ")).toBe(27_000_000_000_000_000n);
+    expect(usdStringToAtto("1.2345678901234567899")).toBe(1_234_567_890_123_456_789n);
   });
 });
 
@@ -32,6 +40,8 @@ describe("trustOf", () => {
     expect(trustOf("TeeML")).toBe("private");
     expect(trustOf("TeeTLS")).toBe("verified");
     expect(trustOf(undefined)).toBe("standard");
+    expect(trustOf(null)).toBe("standard");
+    expect(trustOf("TDX")).toBe("standard");
   });
 });
 
@@ -66,6 +76,25 @@ describe("buildCatalog", () => {
     expect(candidates(catalog, "chat", "private").map((e) => e.id)).toEqual(["a"]);
     expect(candidates(catalog, "chat", "verified").map((e) => e.id)).toEqual(["a", "b"]);
     expect(candidates(catalog, "chat", "standard").map((e) => e.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("accepts a catalog with no verifiability and no TeeML models", () => {
+    const catalog = buildCatalog([
+      m({ id: "plain-chat", pricing_usd: null, verifiability: null }),
+      m({ id: "priced", pricing_usd: { prompt: "0.00000008", completion: "0.00000048" } }),
+      m({ id: "embed", type: "embeddings" }),
+    ]);
+    expect(catalog.map((entry) => [entry.id, entry.trust, entry.promptAtto])).toEqual([
+      ["plain-chat", "standard", 0n],
+      ["priced", "standard", 80_000_000_000n],
+    ]);
+    expect(candidates(catalog, "chat", "private")).toEqual([]);
+    expect(candidates(catalog, "decision", "private")).toEqual([]);
+    expect(candidates(catalog, "transcribe", "private")).toEqual([]);
+  });
+
+  it("returns an empty catalog for an empty list", () => {
+    expect(buildCatalog([])).toEqual([]);
   });
 
   it("handles the real catalog snapshot saved in Phase 0", () => {
