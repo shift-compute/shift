@@ -100,35 +100,47 @@
   pointer-events: none;
 }
 
-/* Sky wash that follows the pointer. Hidden until it moves, so the rest pose stays the CardArt field. */
+/* Pull is `translate`, so it composes with the idle `transform` drift.
+   Values are the pointer's offset from the viewport center. */
+.landing-pull-sky {
+  translate: calc(var(--pull-x, 0px) * 0.62) calc(var(--pull-y, 0px) * 0.48);
+}
+
+.landing-pull-teal {
+  translate: calc(var(--pull-x, 0px) * 0.78) calc(var(--pull-y, 0px) * 0.55);
+}
+
+.landing-pull-low {
+  translate: calc(var(--pull-x, 0px) * 0.42) calc(var(--pull-y, 0px) * 0.36);
+}
+
+/* Sky wash parked on the pointer. Hidden until it moves, so rest stays CardArt. */
 .landing-glow {
   position: absolute;
-  top: 28%;
+  top: 50%;
   left: 50%;
-  width: 36rem;
-  height: 36rem;
-  margin-top: -18rem;
-  margin-left: -18rem;
+  width: 42rem;
+  height: 42rem;
   border-radius: 9999px;
-  background: radial-gradient(circle, rgb(255 255 255 / 0.5), rgb(169 203 227 / 0.62) 42%, rgb(169 203 227 / 0) 72%);
+  background: radial-gradient(circle, rgb(255 255 255 / 0.55), rgb(169 203 227 / 0.7) 40%, rgb(169 203 227 / 0) 70%);
   opacity: 0;
   transition: opacity 420ms ease;
+}
+
+.landing-pull-glow {
+  translate: calc(-50% + var(--pull-x, 0px)) calc(-50% + var(--pull-y, 0px));
 }
 
 .landing-ambient[data-pointer="on"] .landing-glow {
   opacity: 1;
 }
 
-.landing-parallax {
-  position: absolute;
-  inset: 0;
-}
-
 .landing-grid {
   position: absolute;
-  inset: -20rem;
-  background-image: radial-gradient(rgb(15 23 42 / 0.18) 1px, transparent 1px);
+  inset: 0;
+  background-image: radial-gradient(rgb(15 23 42 / 0.28) 1.15px, transparent 1.15px);
   background-size: 22px 22px;
+  background-position: calc(var(--pull-x, 0px) * 0.5) calc(var(--pull-y, 0px) * 0.5);
   mask-image: radial-gradient(ellipse at 50% 28%, black 18%, transparent 72%);
 }
 
@@ -151,7 +163,7 @@
   right: -10rem;
   width: 34rem;
   height: 34rem;
-  background: rgb(23 94 131 / 0.32);
+  background: rgb(23 94 131 / 0.4);
 }
 
 .landing-orb-low {
@@ -216,10 +228,10 @@
 
 @keyframes grid-drift {
   from {
-    background-position: 0 0;
+    background-position: calc(var(--pull-x, 0px) * 0.5) calc(var(--pull-y, 0px) * 0.5);
   }
   to {
-    background-position: 22px 11px;
+    background-position: calc(var(--pull-x, 0px) * 0.5 + 22px) calc(var(--pull-y, 0px) * 0.5 + 11px);
   }
 }
 
@@ -258,11 +270,22 @@
 /* Motion writes the entrance inline. Reduced motion snaps to the rest pose. */
 @media (prefers-reduced-motion: reduce) {
   .shift-enter,
-  .landing-parallax,
   .site-logo:hover,
   .cta:active {
     opacity: 1 !important;
     transform: none !important;
+  }
+
+  .landing-ambient {
+    --pull-x: 0px !important;
+    --pull-y: 0px !important;
+  }
+
+  .landing-pull-sky,
+  .landing-pull-teal,
+  .landing-pull-low,
+  .landing-pull-glow {
+    translate: none !important;
   }
 
   .landing-glow {
