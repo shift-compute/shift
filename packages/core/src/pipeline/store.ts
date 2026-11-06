@@ -1,4 +1,4 @@
-import type { StepRecord } from "@shift/core";
+import type { StepRecord } from "../executors/types";
 
 /** A connected user the night may run. The ciphertext is still sealed; only `runUser` decrypts it, and only in memory. */
 export interface ConnectedUser {

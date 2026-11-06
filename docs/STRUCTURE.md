@@ -51,12 +51,13 @@ shift/
 │   └── worker/               # Node process: cron, night pipeline, sweeper
 │       └── src/
 │           ├── index.ts
-│           ├── pipeline/     # runNight, runUser, commons, anchor
+│           ├── night.ts      # runNight: every connected user, then the caller anchors
 │           └── sweeper.ts
 ├── packages/
 │   └── core/                 # Shared logic, no UI
 │       └── src/
 │           ├── zg/           # router client, generated types, models, decisions, storage, chain
+│           ├── pipeline/     # runUser and its store (web "run now" and the worker share this)
 │           ├── optimizer/    # estimator, quality table, allocation, replanning
 │           ├── tasks/        # executors: audio-summary, doc-analysis, image-from-prompt
 │           ├── merkle/       # leaf encoding (LEAF_TYPES), tree, proofs
