@@ -58,3 +58,18 @@
     }
   }
 }
+
+/* Spent edge of the night strip. The reduced-motion rule above already collapses this. */
+@keyframes night-edge {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.night-edge {
+  animation: night-edge 1.8s ease-in-out infinite;
+}
