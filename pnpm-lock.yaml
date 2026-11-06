@@ -122,6 +122,9 @@ importers:
       '@0gfoundation/0g-ts-sdk':
         specifier: ^1.2.8
         version: 1.2.8(bufferutil@4.1.0)(ethers@6.13.1(bufferutil@4.1.0)(utf-8-validate@5.0.10))(utf-8-validate@5.0.10)
+      '@openzeppelin/merkle-tree':
+        specifier: ^1.0.7
+        version: 1.0.7
       '@prisma/adapter-pg':
         specifier: ^7.10.1
         version: 7.10.1

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@0gfoundation/0g-ts-sdk": "^1.2.8",
+    "@openzeppelin/merkle-tree": "^1.0.7",
     "@prisma/adapter-pg": "^7.10.1",
     "ethers": "^6.13.1",
     "pdf-parse": "^2.4.5",
