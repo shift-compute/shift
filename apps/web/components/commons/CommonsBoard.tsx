@@ -38,7 +38,7 @@ export function CommonsBoard() {
     );
   }
   if (panel.phase === "unavailable") {
-    return <p className="border-l-4 border-teal pl-3">We could not load the commons queue. Try again in a moment.</p>;
+    return <p className="surface-card-warn rounded-xl bg-white/70 py-2 pl-3">We could not load the commons queue. Try again in a moment.</p>;
   }
   if (panel.phase === "empty") {
     return (
@@ -71,7 +71,7 @@ export function CommonsBoard() {
 
 function Donors({ donors, total }: { donors: CommonsDonor[]; total: CommonsResponse["totalDonatedUsdMicro"] }) {
   return (
-    <section aria-label="Donated compute" className="max-w-3xl space-y-4 rounded-md bg-night p-5">
+    <section aria-label="Donated compute" className="surface-card max-w-3xl space-y-4">
       <div>
         <h2 className="text-2xl font-semibold">Donated compute</h2>
         <p className="mt-1 text-sm text-haze">Total leftover compute recorded for each 0G account.</p>
@@ -94,7 +94,7 @@ function Donors({ donors, total }: { donors: CommonsDonor[]; total: CommonsRespo
             </thead>
             <tbody>
               {donors.map((donor) => (
-                <tr key={donor.address} className="border-t border-haze/20">
+                <tr key={donor.address} className="border-t border-ink/10">
                   <th scope="row" className="break-all py-2 pr-4 font-normal">
                     {donor.address}
                   </th>
@@ -103,7 +103,7 @@ function Donors({ donors, total }: { donors: CommonsDonor[]; total: CommonsRespo
               ))}
             </tbody>
             <tfoot>
-              <tr className="border-t border-haze/20 font-semibold text-light">
+              <tr className="border-t border-ink/10 font-semibold text-light">
                 <th scope="row" className="py-2 pr-4 text-left font-semibold">
                   Total
                 </th>
@@ -143,7 +143,7 @@ function TranslationCard({ item }: { item: CommonsItemPublic }) {
   const title = `${languageLabel(item.targetLang)} · ${commonsStatusLabel(item.status)}`;
   const rejected = item.status === "REJECTED";
   return (
-    <article aria-labelledby={`commons-${item.id}`} className={`space-y-4 rounded-md bg-night p-5 ${rejected ? "border-l-4 border-teal" : ""}`}>
+    <article aria-labelledby={`commons-${item.id}`} className={`surface-card surface-card-hover space-y-4 ${rejected ? "surface-card-warn" : ""}`}>
       <h3 id={`commons-${item.id}`} className={`text-xl font-semibold ${rejected ? "" : "text-light"}`}>
         {title}
       </h3>

@@ -34,7 +34,7 @@ export function TaskOutput({ taskId, enabled }: { taskId: string; enabled: boole
   const view = outputView(panel.body.result);
   const images = panel.body.files.filter((file) => file.mime.startsWith("image/"));
   return (
-    <div className="space-y-3 border-t border-haze/20 pt-4">
+    <div className="space-y-3 border-t border-ink/10 pt-4">
       <h4 className="font-semibold">Result</h4>
       {view.summary && <p>{view.summary}</p>}
       {view.lists.map((list) => (

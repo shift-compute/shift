@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { InnerPage } from "../../components/ui/InnerPage";
 import { EnsIdentity } from "../../components/identity/EnsIdentity";
 import { Verifier } from "../../components/verify/Verifier";
 
@@ -12,13 +13,13 @@ export default async function VerifyPage({ searchParams }: { searchParams: Promi
   const rid = Array.isArray(query.rid) ? (query.rid[0] ?? "") : (query.rid ?? "");
 
   return (
-    <div className="space-y-6">
+    <InnerPage>
       <h1 className="text-3xl font-semibold">Verify a result</h1>
       <p className="max-w-2xl text-haze">
         Paste a request id, or open a link that already has one. This page recomputes the leaf and asks ShiftLedger whether that leaf sits in the anchored batch.
       </p>
       <Verifier initialRequestId={rid} />
       <EnsIdentity />
-    </div>
+    </InnerPage>
   );
 }
