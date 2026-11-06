@@ -3,13 +3,14 @@
 import { motion, useMotionValue, useSpring, useTransform, type MotionValue } from "motion/react";
 import { useEffect, useRef, type ReactNode } from "react";
 
-const SPRING = { stiffness: 90, damping: 24, mass: 0.55 };
+/** Weighted attraction: the wash leans after the pointer and settles without a bounce. */
+const SPRING = { stiffness: 62, damping: 20, mass: 0.9 };
 
 /**
- * Full-bleed field behind the home page: a drifting dot grid and CardArt
- * washes (Sky, Teal). A pointer eases the layers; CSS keeps them
- * moving when the pointer is still. Touch does not drag the field.
- * Reduced motion snaps to the rest pose: no parallax and no loop.
+ * Full-bleed field behind the home page. Sky, Teal and the dot grid are
+ * pulled toward the pointer by a fraction of the viewport, like soft gravity.
+ * CSS keeps a small drift while the pointer is still. Touch does not drag
+ * the field. Reduced motion snaps to the rest pose: no pull and no loop.
  */
 export function AmbientField() {
   const root = useRef<HTMLDivElement>(null);
@@ -17,16 +18,28 @@ export function AmbientField() {
   const py = useMotionValue(0);
   const sx = useSpring(px, SPRING);
   const sy = useSpring(py, SPRING);
-  const skyX = useTransform(sx, (v) => v * 46);
-  const skyY = useTransform(sy, (v) => v * 32);
-  const tealX = useTransform(sx, (v) => v * 88);
-  const tealY = useTransform(sy, (v) => v * 60);
-  const lowX = useTransform(sx, (v) => v * 32);
-  const lowY = useTransform(sy, (v) => v * 22);
-  const gridX = useTransform(sx, (v) => v * 64);
-  const gridY = useTransform(sy, (v) => v * 40);
-  const glowX = useTransform(sx, (v) => v * 280);
-  const glowY = useTransform(sy, (v) => v * 160);
+  const vw = useMotionValue(1);
+  const vh = useMotionValue(1);
+  const skyX = useReach(sx, vw, 0.2);
+  const skyY = useReach(sy, vh, 0.16);
+  const tealX = useReach(sx, vw, 0.28);
+  const tealY = useReach(sy, vh, 0.2);
+  const lowX = useReach(sx, vw, 0.14);
+  const lowY = useReach(sy, vh, 0.12);
+  const gridX = useReach(sx, vw, 0.13);
+  const gridY = useReach(sy, vh, 0.1);
+  const glowX = useReach(sx, vw, 0.4);
+  const glowY = useReach(sy, vh, 0.32);
+
+  useEffect(() => {
+    const measure = () => {
+      vw.set(window.innerWidth);
+      vh.set(window.innerHeight);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [vw, vh]);
 
   useEffect(() => {
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -116,6 +129,11 @@ function Drift({ x, y, children }: { x: MotionValue<number>; y: MotionValue<numb
       {children}
     </motion.div>
   );
+}
+
+/** Portion of the viewport the layer travels toward the pointer at the screen edge. */
+function useReach(axis: MotionValue<number>, span: MotionValue<number>, portion: number) {
+  return useTransform([axis, span], ([offset, size]: number[]) => (offset ?? 0) * (size ?? 0) * portion);
 }
 
 /** -1 at the left or top edge, 1 at the right or bottom, 0 at the center. */
