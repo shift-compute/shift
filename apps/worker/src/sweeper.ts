@@ -1,21 +1,23 @@
 import {
   PrismaClient,
-  openSecret,
+  openRotatedSecret,
+  recoverInterruptedRuns,
+  recoverInterruptedTasks,
   redactString,
+  stepsHaveRequestId,
   sweepOrphanedKeys,
   type KeyClient,
   type OrphanKey,
+  type RecoverRun,
 } from "@shift/core";
-import { z } from "zod";
+
+export { recoverInterruptedRuns, recoverInterruptedTasks, stepsHaveRequestId };
 
 /** node-cron schedule: minute 0, 10, 20, 30, 40 and 50. Plan §8.3. */
 export const SWEEP_CRON = "*/10 * * * *";
 
 /** Same cutoff as `sweepOrphanedKeys`: a key is old enough once it has been alive for 2 hours. */
 export const ORPHAN_MIN_AGE_MS = 2 * 60 * 60 * 1000;
-
-const recordedStep = z.object({ requestId: z.string().optional() }).passthrough();
-const stepList = z.array(z.unknown());
 
 /** A connected user's sealed management key. The plaintext is decrypted only inside the sweep. */
 export interface SweepUser {
@@ -54,12 +56,19 @@ export interface SweeperStore {
   runningTasks(): Promise<RunningTaskRow[]>;
   /** Sets these tasks back to QUEUED only while they are still RUNNING. */
   requeueTasks(ids: string[]): Promise<void>;
+  runningRuns(): Promise<RecoverRun[]>;
+  /** Sets these runs to FAILED only while they are still RUNNING. */
+  failRuns(ids: string[], error: string): Promise<void>;
+  /** Writes a management key that was re-sealed under the current master key. */
+  saveManagementKey?(userId: string, sealed: { ciphertext: Buffer; iv: Buffer; authTag: Buffer }): Promise<void>;
 }
 
 export interface SweepDeps {
   store: SweeperStore;
   keys: KeyClient;
   masterKey: string;
+  /** Previous master key. A row that opens with it is re-sealed with `masterKey` when the store can save it. */
+  previousMasterKey?: string;
   now?: () => Date;
   minAgeMs?: number;
   sleep?: (ms: number) => Promise<void>;
@@ -71,35 +80,6 @@ export interface SweepOutcome {
   revoked: string[];
   failed: string[];
   skipped: string[];
-}
-
-/**
- * True when any step stored on the task carries a Router request id.
- * An empty or blank id does not count: the call was not recorded, so the task may be run again.
- */
-export function stepsHaveRequestId(steps: unknown): boolean {
-  const parsed = stepList.safeParse(steps);
-  if (!parsed.success) return false;
-  // Each step is checked on its own. One malformed step must not hide a request id recorded on another.
-  return parsed.data.some((item) => {
-    const step = recordedStep.safeParse(item);
-    if (!step.success) return false;
-    const id = step.data.requestId?.trim();
-    return id !== undefined && id.length > 0;
-  });
-}
-
-/**
- * Plan §9.4: after a crash, RUNNING tasks that never received a request id go back to QUEUED.
- * Tasks that already recorded one stay RUNNING so a paid call is not sent twice.
- * Call this once when the process starts. A live batch marks a task RUNNING before the Router answers,
- * so repeating this on the 10-minute timer would rewind work that is still in flight.
- */
-export async function recoverInterruptedTasks(store: Pick<SweeperStore, "runningTasks" | "requeueTasks">): Promise<string[]> {
-  const running = await store.runningTasks();
-  const ids = running.filter((task) => !stepsHaveRequestId(task.steps)).map((task) => task.id);
-  if (ids.length > 0) await store.requeueTasks(ids);
-  return ids;
 }
 
 /**
@@ -125,7 +105,7 @@ export async function sweepEphemeralKeys(deps: SweepDeps): Promise<SweepOutcome>
         skipped.push(row.keyId);
         continue;
       }
-      const mk = managementKey(opened, row.user, deps.masterKey);
+      const mk = await managementKey(opened, row.user, deps);
       if (!mk) {
         failed.push(row.keyId);
         say(`sweep: user ${row.user.id} key ${row.keyId} left alive; the management key could not be opened`);
@@ -173,23 +153,26 @@ export function createSweepLock(run: () => Promise<void>): () => Promise<boolean
   };
 }
 
-function managementKey(opened: Map<string, string | null>, user: SweepUser, masterKey: string): string | null {
+async function managementKey(opened: Map<string, string | null>, user: SweepUser, deps: SweepDeps): Promise<string | null> {
   const cached = opened.get(user.id);
   if (cached !== undefined) return cached;
-  const mk = openManagementKey(user, masterKey);
+  const mk = await openManagementKey(user, deps);
   opened.set(user.id, mk);
   return mk;
 }
 
 /** Decrypts in memory. A missing or unreadable vault returns null and never throws the ciphertext. */
-function openManagementKey(user: SweepUser, masterKey: string): string | null {
+async function openManagementKey(user: SweepUser, deps: SweepDeps): Promise<string | null> {
   if (!user.mkCiphertext || !user.mkIv || !user.mkAuthTag) return null;
   try {
-    return openSecret(
+    const opened = openRotatedSecret(
       { ciphertext: user.mkCiphertext, iv: user.mkIv, authTag: user.mkAuthTag },
-      masterKey,
+      deps.masterKey,
+      deps.previousMasterKey,
       user.accountAddress.toLowerCase(),
     );
+    if (opened.resealed) await deps.store.saveManagementKey?.(user.id, opened.resealed);
+    return opened.plaintext;
   } catch {
     return null;
   }
@@ -258,6 +241,43 @@ export function prismaSweeperStore(db: PrismaClient): SweeperStore {
       await db.task.updateMany({
         where: { id: { in: ids }, status: "RUNNING" },
         data: { status: "QUEUED" },
+      });
+    },
+
+    async runningRuns() {
+      const runs = await db.nightRun.findMany({
+        where: { status: "RUNNING" },
+        select: {
+          id: true,
+          nightId: true,
+          status: true,
+          keyRevokedAt: true,
+          keyCreatedAt: true,
+          night: { select: { startedAt: true } },
+        },
+      });
+      return runs.map((run) => ({
+        id: run.id,
+        nightId: run.nightId,
+        status: run.status,
+        keyRevokedAt: run.keyRevokedAt,
+        keyCreatedAt: run.keyCreatedAt,
+        nightStartedAt: run.night.startedAt,
+      }));
+    },
+
+    async failRuns(ids, error) {
+      if (ids.length === 0) return;
+      await db.nightRun.updateMany({
+        where: { id: { in: ids }, status: "RUNNING" },
+        data: { status: "FAILED", error },
+      });
+    },
+
+    async saveManagementKey(userId, sealed) {
+      await db.user.update({
+        where: { id: userId },
+        data: { mkCiphertext: sealed.ciphertext, mkIv: sealed.iv, mkAuthTag: sealed.authTag },
       });
     },
   };

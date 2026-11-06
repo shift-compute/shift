@@ -22,6 +22,8 @@ const masterKey = z.string().refine((v) => /^[A-Za-z0-9+/]+={0,2}$/.test(v) && B
 const sharedShape = {
   DATABASE_URL: z.string().regex(/^postgres(ql)?:\/\//, "must be a postgresql:// URL"),
   SHIFT_MASTER_KEY: masterKey,
+  /** Previous master key, while rows sealed with it are re-sealed under SHIFT_MASTER_KEY. */
+  SHIFT_MASTER_KEY_PREV: masterKey.optional(),
   ZG_ROUTER_BASE_URL: url,
   ZG_CHAIN_ID: z.coerce.number().int().positive(),
   ZG_CHAIN_RPC_URL: url,

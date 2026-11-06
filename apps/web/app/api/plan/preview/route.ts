@@ -30,7 +30,7 @@ export async function GET() {
 
   let mk: string | null;
   try {
-    mk = openUserKey(user);
+    mk = await openUserKey(user);
   } catch (err) {
     // A ciphertext that will not open is a dead connection. A config failure is not.
     if (err instanceof VaultError) return json({ error: "connection_invalid" }, 401);

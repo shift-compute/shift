@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { buildSettingsPayload, type Mode } from "./settings";
+import { DEFAULT_DONATE_LEFTOVER, buildSettingsPayload, type Mode } from "./settings";
 
 type Status = { kind: "idle" } | { kind: "saving" } | { kind: "saved" } | { kind: "error"; message: string };
 
@@ -13,7 +13,7 @@ const OPTIONS: Array<{ value: Mode; title: string; body: string }> = [
 export function SpendingForm() {
   const [mode, setMode] = useState<Mode>("IAI_CREDITS_ONLY");
   const [budget, setBudget] = useState("");
-  const [donate, setDonate] = useState(true);
+  const [donate, setDonate] = useState(DEFAULT_DONATE_LEFTOVER);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
   async function onSubmit(e: FormEvent) {

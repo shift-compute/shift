@@ -1,5 +1,8 @@
 export type Mode = "IAI_CREDITS_ONLY" | "BUDGET";
 
+/** New accounts do not donate leftovers unless the person opts in. Matches the User column default. */
+export const DEFAULT_DONATE_LEFTOVER = false;
+
 export interface SettingsInput {
   mode: Mode;
   /** What the user typed in the budget field. */

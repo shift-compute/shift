@@ -6,11 +6,12 @@ import { ANALYSIS_MAX_TOKENS, maxTokensCostMicro } from "../executors/chat-limit
 import { gateQuestionChars, pickGateModel } from "./commons-gate";
 import { complexityState } from "../optimizer/complexity";
 import { COST_DRIFT_PERCENT, costDrifted } from "../optimizer/replan";
+import { openOutput } from "../crypto/output-seal";
 import { sealSecret } from "../crypto/vault";
 import { RouterError } from "../zg/errors";
 import { createStorageClient, type StorageClient } from "../zg/storage";
 import { translationSystemPrompt, type CommonsGateItem, type CommonsItemRef, type CommonsStore, type CommonsTranslationPatch } from "./commons";
-import { runUser, type RunConfig, type UserRouter } from "./runUser";
+import { MAX_TASKS_PER_NIGHT, runUser, type RunConfig, type UserRouter } from "./runUser";
 import type { ConnectedUser, OpenTask, PipelineStore, TaskPatch } from "./store";
 
 const MK = "mk-0123456789abcdefghijklmnop";
@@ -108,6 +109,7 @@ function harness(options: { tasks?: OpenTask[]; models?: unknown[]; balance?: Re
       return status === "QUEUED" || status === "DEFERRED";
     }),
     findRun: async () => null,
+    findRunningRun: async () => null,
     createRun: async () => {
       const id = `run-${++seq}`;
       runs.set(id, { id, status: "RUNNING", ephemeralKeyId: null, keyRevokedAt: null });
@@ -281,6 +283,38 @@ describe("runUser", () => {
     expect([...donating.runs.values()][0]).toMatchObject({ spentUsdMicro: 100n + 37796n, donatedUsdMicro: 37796n });
   });
 
+  it("skips a user who already has a RUNNING night run on another night", async () => {
+    const h = harness();
+    h.store.findRunningRun = async () => ({ id: "run-live", nightId: NIGHT - 1n });
+    const outcome = await run(h);
+    expect(outcome).toEqual({ status: "SKIPPED", runId: "run-live" });
+    expect(h.events).toEqual([]);
+    expect(h.tasks.get("task1")?.status).toBeUndefined();
+  });
+
+  it("does not treat this night's own running row as a second run", async () => {
+    const h = harness();
+    h.store.findRunningRun = async () => ({ id: "run-same", nightId: NIGHT });
+    const outcome = await run(h);
+    expect(outcome.status).toBe("DONE");
+    expect(h.events).toContain("chat");
+  });
+
+  it(`defers tasks past the ${MAX_TASKS_PER_NIGHT} per night cap before spending`, async () => {
+    const tasks = Array.from({ length: MAX_TASKS_PER_NIGHT + 1 }, (_, index) =>
+      doc(`t${String(index).padStart(2, "0")}`, {
+        priority: index === MAX_TASKS_PER_NIGHT ? 1 : 2,
+        createdAt: new Date(Date.UTC(2026, 10, 6, 12, 0, index)),
+      }),
+    );
+    const h = harness({ tasks });
+    await run(h);
+    expect(h.tasks.get("t20")).toMatchObject({ status: "DEFERRED", error: "Only 20 tasks run in one night. This one waits for the next night." });
+    const done = [...h.tasks.values()].filter((task) => task.status === "DONE");
+    expect(done).toHaveLength(MAX_TASKS_PER_NIGHT);
+    expect(h.events.filter((event) => event === "chat")).toHaveLength(MAX_TASKS_PER_NIGHT);
+  });
+
   it("caps a private key from the credit balance, stores the output and revokes the key", async () => {
     const h = harness();
     const outcome = await run(h);
@@ -291,7 +325,9 @@ describe("runUser", () => {
     expect(task?.chosenModel).toBe("0gm-1.0-35b-a3b");
     expect(task?.actualCostUsdMicro).toBe(100n);
     expect(task?.outputRoot).toBe(`0x${createHash("sha256").update(h.uploads[0]!).digest("hex")}`);
-    expect(JSON.parse(new TextDecoder().decode(h.uploads[0]!)).result.summary).toBe("A short summary.");
+    const storedPlain = openOutput(h.uploads[0]!, KEY, ADDRESS);
+    expect(JSON.parse(new TextDecoder().decode(storedPlain)).result.summary).toBe("A short summary.");
+    expect(new TextDecoder().decode(h.uploads[0]!)).not.toContain("A short summary.");
     const saved = [...h.runs.values()][0];
     expect(saved?.spentUsdMicro).toBe(100n);
     expect(saved?.creditUsed).toBe("40");

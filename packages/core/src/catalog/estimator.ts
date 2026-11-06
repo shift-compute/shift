@@ -13,7 +13,12 @@ export const ASSUMPTIONS = {
   /** System prompt and framing added to every chat call. */
   promptOverheadTokens: 150,
   summaryOutputTokens: 400,
-  analysisOutputTokens: 700,
+  /**
+   * glm-5.3 document analysis was planned at about 3,887 micro-USD and reported 4,880 and 7,938.
+   * 1,700 completion tokens covers that gap on a short document, where completion is most of the bill.
+   * The executor still caps the call at ANALYSIS_MAX_TOKENS; this number is only the plan.
+   */
+  analysisOutputTokens: 1_700,
   refineOutputTokens: 120,
   /** Uploaded PDFs carry markup and fonts: assume 30% of their bytes are text. */
   pdfTextRatio: 0.3,

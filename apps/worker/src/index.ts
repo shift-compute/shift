@@ -2,7 +2,7 @@ import { createDb, createRouterClient, loadWorkerConfig, redactString, tick } fr
 import cron from "node-cron";
 import { runNight } from "./night";
 import { createRunFlag, startNightLoop, withNightFlag } from "./run-flag";
-import { SWEEP_CRON, createSweepLock, prismaSweeperStore, recoverInterruptedTasks, sweepEphemeralKeys } from "./sweeper";
+import { SWEEP_CRON, createSweepLock, prismaSweeperStore, recoverInterruptedRuns, recoverInterruptedTasks, sweepEphemeralKeys } from "./sweeper";
 
 const config = loadWorkerConfig();
 const db = createDb(config.DATABASE_URL);
@@ -22,6 +22,7 @@ const runSweep = createSweepLock(async () => {
       store: sweeperStore,
       keys: router,
       masterKey: config.SHIFT_MASTER_KEY,
+      ...(config.SHIFT_MASTER_KEY_PREV ? { previousMasterKey: config.SHIFT_MASTER_KEY_PREV } : {}),
       log,
     });
   } catch (err) {
@@ -77,6 +78,8 @@ async function boot(): Promise<void> {
   try {
     const requeued = await recoverInterruptedTasks(sweeperStore);
     if (requeued.length > 0) log(`requeued ${requeued.length} interrupted task(s) with no request id`);
+    const closed = await recoverInterruptedRuns(sweeperStore);
+    if (closed.length > 0) log(`closed ${closed.length} interrupted run(s)`);
   } catch (err) {
     log(`recover error: ${errorText(err)}`);
   }

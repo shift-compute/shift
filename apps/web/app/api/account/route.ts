@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "not_signed_in" }, { status: 401 });
-  const mk = openUserKey(user);
+  const mk = await openUserKey(user);
   if (!mk) return NextResponse.json({ error: "not_connected" }, { status: 409 });
 
   try {

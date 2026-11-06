@@ -160,7 +160,7 @@ function Result({ body, local, chain, onRetry }: { body: VerifyResponse; local: 
           <dd className="break-all">{body.trace.provider ?? "Not recorded"}</dd>
           <dt className="text-haze">Provider identity</dt>
           <dd className="break-all">{body.trace.provider_identity ?? "Not recorded"}</dd>
-          <dt className="text-haze">0G Storage root</dt>
+          <dt className="text-haze">Ciphertext on 0G Storage</dt>
           <dd className="break-all">
             {outputHref ? (
               <a href={outputHref} target="_blank" rel="noreferrer">
@@ -169,6 +169,7 @@ function Result({ body, local, chain, onRetry }: { body: VerifyResponse; local: 
             ) : (
               body.outputRoot
             )}
+            <span className="mt-1 block text-sm text-haze">This link is the ciphertext. The signed-in owner reads the result on the night page. Commons files are not stored here.</span>
           </dd>
           <dt className="text-haze">Night</dt>
           <dd>

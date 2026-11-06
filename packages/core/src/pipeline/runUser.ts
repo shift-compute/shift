@@ -4,7 +4,7 @@ import type { CatalogEntry } from "../catalog/catalog";
 import { loadModelCatalog, type CatalogCache } from "../catalog/loader";
 import { impliedMicroUsdPerOg } from "../catalog/rate";
 import type { WorkerConfig } from "../config";
-import { openSecret } from "../crypto/vault";
+import { openRotatedSecret } from "../crypto/vault";
 import { ANALYSIS_MAX_TOKENS, REFINE_MAX_TOKENS, SUMMARY_MAX_TOKENS, maxTokensCostMicro } from "../executors/chat-limits";
 import { extractDocText, type DocText } from "../executors/doc-text";
 import { runAudioSummary } from "../executors/audio-summary";
@@ -33,6 +33,8 @@ import { resolveUpload } from "./uploads";
 
 /** Plan §9.4: a task is tried once more, at most twice, and only when the failure was a 429 or a 5xx. */
 const MAX_RETRIES = 2;
+/** One user night does not start more than this many tasks. The rest stay DEFERRED for a later night. */
+export const MAX_TASKS_PER_NIGHT = 20;
 const USAGE_HISTORY_LIMIT = 100;
 /** A task that is still running after this is failed. It is never left RUNNING. */
 export const TASK_DEADLINE_MS = 5 * 60_000;
@@ -53,7 +55,7 @@ const MIME_BY_EXT: Record<string, string> = {
   ".md": "text/markdown",
 };
 
-export type RunConfig = Pick<WorkerConfig, "SHIFT_MASTER_KEY" | "SAFETY_MARGIN_PCT" | "MAX_CONCURRENCY" | "NIGHT_HARD_STOP_UTC" | "UPLOAD_DIR" | "COMMONS_GATE_THRESHOLD">;
+export type RunConfig = Pick<WorkerConfig, "SHIFT_MASTER_KEY" | "SHIFT_MASTER_KEY_PREV" | "SAFETY_MARGIN_PCT" | "MAX_CONCURRENCY" | "NIGHT_HARD_STOP_UTC" | "UPLOAD_DIR" | "COMMONS_GATE_THRESHOLD">;
 
 /** The Router methods one user night needs. The real client satisfies this; tests pass their own. */
 export type UserRouter = Pick<RouterClient, "listModels" | "getBalance" | "getUsageHistory" | "createApiKey" | "revokeApiKey" | "chat" | "decide" | "transcribe" | "generateImage">;
@@ -115,6 +117,10 @@ const DEFER = {
  */
 export async function runUser(deps: RunUserDeps): Promise<RunUserOutcome> {
   const run = await openRun(deps.store, deps.nightId, deps.user.id);
+  if (run.busy) {
+    deps.log(`user ${deps.user.id}: skipped; night run ${run.id} is already RUNNING`);
+    return { status: "SKIPPED", runId: run.id };
+  }
   if (run.done) {
     deps.log(`user ${deps.user.id}: already finished for night ${deps.nightId}`);
     return { status: "DONE", runId: run.id };
@@ -134,9 +140,16 @@ export async function runUser(deps: RunUserDeps): Promise<RunUserOutcome> {
   }
 }
 
-async function openRun(store: PipelineStore, nightId: bigint, userId: string): Promise<{ id: string; done?: boolean; blocked?: boolean }> {
+async function openRun(store: PipelineStore, nightId: bigint, userId: string): Promise<{ id: string; done?: boolean; blocked?: boolean; busy?: boolean }> {
+  const running = await store.findRunningRun(userId);
+  // A different night id (the worker's calendar night and a manual run) must not both spend this user.
+  if (running && running.nightId !== nightId) return { id: running.id, busy: true };
   const existing = await store.findRun(nightId, userId);
-  if (!existing) return store.createRun(nightId, userId);
+  if (!existing) {
+    const created = await store.createRun(nightId, userId);
+    if (created.busy) return { id: created.id, busy: true };
+    return created;
+  }
   if (existing.status === "DONE") return { id: existing.id, done: true };
   if (existing.ephemeralKeyId && !existing.keyRevokedAt) {
     await store.updateRun(existing.id, {
@@ -165,18 +178,28 @@ async function runOpen(deps: RunUserDeps, runId: string): Promise<RunUserOutcome
     return { status: "SKIPPED", runId };
   }
 
-  const runnable = tasks.length === 0 ? [] : await prepareTasks(deps, tasks);
+  // Priority, then age, decides who is past the cap. The kept tasks stay in queue order so equal-priority ties do not move.
+  const ranked = [...tasks].sort((a, b) => b.priority - a.priority || a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id));
+  const keep = new Set(ranked.slice(0, MAX_TASKS_PER_NIGHT).map((task) => task.id));
+  for (const task of ranked) {
+    if (!keep.has(task.id)) await defer(store, deps.nightId, task.id, "Only 20 tasks run in one night. This one waits for the next night.");
+  }
+  const kept = tasks.filter((task) => keep.has(task.id));
+  const runnable = kept.length === 0 ? [] : await prepareTasks(deps, kept);
   if (runnable.length === 0 && !donateConfigured) {
     await store.updateRun(runId, { status: "DONE", spentUsdMicro: 0n, donatedUsdMicro: 0n });
     return { status: "DONE", runId };
   }
 
   // Decrypted only for this run. The string cannot be wiped, but it is not logged, stored or returned.
-  let mk = openSecret(
+  const openedKey = openRotatedSecret(
     { ciphertext: user.mkCiphertext, iv: user.mkIv, authTag: user.mkAuthTag },
     deps.config.SHIFT_MASTER_KEY,
+    deps.config.SHIFT_MASTER_KEY_PREV,
     user.accountAddress.toLowerCase(),
   );
+  if (openedKey.resealed) await store.saveManagementKey?.(user.id, openedKey.resealed);
+  let mk = openedKey.plaintext;
   try {
     return await runWithKey(deps, runId, mk, runnable);
   } finally {
@@ -624,7 +647,10 @@ async function runTaskBody(deps: RunUserDeps, sk: string, task: Prepared, option
   const actual = reportedCost(output.steps);
   if (gate.expired) return "ok";
   try {
-    const stored = await storeTaskOutput(deps.storage, { id: task.row.id, type: task.plan.type }, output);
+    const stored = await storeTaskOutput(deps.storage, { id: task.row.id, type: task.plan.type }, output, {
+      masterKey: deps.config.SHIFT_MASTER_KEY,
+      accountAddress: deps.user.accountAddress,
+    });
     if (gate.expired) return "ok";
     await deps.store.updateTask(task.row.id, {
       status: "DONE",

@@ -63,6 +63,23 @@ describe("loadWorkerConfig", () => {
     expect(() => loadWorkerConfig({ ...worker, SHIFT_MASTER_KEY: Buffer.alloc(16).toString("base64") })).toThrow(ConfigError);
   });
 
+  it("accepts an optional previous master key and rejects a short one without echoing it", () => {
+    const prev = Buffer.alloc(32, 3).toString("base64");
+    expect(loadWorkerConfig(worker).SHIFT_MASTER_KEY_PREV).toBeUndefined();
+    expect(loadWebConfig(web).SHIFT_MASTER_KEY_PREV).toBeUndefined();
+    expect(loadWorkerConfig({ ...worker, SHIFT_MASTER_KEY_PREV: prev }).SHIFT_MASTER_KEY_PREV).toBe(prev);
+    expect(loadWorkerConfig({ ...worker, SHIFT_MASTER_KEY_PREV: "" }).SHIFT_MASTER_KEY_PREV).toBeUndefined();
+    const bad = Buffer.alloc(16, 3).toString("base64");
+    try {
+      loadWorkerConfig({ ...worker, SHIFT_MASTER_KEY_PREV: bad });
+      expect.unreachable();
+    } catch (err) {
+      expect(err).toBeInstanceOf(ConfigError);
+      expect(String(err)).toContain("SHIFT_MASTER_KEY_PREV");
+      expect(String(err)).not.toContain(bad);
+    }
+  });
+
   it("requires the hard stop to be after the start", () => {
     expect(() => loadWorkerConfig({ ...worker, NIGHT_START_UTC: "23:30", NIGHT_HARD_STOP_UTC: "23:10" })).toThrow(ConfigError);
     expect(() => loadWorkerConfig({ ...worker, NIGHT_START_UTC: "25:00" })).toThrow(ConfigError);

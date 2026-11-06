@@ -67,7 +67,14 @@ export interface PipelineStore {
   /** QUEUED and DEFERRED tasks. DEFERRED is last night's "not tonight", and tonight tries it again. */
   openTasks(userId: string): Promise<OpenTask[]>;
   findRun(nightId: bigint, userId: string): Promise<ExistingRun | null>;
-  createRun(nightId: bigint, userId: string): Promise<{ id: string }>;
+  /** A RUNNING night run for this user, on any night. Null when the user is idle. */
+  findRunningRun(userId: string): Promise<{ id: string; nightId: bigint } | null>;
+  /**
+   * Creates the RUNNING row. `busy` means another RUNNING row won the race, and the caller must not start a second key.
+   */
+  createRun(nightId: bigint, userId: string): Promise<{ id: string; busy?: boolean }>;
   updateRun(id: string, patch: RunPatch): Promise<void>;
   updateTask(id: string, patch: TaskPatch): Promise<void>;
+  /** Writes a management key that was re-sealed under the current master key. */
+  saveManagementKey?(userId: string, sealed: { ciphertext: Buffer; iv: Buffer; authTag: Buffer }): Promise<void>;
 }

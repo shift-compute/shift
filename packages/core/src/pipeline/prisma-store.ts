@@ -65,10 +65,29 @@ export function prismaPipelineStore(db: PrismaClient): PipelineStore {
       return { id: run.id, status: run.status, ephemeralKeyId: run.ephemeralKeyId, keyRevokedAt: run.keyRevokedAt };
     },
 
+    async findRunningRun(userId) {
+      const run = await db.nightRun.findFirst({
+        where: { userId, status: "RUNNING" },
+        select: { id: true, nightId: true },
+      });
+      return run ? { id: run.id, nightId: run.nightId } : null;
+    },
+
     async createRun(nightId, userId) {
-      await db.night.upsert({ where: { id: nightId }, create: { id: nightId }, update: {} });
-      const run = await db.nightRun.create({ data: { nightId, userId, status: "RUNNING" }, select: { id: true } });
-      return { id: run.id };
+      // One RUNNING row per user. Two processes (run now and the worker) take this lock before inserting.
+      return db.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`shift-user:${userId}`}))`;
+        const running = await tx.nightRun.findFirst({
+          where: { userId, status: "RUNNING" },
+          select: { id: true, nightId: true },
+        });
+        if (running) return { id: running.id, busy: true };
+        await tx.night.upsert({ where: { id: nightId }, create: { id: nightId }, update: {} });
+        const same = await tx.nightRun.findUnique({ where: { nightId_userId: { nightId, userId } }, select: { id: true } });
+        if (same) return { id: same.id, busy: true };
+        const run = await tx.nightRun.create({ data: { nightId, userId, status: "RUNNING" }, select: { id: true } });
+        return { id: run.id };
+      });
     },
 
     async updateRun(id, patch) {
@@ -77,6 +96,13 @@ export function prismaPipelineStore(db: PrismaClient): PipelineStore {
 
     async updateTask(id, patch) {
       await db.task.update({ where: { id }, data: taskData(patch) });
+    },
+
+    async saveManagementKey(userId, sealed) {
+      await db.user.update({
+        where: { id: userId },
+        data: { mkCiphertext: sealed.ciphertext, mkIv: sealed.iv, mkAuthTag: sealed.authTag },
+      });
     },
   };
 }

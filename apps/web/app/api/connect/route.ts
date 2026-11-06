@@ -1,26 +1,23 @@
-import { connectAccount, createRateLimiter, RouterError, sweepOrphanedKeys } from "@shift/core";
+import { connectAccount, RouterError, sweepOrphanedKeys } from "@shift/core";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
+import { clientIp } from "../../../lib/client-ip";
+import { closeRunsOnDisconnect } from "../../../lib/disconnect-run";
+import { connectLimiter } from "../../../lib/limits";
 import { getConfig, getDb, getRouter } from "../../../lib/server";
 import { getCurrentUser, getSession } from "../../../lib/session";
 import { openUserKey } from "../../../lib/user-key";
 
 export const runtime = "nodejs";
 
-// 5 attempts per minute per IP (plan §19.5).
-const limiter = createRateLimiter(5, 60_000);
 const body = z.object({ mk: z.string().min(1).max(512) });
-
-function clientIp(req: NextRequest): string {
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-}
 
 /**
  * Connects a 0G account with the user's management key.
  * The key is validated, encrypted and stored; it is never logged and never returned.
  */
 export async function POST(req: NextRequest) {
-  const limit = limiter.check(clientIp(req));
+  const limit = connectLimiter().check(clientIp(req.headers));
   if (!limit.allowed) {
     return NextResponse.json({ error: "rate_limited", retryAfterSeconds: limit.retryAfterSeconds }, { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } });
   }
@@ -76,7 +73,7 @@ export async function DELETE() {
   if (!user) return NextResponse.json({ error: "not_signed_in" }, { status: 401 });
 
   const db = getDb();
-  const mk = openUserKey(user);
+  const mk = await openUserKey(user);
   let unrevokedKeyIds: string[] = [];
   if (mk) {
     const alive = await db.nightRun.findMany({ where: { userId: user.id, ephemeralKeyId: { not: null }, keyRevokedAt: null } });
@@ -91,6 +88,7 @@ export async function DELETE() {
     unrevokedKeyIds = report.failed.map((f) => f.keyId);
   }
 
+  await closeRunsOnDisconnect(db, user.id);
   await db.user.update({ where: { id: user.id }, data: { mkCiphertext: null, mkIv: null, mkAuthTag: null, mkConnectedAt: null } });
   (await getSession()).destroy();
 

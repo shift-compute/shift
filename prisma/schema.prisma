@@ -52,7 +52,7 @@ model User {
   currency              String // "usd" | "0g" (from GET /v1/account/balance)
   mode                  Mode       @default(IAI_CREDITS_ONLY)
   nightlyBudgetUsdMicro BigInt? // BUDGET mode only
-  donateLeftover        Boolean    @default(true)
+  donateLeftover        Boolean    @default(false)
   mkCiphertext          Bytes? // AES-256-GCM, see packages/core/src/crypto/vault.ts
   mkIv                  Bytes?
   mkAuthTag             Bytes?

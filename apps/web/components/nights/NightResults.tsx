@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { NightStrip } from "../night/NightStrip";
+import { TaskOutput } from "./TaskOutput";
 import { formatAmount } from "../../lib/format";
 import { stripFromNight } from "../../lib/night-strip";
 import {
@@ -212,9 +213,10 @@ function ProvenanceCard({ task }: { task: NightTaskResult }) {
         <dd>{task.chosenModel ?? "Not recorded"}</dd>
         <dt className="text-haze">Cost</dt>
         <dd>{task.actualCostUsdMicro === null ? "Not reported" : formatAmount(task.actualCostUsdMicro, "usd")}</dd>
-        <dt className="text-haze">0G Storage root</dt>
+        <dt className="text-haze">Ciphertext root</dt>
         <dd className="break-all">{task.outputRoot ?? "Not recorded"}</dd>
       </dl>
+      <TaskOutput taskId={task.id} enabled={task.status === "DONE" && task.outputRoot !== null} />
       {task.steps.length === 0 ? (
         <p className="text-haze">No request was recorded for this task.</p>
       ) : (
