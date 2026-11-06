@@ -1,42 +1,81 @@
-import { createDb, loadWorkerConfig, tick } from "@shift/core";
+import { createDb, createRouterClient, loadWorkerConfig, redactString, tick } from "@shift/core";
 import cron from "node-cron";
 import { runNight } from "./night";
+import { SWEEP_CRON, createSweepLock, prismaSweeperStore, recoverInterruptedTasks, sweepEphemeralKeys } from "./sweeper";
 
 const config = loadWorkerConfig();
 const db = createDb(config.DATABASE_URL);
-const log = (message: string) => console.log(`${new Date().toISOString()} ${message}`);
+const router = createRouterClient({ baseUrl: config.ZG_ROUTER_BASE_URL });
+const sweeperStore = prismaSweeperStore(db);
+const log = (message: string) => console.log(`${new Date().toISOString()} ${redactString(message)}`);
 
 let running = false;
 
-// Every minute. The in-process flag stops a slow night from overlapping with the next tick of this same process;
-// the database lock (acquireNight) does the same across processes.
-cron.schedule("* * * * *", async () => {
-  if (running) return;
-  running = true;
+function errorText(err: unknown): string {
+  return err instanceof Error ? err.message : "unknown error";
+}
+
+const runSweep = createSweepLock(async () => {
   try {
-    await tick({
-      db,
-      startUtc: config.NIGHT_START_UTC,
-      hardStopUtc: config.NIGHT_HARD_STOP_UTC,
+    await sweepEphemeralKeys({
+      store: sweeperStore,
+      keys: router,
+      masterKey: config.SHIFT_MASTER_KEY,
       log,
-      runNight: async (nightId) => {
-        try {
-          await runNight({ db, config, nightId, log });
-          await db.night.update({ where: { id: nightId }, data: { status: "DONE", finishedAt: new Date() } });
-        } catch (err) {
-          await db.night.update({ where: { id: nightId }, data: { status: "FAILED", finishedAt: new Date() } });
-          throw err;
-        }
-      },
     });
   } catch (err) {
-    log(`tick error: ${err instanceof Error ? err.message : String(err)}`);
-  } finally {
-    running = false;
+    log(`sweep error: ${errorText(err)}`);
   }
 });
 
-log(`worker started · window ${config.NIGHT_START_UTC}-${config.NIGHT_HARD_STOP_UTC} UTC`);
+// Every minute. The in-process flag stops a slow night from overlapping with the next tick of this same process;
+// the database lock (acquireNight) does the same across processes.
+function startNightCron(): void {
+  cron.schedule("* * * * *", async () => {
+    if (running) return;
+    running = true;
+    try {
+      await tick({
+        db,
+        startUtc: config.NIGHT_START_UTC,
+        hardStopUtc: config.NIGHT_HARD_STOP_UTC,
+        log,
+        runNight: async (nightId) => {
+          try {
+            await runNight({ db, config, nightId, log });
+            await db.night.update({ where: { id: nightId }, data: { status: "DONE", finishedAt: new Date() } });
+          } catch (err) {
+            await db.night.update({ where: { id: nightId }, data: { status: "FAILED", finishedAt: new Date() } });
+            throw err;
+          }
+        },
+      });
+    } catch (err) {
+      log(`tick error: ${errorText(err)}`);
+    } finally {
+      running = false;
+    }
+  });
+}
+
+async function boot(): Promise<void> {
+  // Plan §9.4. A crashed batch leaves tasks RUNNING. Put back the ones with no Router request id
+  // before the scheduler starts. A live batch marks RUNNING before the request id is stored, so this
+  // must not run again on the 10-minute sweep.
+  try {
+    const requeued = await recoverInterruptedTasks(sweeperStore);
+    if (requeued.length > 0) log(`requeued ${requeued.length} interrupted task(s) with no request id`);
+  } catch (err) {
+    log(`recover error: ${errorText(err)}`);
+  }
+
+  startNightCron();
+  cron.schedule(SWEEP_CRON, () => {
+    void runSweep();
+  });
+  log(`worker started · window ${config.NIGHT_START_UTC}-${config.NIGHT_HARD_STOP_UTC} UTC · sweeper every 10 minutes`);
+  void runSweep();
+}
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
@@ -44,3 +83,5 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
     void db.$disconnect().finally(() => process.exit(0));
   });
 }
+
+void boot();
