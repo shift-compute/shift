@@ -31,6 +31,7 @@ export * from "./optimizer/quality";
 export * from "./optimizer/optimizer";
 export * from "./optimizer/replan";
 export * from "./pipeline/budget";
+export * from "./pipeline/preview";
 export * from "./pipeline/prisma-store";
 export * from "./pipeline/runUser";
 export * from "./pipeline/store";

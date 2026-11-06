@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { TonightEstimate } from "./TonightEstimate";
+import { readPreview, type PreviewPanel } from "./preview-state";
 
 interface TaskRow {
   id: string;
@@ -45,17 +47,29 @@ function size(bytes: number | null): string {
 
 export function Queue() {
   const [tasks, setTasks] = useState<TaskRow[] | null>(null);
+  const [preview, setPreview] = useState<PreviewPanel | { phase: "loading" }>({ phase: "loading" });
   const [signedOut, setSignedOut] = useState(false);
   const [type, setType] = useState<TaskRow["type"]>("AUDIO_SUMMARY");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/tasks").catch(() => null);
-    if (!res) return setMessage("We could not reach the server. Try again in a moment.");
+    const tasksPromise = fetch("/api/tasks").catch(() => null);
+    const previewPromise = fetch("/api/plan/preview").catch(() => null);
+    const res = await tasksPromise;
+    if (!res) {
+      setMessage("We could not reach the server. Try again in a moment.");
+      setPreview({ phase: "unavailable" });
+      return;
+    }
     if (res.status === 401) return setSignedOut(true);
-    if (!res.ok) return setMessage("We could not load your queue.");
+    if (!res.ok) {
+      setMessage("We could not load your queue.");
+      setPreview(await readPreview(await previewPromise));
+      return;
+    }
     setTasks(((await res.json()) as { tasks: TaskRow[] }).tasks);
+    setPreview(await readPreview(await previewPromise));
   }, []);
 
   useEffect(() => {
@@ -153,10 +167,12 @@ export function Queue() {
         )}
       </form>
 
+      <TonightEstimate panel={preview} tasks={tasks ?? []} />
+
       <section aria-label="Your tasks">
         <h2 className="text-2xl font-semibold">Your tasks</h2>
         {tasks === null ? (
-          <p className="mt-3 text-haze">Loading…</p>
+          message ? null : <p className="mt-3 text-haze">Loading…</p>
         ) : tasks.length === 0 ? (
           <p className="mt-3 text-haze">Nothing queued yet. Add a task above and Shift will pick it up before the reset.</p>
         ) : (
