@@ -391,4 +391,33 @@ describe("runCommonsTranslations", () => {
     expect(outcome).toMatchObject({ translated: 0, failed: 1, reportedMicro: worst, stop: "done" });
     expect(rows[0]).toMatchObject({ status: "FAILED", costUsdMicro: worst, requestIds: [] });
   });
+
+  it("stops after two empty answers, keeps their reported cost, and leaves the rest pending", async () => {
+    const rows = [item("c1"), item("c2"), item("c3")];
+    let calls = 0;
+    const outcome = await runCommonsTranslations({
+      commons: memory(rows),
+      chat: async () => {
+        calls += 1;
+        return { data: { choices: [{ message: { content: "   " } }] }, status: 200, requestId: `req-empty-${calls}`, trace: { billing: { total_cost_usd_micro: "4" } } };
+      },
+      sk: "sk-test",
+      catalog: tee,
+      remainingMicro: pairCost() * 5n,
+      userId: "user-1",
+      nightId: NIGHT,
+      hardStopUtc: "23:50",
+      now: () => new Date("2026-11-06T23:10:00Z"),
+      sleep: async () => undefined,
+    });
+    expect(outcome.stop).toBe("empty_answer");
+    expect(outcome.failed).toBe(2);
+    expect(outcome.translated).toBe(0);
+    expect(outcome.reportedMicro).toBe(8n);
+    expect(calls).toBe(2);
+    expect(rows[0]).toMatchObject({ status: "FAILED", costUsdMicro: 4n, requestIds: ["req-empty-1"] });
+    expect(rows[1]).toMatchObject({ status: "FAILED", costUsdMicro: 4n, requestIds: ["req-empty-2"] });
+    expect(rows[2]?.status).toBe("PENDING");
+    expect(rows[2]?.donorUserId).toBeUndefined();
+  });
 });

@@ -14,6 +14,12 @@ export type CommonsChat = (sk: string, body: ChatRequest, options?: InferenceOpt
 
 /** Plan §9.4: one call, then at most two retries, and only when the failure was retryable. */
 const MAX_RETRIES = 2;
+/**
+ * Two commons pairs in a row whose model text is empty stop the loop.
+ * Each billed pair is still recorded. Items not started stay PENDING. This is not a retry.
+ */
+export const EMPTY_ANSWER_STOP = 2;
+const EMPTY_ANSWER = "The model returned an empty answer.";
 
 /**
  * Target language stored on `CommonsItem.targetLang`. The name is what the prompt says.
@@ -98,7 +104,7 @@ export interface CommonsTranslationResult {
   reportedMicro: bigint;
   accountedMicro: bigint;
   requestIds: string[];
-  stop: "budget" | "no_model" | "hard_stop" | "balance" | "done";
+  stop: "budget" | "no_model" | "hard_stop" | "balance" | "empty_answer" | "done";
 }
 
 interface TranslationCall {
@@ -178,6 +184,7 @@ export async function runCommonsTranslations(input: {
   const items = [...(await input.commons.pendingItems())].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   let translated = 0;
   let failed = 0;
+  let emptyStreak = 0;
   for (const item of items) {
     if (msUntilHardStop(now(), input.hardStopUtc) === 0) return result(ledger, translated, failed, "hard_stop");
     const language = TRANSLATION_LANGUAGES[item.targetLang as CommonsTargetLang];
@@ -211,8 +218,22 @@ export async function runCommonsTranslations(input: {
       sleep,
       log,
     });
-    if (outcome === "done") translated += 1;
-    else if (outcome === "failed" || outcome === "budget" || outcome === "balance") failed += 1;
+    if (outcome === "done") {
+      emptyStreak = 0;
+      translated += 1;
+    } else if (outcome === "empty") {
+      failed += 1;
+      emptyStreak += 1;
+      if (emptyStreak >= EMPTY_ANSWER_STOP) {
+        log(`commons: stopping after ${emptyStreak} empty answers; later items stay pending`);
+        return result(ledger, translated, failed, "empty_answer");
+      }
+    } else if (outcome === "failed" || outcome === "budget" || outcome === "balance") {
+      emptyStreak = 0;
+      failed += 1;
+    } else {
+      emptyStreak = 0;
+    }
     if (outcome === "budget") return result(ledger, translated, failed, "budget");
     if (outcome === "balance") return result(ledger, translated, failed, "balance");
   }
@@ -243,7 +264,7 @@ async function translatePair(input: {
   nightId: bigint;
   sleep: (ms: number) => Promise<void>;
   log: (message: string) => void;
-}): Promise<"done" | "failed" | "released" | "budget" | "balance"> {
+}): Promise<"done" | "failed" | "released" | "empty" | "budget" | "balance"> {
   const calls: TranslationCall[] = [];
   const sideA = await translateSide(input, input.pair.modelA, "a");
   if (!sideA.ok) return finishFailed(input, calls, sideA.call, sideA.error);
@@ -270,8 +291,9 @@ async function finishFailed(
   calls: TranslationCall[],
   failedCall: TranslationCall,
   error: unknown,
-): Promise<"failed" | "released" | "balance"> {
+): Promise<"failed" | "released" | "empty" | "balance"> {
   const stop = stopsTheNight(error);
+  const empty = isEmptyAnswer(error);
   if (billed(failedCall)) {
     calls.push(failedCall);
     applyCall(input.ledger, failedCall);
@@ -279,11 +301,11 @@ async function finishFailed(
   if (calls.length === 0) {
     await input.commons.save(input.item.id, { status: "PENDING", donorUserId: null, nightId: null });
     input.log(`commons ${input.item.id}: released (${failureText(error)})`);
-    return stop ? "balance" : "released";
+    return stop ? "balance" : empty ? "empty" : "released";
   }
   await persist(input, calls, "FAILED");
   input.log(`commons ${input.item.id}: pair failed (${failureText(error)})`);
-  return stop ? "balance" : "failed";
+  return stop ? "balance" : empty ? "empty" : "failed";
 }
 
 async function translateSide(
@@ -323,7 +345,7 @@ async function translateSide(
       };
       try {
         const text = chatText(res.data).trim();
-        if (text.length === 0) return { ok: false, call, error: new Error("The model returned an empty answer.") };
+        if (text.length === 0) return { ok: false, call, error: new Error(EMPTY_ANSWER) };
         return { ok: true, call: { ...call, text } };
       } catch (err) {
         return { ok: false, call, error: err };
@@ -400,6 +422,10 @@ function reportedSum(calls: TranslationCall[]): bigint | null {
     }
   }
   return any ? sum : null;
+}
+
+function isEmptyAnswer(err: unknown): boolean {
+  return err instanceof Error && err.message === EMPTY_ANSWER;
 }
 
 function stopsTheNight(err: unknown): boolean {

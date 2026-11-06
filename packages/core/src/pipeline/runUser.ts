@@ -356,6 +356,8 @@ function emptyGate(): CommonsGateResult {
 function logTranslations(deps: RunUserDeps, translated: CommonsTranslationResult, remaining: bigint): void {
   if (translated.stop === "no_model" && remaining > 0n) {
     deps.log(`user ${deps.user.id}: ${remaining} micro-USD left; the catalog has fewer than two private chat models, so commons items stay pending`);
+  } else if (translated.stop === "empty_answer") {
+    deps.log(`user ${deps.user.id}: commons stopped after repeated empty answers; ${translated.failed} failed; ${translated.reportedMicro} micro-USD kept; later items stay pending`);
   } else if (translated.translated > 0 || translated.failed > 0) {
     deps.log(`user ${deps.user.id}: commons translations ${translated.translated} ready, ${translated.failed} failed; ${translated.reportedMicro} micro-USD`);
   } else if (translated.stop === "budget" && remaining > 0n) {
