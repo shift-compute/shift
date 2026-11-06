@@ -3,6 +3,10 @@
 /*
  * CardArt (L5c5). Paper is the field, Ink the type, Teal the action.
  * Sodium remains only for night-strip spend blocks.
+ *
+ * Type: 0G specifies Regola Pro for UI and Geist Mono for mono. Regola Pro
+ * is a paid face and is not shipped here. Geist Sans is the free stand-in
+ * for display and body; Geist Mono stays on addresses, keys, and figures.
  */
 @theme {
   --color-paper: #f8fafc; /* background */
@@ -19,8 +23,9 @@
   --color-haze: #64748b;
   --color-light: #175e83;
 
-  --font-display: "Familjen Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-sans: "Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Geist Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Geist Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 @layer base {
@@ -39,8 +44,8 @@
   h2,
   h3 {
     font-family: var(--font-display);
-    line-height: 1.15;
-    letter-spacing: -0.01em;
+    line-height: 1.12;
+    letter-spacing: -0.03em;
   }
 
   a {
@@ -86,12 +91,98 @@
   animation: night-edge 1.8s ease-in-out infinite;
 }
 
-/* Below-the-fold sections. The view timeline keeps this on the compositor.
-   Without support, or with reduced motion, the section stays fully visible. */
-@keyframes rise {
+/* Home field. Sky and Teal only. The grid and orbs drift until reduced motion. */
+.landing-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.landing-grid {
+  position: absolute;
+  inset: -2px;
+  background-image: radial-gradient(rgb(15 23 42 / 0.16) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(ellipse at 50% 28%, black 12%, transparent 74%);
+}
+
+.landing-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(72px);
+}
+
+.landing-orb-sky {
+  top: -12rem;
+  left: -14rem;
+  width: 46rem;
+  height: 46rem;
+  background: rgb(169 203 227 / 0.9);
+}
+
+.landing-orb-teal {
+  top: 6rem;
+  right: -10rem;
+  width: 34rem;
+  height: 34rem;
+  background: rgb(23 94 131 / 0.18);
+}
+
+.landing-orb-low {
+  bottom: -10rem;
+  left: 28%;
+  width: 40rem;
+  height: 26rem;
+  background: rgb(169 203 227 / 0.55);
+}
+
+.status-dot {
+  position: relative;
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--color-teal);
+  box-shadow: 0 0 0 4px rgb(23 94 131 / 0.15);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lockup-enter {
+    animation: lockup-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .landing-grid {
+    animation: grid-drift 32s linear infinite;
+  }
+
+  .landing-orb-sky {
+    animation: orb-drift-a 24s ease-in-out infinite;
+  }
+
+  .landing-orb-teal {
+    animation: orb-drift-b 28s ease-in-out infinite;
+  }
+
+  .landing-orb-low {
+    animation: orb-drift-a 32s ease-in-out infinite reverse;
+  }
+
+  .status-dot::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--color-teal);
+    animation: status-ping 2.4s ease-out infinite;
+  }
+}
+
+@keyframes lockup-in {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -99,12 +190,51 @@
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  @supports (animation-timeline: view()) {
-    .reveal {
-      animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
-      animation-timeline: view();
-      animation-range: entry 0% cover 28%;
-    }
+@keyframes grid-drift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 22px 44px;
+  }
+}
+
+@keyframes orb-drift-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(4%, 6%, 0) scale(1.06);
+  }
+}
+
+@keyframes orb-drift-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-6%, 4%, 0) scale(1.08);
+  }
+}
+
+@keyframes status-ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  80%,
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+/* Motion writes the entrance inline. Reduced motion snaps to the rest pose. */
+@media (prefers-reduced-motion: reduce) {
+  .shift-enter {
+    opacity: 1 !important;
+    transform: none !important;
   }
 }

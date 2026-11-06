@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import "@fontsource-variable/familjen-grotesk";
-import "@fontsource/atkinson-hyperlegible/400.css";
-import "@fontsource/atkinson-hyperlegible/700.css";
+import "@fontsource/geist-sans/latin-400.css";
+import "@fontsource/geist-sans/latin-500.css";
+import "@fontsource/geist-sans/latin-600.css";
+import "@fontsource/geist-mono/latin-400.css";
+import "@fontsource/geist-mono/latin-500.css";
 import { Logo } from "../components/brand/Logo";
 import "../styles/globals.css";
 
@@ -29,9 +31,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body className="min-h-screen">
-        <header className="border-b border-ink/10 bg-paper">
+        <header className="sticky top-0 z-30 border-b border-ink/10 bg-paper/80 backdrop-blur-md">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-6 py-4">
-            <a href="/" className="inline-flex shrink-0 no-underline">
+            <a href="/" className="lockup-enter shift-enter inline-flex shrink-0 no-underline">
               <Logo className="h-8 w-auto sm:h-9" />
             </a>
             <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-2">
