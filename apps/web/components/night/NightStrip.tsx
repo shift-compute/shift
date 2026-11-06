@@ -2,7 +2,7 @@ import { stripStateLabel, type NightStripModel, type StripBlockState } from "../
 
 /**
  * Signature element (plan §18.2): the night from now until 00:00 UTC.
- * Task width follows cost. Spent budget advances from the left, and a finished night is First light.
+ * Task width follows cost. Spent budget advances from the left in Sodium. A finished night fills with Sky card.
  * Motion is a width transition plus the spent edge; `prefers-reduced-motion` removes both.
  */
 export function NightStrip({ model, busy = false }: { model: NightStripModel; busy?: boolean }) {
@@ -15,8 +15,8 @@ export function NightStrip({ model, busy = false }: { model: NightStripModel; bu
         <span>{model.startLabel}</span>
         <span>{model.endLabel}</span>
       </div>
-      <div className="relative h-20 overflow-hidden rounded-md bg-sky ring-1 ring-inset ring-haze/50 sm:h-28" aria-hidden="true">
-        <div className="absolute inset-y-0 left-0 bg-light transition-[width] duration-700 ease-out motion-reduce:transition-none" style={{ width: `${consumed}%` }} />
+      <div className="relative h-20 overflow-hidden rounded-2xl bg-skycard/35 ring-1 ring-inset ring-ink/10 sm:h-28" aria-hidden="true">
+        <div className="absolute inset-y-0 left-0 bg-skycard transition-[width] duration-700 ease-out motion-reduce:transition-none" style={{ width: `${consumed}%` }} />
         <div className="relative flex h-full items-end gap-1 px-1.5 pt-6 pb-1.5 sm:px-2 sm:pt-8 sm:pb-2">
           {model.segments.map((segment) => (
             <div
@@ -31,14 +31,14 @@ export function NightStrip({ model, busy = false }: { model: NightStripModel; bu
           {model.segments.length > 0 && model.remainderBps > 0 && (
             <div className="flex min-w-0 items-center justify-center overflow-hidden" style={{ flexGrow: model.remainderBps, flexBasis: 0 }}>
               {model.remainderBps >= 1800 && (
-                <span className={`truncate px-2 text-xs sm:text-sm ${finished ? "text-sky" : "text-haze"}`}>Left for the commons</span>
+                <span className={`truncate px-2 text-xs sm:text-sm ${finished ? "text-ink" : "text-muted"}`}>Left for the commons</span>
               )}
             </div>
           )}
         </div>
         {model.tone === "running" && (
           <div
-            className="night-edge pointer-events-none absolute inset-y-0 z-10 w-1 -translate-x-1/2 bg-paper motion-reduce:animate-none"
+            className="night-edge pointer-events-none absolute inset-y-0 z-10 w-1 -translate-x-1/2 bg-ink motion-reduce:animate-none"
             style={{ left: `${consumed}%` }}
           />
         )}
@@ -63,12 +63,12 @@ export function NightStrip({ model, busy = false }: { model: NightStripModel; bu
 function blockClass(state: StripBlockState): string {
   switch (state) {
     case "done":
-      return "bg-night text-paper";
+      return "bg-ink text-paper";
     case "failed":
-      return "bg-transparent text-haze ring-1 ring-inset ring-haze";
+      return "bg-transparent text-muted ring-1 ring-inset ring-muted";
     case "running":
-      return "bg-sodium text-sky ring-2 ring-paper";
+      return "bg-sodium text-ink ring-2 ring-paper";
     default:
-      return "bg-sodium/80 text-sky";
+      return "bg-sodium/90 text-ink";
   }
 }

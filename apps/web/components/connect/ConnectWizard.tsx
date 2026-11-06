@@ -66,7 +66,7 @@ export function ConnectWizard({ consoleUrl }: { consoleUrl: string }) {
       <ol className="space-y-5">
         {STEPS.map((s, i) => (
           <li key={s.title} className="grid grid-cols-[2rem_1fr] gap-3">
-            <span aria-hidden className="font-display text-2xl font-semibold text-sodium">{i + 1}</span>
+            <span aria-hidden className="font-display text-2xl font-semibold text-teal">{i + 1}</span>
             <div>
               <h2 className="text-lg font-semibold">{s.title}</h2>
               <p className="mt-1 text-haze">{s.body(consoleUrl)}</p>
@@ -74,7 +74,7 @@ export function ConnectWizard({ consoleUrl }: { consoleUrl: string }) {
           </li>
         ))}
         <li className="grid grid-cols-[2rem_1fr] gap-3">
-          <span aria-hidden className="font-display text-2xl font-semibold text-sodium">4</span>
+          <span aria-hidden className="font-display text-2xl font-semibold text-teal">4</span>
           <div>
             <h2 className="text-lg font-semibold">Paste it here</h2>
             <form onSubmit={onSubmit} className="mt-2">
@@ -90,20 +90,20 @@ export function ConnectWizard({ consoleUrl }: { consoleUrl: string }) {
                   spellCheck={false}
                   placeholder="mk-…"
                   required
-                  className="min-w-0 flex-1 rounded-md border border-haze/40 bg-night px-3 py-2 font-mono text-paper placeholder:text-haze/60"
+                  className="min-w-0 flex-1 rounded-full border border-ink/15 bg-surface px-4 py-2 font-mono text-ink placeholder:text-muted/70"
                 />
                 <button type="button" onClick={() => setVisible((v) => !v)} className="rounded-md border border-haze/40 px-3 text-haze" aria-pressed={visible}>
                   {visible ? "Hide" : "Show"}
                 </button>
               </div>
               <p className="mt-2 text-sm text-haze">Stored encrypted on the server. It can only read your balance and create or revoke keys; it cannot run models or spend credit.</p>
-              <button type="submit" disabled={submitting || key.length === 0} className="mt-4 rounded-md bg-sodium px-5 py-2 font-semibold text-sky disabled:opacity-50">
+              <button type="submit" disabled={submitting || key.length === 0} className="mt-4 rounded-full bg-teal px-5 py-2 font-semibold text-paper shadow-sm transition-colors duration-200 hover:bg-ink disabled:opacity-50">
                 {submitting ? "Checking permissions…" : "Connect your 0G account"}
               </button>
             </form>
             <div aria-live="polite">
               {state.phase === "error" && (
-                <div role="alert" className="mt-5 border-l-4 border-sodium pl-4">
+                <div role="alert" className="mt-5 border-l-4 border-teal pl-4">
                   <p className="font-semibold">{state.message.title}</p>
                   <p className="mt-1 text-haze">{state.message.detail}</p>
                   {state.message.missingScopes && (

@@ -38,7 +38,7 @@ export function CommonsBoard() {
     );
   }
   if (panel.phase === "unavailable") {
-    return <p className="border-l-4 border-sodium pl-3">We could not load the commons queue. Try again in a moment.</p>;
+    return <p className="border-l-4 border-teal pl-3">We could not load the commons queue. Try again in a moment.</p>;
   }
   if (panel.phase === "empty") {
     return (
@@ -143,7 +143,7 @@ function TranslationCard({ item }: { item: CommonsItemPublic }) {
   const title = `${languageLabel(item.targetLang)} · ${commonsStatusLabel(item.status)}`;
   const rejected = item.status === "REJECTED";
   return (
-    <article aria-labelledby={`commons-${item.id}`} className={`space-y-4 rounded-md bg-night p-5 ${rejected ? "border-l-4 border-sodium" : ""}`}>
+    <article aria-labelledby={`commons-${item.id}`} className={`space-y-4 rounded-md bg-night p-5 ${rejected ? "border-l-4 border-teal" : ""}`}>
       <h3 id={`commons-${item.id}`} className={`text-xl font-semibold ${rejected ? "" : "text-light"}`}>
         {title}
       </h3>

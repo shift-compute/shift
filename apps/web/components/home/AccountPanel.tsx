@@ -55,7 +55,7 @@ export function AccountPanel() {
     case "signed_out":
       return (
         <p>
-          <a href="/connect" className="inline-block rounded-md bg-sodium px-5 py-2 font-semibold text-sky no-underline">
+          <a href="/connect" className="inline-block rounded-full bg-teal px-5 py-2 font-semibold text-paper no-underline shadow-sm shadow-teal/20 transition-colors duration-200 hover:bg-ink">
             Connect your 0G account
           </a>
         </p>
@@ -67,7 +67,7 @@ export function AccountPanel() {
         </p>
       );
     case "unavailable":
-      return <p className="border-l-4 border-sodium pl-3">We could not read your balance right now. Try again in a moment.</p>;
+      return <p className="border-l-4 border-teal pl-3">We could not read your balance right now. Try again in a moment.</p>;
     case "ready":
       return (
         <dl className="grid max-w-md grid-cols-[auto_1fr] gap-x-6 gap-y-2">

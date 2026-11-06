@@ -177,11 +177,11 @@ export function Queue() {
           </select>
         </div>
 
-        <button type="submit" disabled={busy} className="rounded-md bg-sodium px-5 py-2 font-semibold text-sky disabled:opacity-60">
+        <button type="submit" disabled={busy} className="rounded-full bg-teal px-5 py-2 font-semibold text-paper shadow-sm transition-colors duration-200 hover:bg-ink disabled:opacity-60">
           {busy ? "Adding…" : "Add to tonight's queue"}
         </button>
         {message && (
-          <p role="alert" className="border-l-4 border-sodium pl-3">
+          <p role="alert" className="border-l-4 border-teal pl-3">
             {message}
           </p>
         )}

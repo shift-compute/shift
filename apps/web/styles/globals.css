@@ -1,16 +1,23 @@
 @import "tailwindcss";
 
 /*
- * Design tokens (plan §18.2): an early-morning shift in Mumbai. A 4 AM sky with sodium streetlight glow,
- * brightening toward first light when the nightly batch finishes.
+ * CardArt (L5c5). Paper is the field, Ink the type, Teal the action.
+ * Sodium remains only for night-strip spend blocks.
  */
 @theme {
-  --color-sky: #1d2550; /* background */
-  --color-night: #28316b; /* surfaces */
-  --color-sodium: #f3a33c; /* primary action, budget */
-  --color-light: #f7d9c4; /* completed states, sunrise */
-  --color-haze: #c9d1e8; /* secondary text */
-  --color-paper: #f6f7fb; /* primary text */
+  --color-paper: #f8fafc; /* background */
+  --color-ink: #0f172a; /* primary text, wordmark */
+  --color-teal: #175e83; /* CTA, accent */
+  --color-skycard: #a9cbe3; /* secondary mark, done wash */
+  --color-muted: #64748b; /* secondary text */
+  --color-sodium: #f3a33c; /* night-strip spend only */
+  --color-surface: #ffffff; /* cards */
+
+  /* Older names, retargeted so product pages sit on the light field. */
+  --color-sky: #f8fafc;
+  --color-night: #ffffff;
+  --color-haze: #64748b;
+  --color-light: #175e83;
 
   --font-display: "Familjen Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Atkinson Hyperlegible", ui-sans-serif, system-ui, sans-serif;
@@ -18,8 +25,8 @@
 
 @layer base {
   html {
-    background-color: var(--color-sky);
-    color: var(--color-paper);
+    background-color: var(--color-paper);
+    color: var(--color-ink);
   }
 
   body {
@@ -37,12 +44,12 @@
   }
 
   a {
-    color: var(--color-sodium);
+    color: var(--color-teal);
     text-underline-offset: 0.2em;
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-sodium);
+    outline: 2px solid var(--color-teal);
     outline-offset: 3px;
     border-radius: 2px;
   }
@@ -57,6 +64,11 @@
       scroll-behavior: auto !important;
     }
   }
+}
+
+/* White cards need an edge on Paper. The landing panel carries the softer lift. */
+.bg-night {
+  box-shadow: 0 0 0 1px rgb(15 23 42 / 0.08);
 }
 
 /* Spent edge of the night strip. The reduced-motion rule above already collapses this. */
