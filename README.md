@@ -14,7 +14,7 @@ Built for ETHGlobal Mumbai 2026 (0G "Build with 0G PC", and the general finalist
 | ShiftLedger | [`0xA3B6664b487FC01c4264977c9B92058A89C31Ed7`](https://chainscan-galileo.0g.ai/address/0xA3B6664b487FC01c4264977c9B92058A89C31Ed7) |
 | Live demo | Not deployed yet. The URL lands here in F6.1. Until then, run it locally (below). |
 | Demo video | Not recorded yet. The link lands here in F6.4. The 3-minute script is [plan §24](docs/SHIFT_PLAN.md). |
-| Real inference runs | **None recorded.** The team account still has `credit_balance` 0 and `deposit_balance` 0. F3.12 and F4.7 stay open. The request-id table below is empty on purpose. |
+| Real inference runs | **None recorded.** The team account still has `credit_balance` 0 and `deposit_balance` 0. F3.12 and F4.7 stay open. The [request-id table](#request-ids) is one waiting row until a funded run. |
 | Status log | [`PROGRESS.md`](PROGRESS.md) · Phase 0 write-up: [`docs/SPIKE_RESULTS.md`](docs/SPIKE_RESULTS.md) |
 
 ## How a night works
@@ -32,7 +32,7 @@ Two spending modes share that pipeline. **Budget mode** is the primary one: a ni
 
 - **Private Computer (Router).** Chat, audio, and image models, plus account, balance, and key APIs. Trust tiers are standard, verified (TeeTLS), and private (TeeML). An ephemeral key is pinned to the tier the plan chose. If the catalog has no TeeML model that can run the task, private mode defers the task. It does not silently drop to a weaker tier.
 - **Decision models.** One `/v1/decisions` call classifies each text task (simple / standard / complex) and sets the quality floor. A second call is the commons gate. Model ids come from the live catalog. Nothing is hard-coded. If that catalog has no decision model, classification plans `standard` and does not call the Router, and commons rows stay `RUNNING`.
-- **0G Storage.** Task outputs and `NightManifest.json` go to the Galileo turbo indexer (`https://indexer-storage-testnet-turbo.0g.ai`) via `@0gfoundation/0g-ts-sdk`. The operator wallet pays gas. Phase 0 uploaded and downloaded one file on that indexer; the root is in [What was actually checked](#what-was-actually-checked). No night manifest has been uploaded, because no night has run.
+- **0G Storage.** Task outputs and `NightManifest.json` go to the Galileo turbo indexer (`https://indexer-storage-testnet-turbo.0g.ai`) via `@0gfoundation/0g-ts-sdk`. The operator wallet pays gas. Phase 0 uploaded and downloaded one file on that indexer; the root, the indexer file, and the raw JSON are in [Verifiable evidence](#verifiable-evidence). No night manifest has been uploaded, because no night has run.
 - **0G Chain.** `ShiftLedger` anchors attribution (who owns the result, which model, what it cost, whether it was commons work) and records donated micro-USD. 0G already attests each model call. This contract does not redo that proof.
 
 The example Router base URL is the mainnet Router, `https://router-api.0g.ai/v1`, because that is where the team account was read. `.env.example` also lists the testnet Router. Chain id `ZG_CHAIN_ID` is **16602**.
@@ -74,7 +74,7 @@ apps/worker       cron 23:00–23:50 UTC, sweeper, anchor, recordDonations
 | Owner | `0x3E7E6733f1E0Fbb55035d6791a77e596ab11aD07` (operator wallet) |
 | Source | [`contracts/src/ShiftLedger.sol`](contracts/src/ShiftLedger.sol) |
 
-`anchorNight` and `recordDonations` are owner-only. `verifyLeaf(nightId, proof, leaf)` is a public view. An empty root returns false. No night has been anchored, so there is no anchor transaction and no manifest root to list yet. Those links are added in F6.3 only after a real batch.
+`anchorNight` and `recordDonations` are owner-only. `verifyLeaf(nightId, proof, leaf)` is a public view. An empty root returns false. No night has been anchored. The deploy transaction in this table created the contract. The Phase 0 storage upload has its own transaction in [Verifiable evidence](#verifiable-evidence). Anchor transactions and manifest roots are listed there only after a funded run writes them.
 
 `forge test`: 7 passed in Phase 0, including TypeScript ↔ Solidity leaf-hash parity (`docs/spike/merkle-vector.json`).
 
@@ -88,7 +88,7 @@ Open `/verify?rid=<request id>` or paste an id on [`/verify`](apps/web/app/verif
 
 A missing `tee_verified` is shown as "no verdict". It is not treated as a failed attestation. The page links the manifest root. It does not download that file to re-check the batch without the database.
 
-There is no request id to paste today. A read of `nights(1)` on Galileo during the build returned the zero night, and `verifyLeaf` returned false for it. That was a read of an empty slot, not a completed Shift run.
+There is no request id to paste today. A read of `nights(1)` on Galileo during the build returned the zero night, and `verifyLeaf` returned false for it. That was a read of an empty slot. The links that already exist, and the waiting request-id row, are in [Verifiable evidence](#verifiable-evidence).
 
 ## Commons
 
@@ -153,17 +153,62 @@ pnpm test:contracts
 
 `pnpm smoke` and **Run tonight's shift now** call the real Router. With a 0 balance the inference checks return HTTP 402 `insufficient_balance` and the pipeline stops. Shift does not fill in a fake response, request id, or transaction. Phase 0 steps: [`docs/PHASE0_KIT.md`](docs/PHASE0_KIT.md).
 
+## Verifiable evidence
+
+These links are records that already exist: the deployed contract, its deploy transaction, and the Phase 0 storage upload. A Router request id, an `anchorNight` transaction, and a night manifest root are absent until F3.12 or another funded run. The team account still has `credit_balance` 0 and `deposit_balance` 0. F4.7 (7 November 2026, 04:30–05:20 IST) is the same status.
+
+### ShiftLedger
+
+0G Galileo testnet, chain ID 16602. Source: [`contracts/src/ShiftLedger.sol`](contracts/src/ShiftLedger.sol). Owner: `0x3E7E6733f1E0Fbb55035d6791a77e596ab11aD07` (operator wallet). Public RPC: `https://evmrpc-testnet.0g.ai`.
+
+| | |
+|---|---|
+| Contract page | [`0xA3B6664b487FC01c4264977c9B92058A89C31Ed7`](https://chainscan-galileo.0g.ai/address/0xA3B6664b487FC01c4264977c9B92058A89C31Ed7) |
+| Deploy transaction (F0.6) | [`0x4a2bd7c707056195ef102420a6e3e3ebed0442e2399d91eef49bdd495d0f7117`](https://chainscan-galileo.0g.ai/tx/0x4a2bd7c707056195ef102420a6e3e3ebed0442e2399d91eef49bdd495d0f7117) |
+
+The deploy transaction created the contract. It is not an `anchorNight` call. No night has been anchored, so this section has no anchor transaction to add.
+
+### 0G Storage
+
+Indexer used by the web app, the worker, and the Phase 0 check (`ZG_STORAGE_INDEXER_URL`): `https://indexer-storage-testnet-turbo.0g.ai`.
+
+The upload proof is [`docs/spike/STORAGE_RESULTS.json`](docs/spike/STORAGE_RESULTS.json) (U9, 2026-11-05T18:39:04Z). SHA-256 of the download matched the upload (`matched: true`).
+
+| | |
+|---|---|
+| Root | `0x35eb71f233c5020c97ddacd04435d0021a696633c5d1b6278a7fd296d135d589` |
+| Indexer file | [`/file?root=0x35eb71f2…d589`](https://indexer-storage-testnet-turbo.0g.ai/file?root=0x35eb71f233c5020c97ddacd04435d0021a696633c5d1b6278a7fd296d135d589) |
+| Storage transaction | [`0xdd4c935f2dd3b2a0048f558b3e904fe855c9987be6f9c5ff90b0129d72a7afc6`](https://chainscan-galileo.0g.ai/tx/0xdd4c935f2dd3b2a0048f558b3e904fe855c9987be6f9c5ff90b0129d72a7afc6) |
+
+That object is a 60-byte probe (`{"app":"shift","check":"U9",...}`). The verifier builds output and manifest links with the same pattern, `{indexer}/file?root={root}`. The probe is not `NightManifest.json` and not an inference output. No night manifest has been uploaded.
+
+### How a judge checks a request id
+
+The path is `/verify?rid=<request id>` on a running app. Until F6.1 ships a live URL, that app is local (`pnpm dev`, then `http://localhost:3000/verify?rid=`). After a funded run, copy a request id from the table below:
+
+1. Open `/verify?rid=` with that id, or paste the id on `/verify`.
+2. The page loads `GET /api/verify/[requestId]`: packed leaf, Merkle proof, night id, manifest root, output storage root, and the trace fields safe to show.
+3. The browser recomputes the leaf (same bytes as OpenZeppelin `StandardMerkleTree`) and checks the proof against the stored root.
+4. It reads `nights(nightId)` and calls `verifyLeaf` on ShiftLedger at `0xA3B6664b487FC01c4264977c9B92058A89C31Ed7` through viem and the public Galileo RPC.
+5. When the response includes a storage root, the output and the manifest are the turbo indexer `/file?root=` links.
+
+An unknown id is 404. A missing `tee_verified` is "no verdict". There is no request id to open today. A read of `nights(1)` during the build returned the zero night, and `verifyLeaf` returned false for that empty slot.
+
+### Request IDs
+
+One waiting row. A row is added only when a real night or a real "Run now" returns a Router request id, and the anchor transaction and manifest root are copied from that same run.
+
+| Date (UTC) | Night ID | Sample request IDs | Anchor tx | Manifest root |
+|---|---|---|---|---|
+| — | — | Waiting on F3.12 (funded run). None recorded. | — | — |
+
 ## For judges
 
 **Live demo URL (F6.1).** Not deployed. This line will be replaced with the real URL. There is no preview link to try yet.
 
 **Demo video (F6.4).** Not recorded. This line will be replaced with a link under 3 minutes. Please treat a missing video as missing, not as an unlisted URL.
 
-**Request ids, anchor transactions, and manifest roots (F6.3).** No end-to-end run has been recorded. The table is empty. Rows will be added only from a real night or a real "Run now", with the Router request id, the anchor transaction, and the manifest root copied from that run.
-
-| Date (UTC) | Night ID | Tasks | Request IDs | Anchor tx | Manifest root |
-|---|---|---|---|---|---|
-| | | | | | |
+**Request ids, anchor transactions, and manifest roots.** [Verifiable evidence](#verifiable-evidence): the Galileo contract page, the F0.6 deploy transaction, the turbo indexer, the Phase 0 storage proof, and a request-id table with one waiting row. The waiting row is not a sample id.
 
 Walkthrough that matches the code today:
 
@@ -173,7 +218,7 @@ Walkthrough that matches the code today:
 - `/commons` explains the gate and shows an empty board until a translation is accepted or rejected.
 - `/verify` is ready. It has nothing to verify until a leaf exists.
 
-The nightly window aimed at for the submission is **7 November 2026, 04:30–05:20 IST**. That run is not in the table. F4.7 stays open for the same reason as F3.12: 0 Router credits.
+The nightly window aimed at for the submission is **7 November 2026, 04:30–05:20 IST**. That run has no row. F4.7 stays open for the same reason as F3.12: 0 Router credits.
 
 ## What was actually checked
 
@@ -186,7 +231,7 @@ Phase 0 (5 November 2026, UTC), from real calls. Detail in [`docs/SPIKE_RESULTS.
 | Inference spends credit, and `x_0g_trace` / `verify_tee` | Not observed. Chat returned 402 `insufficient_balance`. |
 | Catalog at ~16:30 UTC | 124 models, 9 TeeML, including decision models `laya` and `vela-2.0-9b`, `whisper-large-v3`, `z-image-turbo`. |
 | `/v1/decisions` shape | Verified once, against that catalog. |
-| 0G Storage upload and download on Galileo | SHA-256 matched. Root `0x35eb71f233c5020c97ddacd04435d0021a696633c5d1b6278a7fd296d135d589`. This is a 60-byte probe file, not a night manifest and not an inference output. |
+| 0G Storage upload and download on Galileo | SHA-256 matched. Root `0x35eb71f233c5020c97ddacd04435d0021a696633c5d1b6278a7fd296d135d589`, indexer file linked from [Verifiable evidence](#verifiable-evidence). Raw proof: [`docs/spike/STORAGE_RESULTS.json`](docs/spike/STORAGE_RESULTS.json). This is a 60-byte probe file. |
 | ShiftLedger deploy | The transaction in the contract table. `owner()` is the operator wallet. |
 
 Later the same day, `GET /v1/models` returned **79 models, no `verifiability` field, and none of the TeeML ids above**, with or without a key. A decision call to `laya` then returned `404 model_not_found`. The committed `docs/spike/models.json` is the earlier 124-model catalog. Whether the smaller catalog is an outage or a permanent change is an open question for 0G. The loader accepts the smaller body: missing `verifiability` becomes trust `standard`. Private mode then has no model to plan, the decision step is skipped, and the commons queue does not accept items to paper over the gap.
@@ -199,7 +244,7 @@ Later the same day, `GET /v1/models` returned **79 models, no `verifiability` fi
 - **U12 is unanswered.** Budget mode is primary until 0G confirms delegated iAI credit use.
 - **Commons work is off the Merkle tree** (see above). Donations on the contract exist only after an anchored night with a positive amount. No such transaction exists yet.
 - **The verifier trusts the database for the proof bytes**, then checks those bytes on-chain. It does not yet rebuild the batch from the storage manifest alone.
-- **Deploy, request-id table, and video** are F6.1, F6.3, and F6.4. This README does not invent them.
+- **Deploy and the demo video** are still open (F6.1, F6.4). The request-id table is in [Verifiable evidence](#verifiable-evidence) and stays on the waiting row until a funded run (F3.12).
 
 ## How we used AI
 
