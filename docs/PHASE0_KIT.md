@@ -46,10 +46,9 @@ pnpm smoke
 - If **U4** (revocation) fails, revoke the key by hand at pc.0g.ai → API Keys.
 
 ### 5. Contracts
+forge-std v1.9.4 is vendored at `contracts/lib/forge-std`, so a clean clone does not need `forge install`:
 ```bash
-cd contracts
-git clone --depth 1 --branch v1.9.4 https://github.com/foundry-rs/forge-std lib/forge-std
-forge test
+pnpm test:contracts
 ```
 If `forge` cannot download the compiler, download the `solc-static-linux` v0.8.24 binary from the `ethereum/solidity` releases and use `forge test --use /path/to/solc`.
 

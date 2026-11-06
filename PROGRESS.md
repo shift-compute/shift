@@ -4,8 +4,8 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F2 — Execution (F0 closed with open items, see Blockers)
-**Next item:** F2.7
-**Commits so far:** 37 (target for the project: 50–90)
+**Next item:** F2.8
+**Commits so far:** 45 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -26,7 +26,7 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
 - [x] F0.6 Deploy ShiftLedger (U10) — `feat(contracts): deploy ShiftLedger to 0G`
   - Deployed to the Galileo testnet (chain 16602) at `0xA3B6664b487FC01c4264977c9B92058A89C31Ed7`, owner = operator wallet `0x3E7E6733f1E0Fbb55035d6791a77e596ab11aD07`. Tx: https://chainscan-galileo.0g.ai/tx/0x4a2bd7c707056195ef102420a6e3e3ebed0442e2399d91eef49bdd495d0f7117
 - [~] F0.7 `docs/SPIKE_RESULTS.md` + decisions from U1–U12 — `docs(spike): summarize results and decisions`
-  - Summary and decisions written. U3 and U8 are blocked by the 0 Router balance; U11 and U12 need external answers (ETHGlobal dashboard, 0G).
+  - Summary and decisions written. U3 and U8 are blocked by the 0 Router balance. U12 still needs an answer from 0G. U11 was confirmed later: Saturday 7 November 2026, 09:00 IST, no late submissions.
 
 ## F1 — Structure and account connection (plan §6, §7, §8)
 - [x] F1.1 Monorepo migration per `docs/STRUCTURE.md` — `chore: restructure into pnpm monorepo`
@@ -66,7 +66,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
 - [x] F2.4 DOC_ANALYSIS executor — `feat(core): add document analysis executor` *(executors take injected models; real calls pending credits, see Blockers)*
 - [x] F2.5 IMAGE_FROM_PROMPT executor — `feat(core): add image from prompt executor` *(executors take injected models; real calls pending credits, see Blockers)*
 - [x] F2.6 0G Storage client for outputs — `feat(core): add 0G Storage client`
-- [ ] F2.7 Worker: cron, night lock, runUser pipeline *(2 commits)* — `feat(worker): add scheduler and night lock` / `feat(worker): add per-user night pipeline`
+- [x] F2.7 Worker: cron, night lock, runUser pipeline *(2 commits)* — `feat(worker): add scheduler and night lock` / `feat(worker): add per-user night pipeline`
+  - `runUser` decrypts the management key in memory, caps an ephemeral key from the live balance (iAI uses `credit_balance` minus the safety margin and never the deposit; budget mode may also spend the deposit, up to the nightly cap) and runs the optimizer plus the three executors. Outputs go to the real storage client; request ids, traces and reported cost are stored on the task. The key is revoked before the function returns. A 0G balance is converted with the median rate implied by the live catalog's `pricing` (wei) and `pricing_usd`; if the catalog has no such pair the user is marked failed and no key is created. Commons (F4) and Merkle leaves (F3.8) are not in this step: leftover budget is logged and not spent, and leaves will be built from the stored steps. If a reported cost exceeds its estimate by more than 20%, the rest of that user's night is replanned (plan §8.3). Anchoring stays in F3.9.
 - [ ] F2.8 Key sweeper — `feat(worker): add ephemeral key sweeper`
 - [ ] F2.9 Run-now endpoint using the real pipeline — `feat(web): add run now endpoint`
 - [ ] F2.10 Unit tests: vault, executors' parsing, redaction — `test(core): cover vault, executors and log redaction`
@@ -122,7 +123,7 @@ Planned commits: ~58 + a few `fix:` commits = within the 50–90 target.
 | U8 | `x_0g_trace` with `verify_tee` | ⏳ | Blocked by 0 balance (402). Re-run after credits arrive. |
 | U9 | 0G Storage upload/download | ✅ | Package is `@0gfoundation/0g-ts-sdk` (not `@0glabs`). Testnet indexer `https://indexer-storage-testnet-turbo.0g.ai`; `indexer.upload(MemData, rpc, signer)` returns `rootHash` + `txHash` (0x + 64 hex); `indexer.download(rootHash, path, true)` verified proofs and matched. Root `0x35eb71f2…d589`. |
 | U10 | Chain ID, RPC, deploy | ✅ | Galileo testnet: chain ID 16602, RPC `https://evmrpc-testnet.0g.ai`, explorer `https://chainscan-galileo.0g.ai`, faucet `https://faucet.0g.ai`. `ShiftLedger` at `0xA3B6664b487FC01c4264977c9B92058A89C31Ed7` (code present, `owner()` = operator). Used `--use <solc>` because forge could not download solc. Mainnet is not used. |
-| U11 | Submission deadline | ❓ | Check the ETHGlobal dashboard. |
+| U11 | Submission deadline | ✅ | Saturday 7 November 2026, 09:00 IST. Late submissions are not accepted (ETHGlobal Mumbai details and start pages). |
 | U12 | 0G OK with delegated iAI credit use | ❓ | Ask Gathin at the 0G booth; until then budget mode is primary. |
 
 ## Real runs (evidence for judges)
@@ -138,8 +139,10 @@ Short entries: date — decision — reason. Example: `2026-11-06 — budget mod
 - 2026-11-05 — minimum `credit_limit` for an ephemeral key is 0.0001 0G (`invalid_credit_limit` below it) — found while building F1.9; budgets smaller than that cannot be capped on the key.
 - 2026-11-05 — decision-model questions use `{type, instructions, criteria}` objects, not arrays — verified with a real call (U7).
 - 2026-11-05 — `SMOKE_KEY_LIMIT_FIELD=credit_limit` (value in 0G units, as a string) — taken from the official OpenAPI spec (F0.2).
+- 2026-11-06 — submission deadline is Saturday 7 November 2026, 09:00 IST, and late submissions are not accepted — ETHGlobal Mumbai details and start pages. The plan's "8 November, 09:00 IST" date was wrong.
+- 2026-11-06 — forge-std v1.9.4 is vendored under `contracts/lib` — a clean clone failed `pnpm test:contracts` because the library was gitignored and only documented as a manual clone.
 
 ## Blockers
 - **The Router catalog changed after Phase 0.** At ~16:30 UTC on 2026-11-05 `GET /v1/models` returned 124 models, 9 of them TeeML (`0gm-1.0-35b-a3b`, `glm-5.3`, `laya`, `vela-2.0-9b`, `whisper-large-v3`, `z-image-turbo`, embeddings). Later the same day, with or without a key and with any trust-mode header, it returns 79 models, no `verifiability` field and none of those: no decision models, no speech-to-text, no private (TeeML) models. Shift's core (decision models, Whisper, private trust mode) depends on them. Ask 0G at the booth whether this is an outage or a permanent change; re-run `pnpm smoke` to refresh `docs/spike/models.json` (the committed copy is the earlier catalog).
-- U11 (deadline) and U12 (iAI delegation OK) are unanswered.
+- U12 (iAI delegation OK) is unanswered.
 - Team account has 0 balance (`credit_balance` and `deposit_balance`): U3 and U8 cannot be verified. Request builder credits in the 0G builders Telegram.

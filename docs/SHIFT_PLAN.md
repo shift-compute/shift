@@ -76,8 +76,8 @@ iAI is a **bonus**, not the main criterion (Gathin). That is why Shift works wit
 
 ### Dates
 - Real credit cutoffs during the event: **00:00 UTC = 05:30 IST** on November 6, 7 and 8.
-- **Goal:** a complete real nightly cycle at the **November 7 cutoff (window 04:30–05:20 IST)**; a second cycle on the 8th if the deadline allows.
-- Submission deadline: one source says **November 8, 09:00 IST** [VERIFY on the ETHGlobal dashboard].
+- **Goal:** a complete real nightly cycle at the **November 7 cutoff (window 04:30–05:20 IST)**. That window ends before the submission deadline. A cycle on November 8 would be after it.
+- Submission deadline: **Saturday 7 November 2026, 09:00 IST**. ETHGlobal does not accept late submissions ([event details](https://ethglobal.com/events/mumbai/info/details) and [start page](https://ethglobal.com/events/mumbai/info/start)).
 
 ---
 
