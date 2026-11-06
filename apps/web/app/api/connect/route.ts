@@ -2,6 +2,7 @@ import { connectAccount, RouterError, sweepOrphanedKeys } from "@shift/core";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { clientIp } from "../../../lib/client-ip";
+import { closeRunsOnDisconnect } from "../../../lib/disconnect-run";
 import { connectLimiter } from "../../../lib/limits";
 import { getConfig, getDb, getRouter } from "../../../lib/server";
 import { getCurrentUser, getSession } from "../../../lib/session";
@@ -87,6 +88,7 @@ export async function DELETE() {
     unrevokedKeyIds = report.failed.map((f) => f.keyId);
   }
 
+  await closeRunsOnDisconnect(db, user.id);
   await db.user.update({ where: { id: user.id }, data: { mkCiphertext: null, mkIv: null, mkAuthTag: null, mkConnectedAt: null } });
   (await getSession()).destroy();
 

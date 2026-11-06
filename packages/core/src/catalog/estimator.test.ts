@@ -42,8 +42,9 @@ describe("size heuristics", () => {
 
 describe("estimateCostMicro", () => {
   it("prices a document from its tokens in and the fixed output, with the 15% margin", () => {
-    // 4000 chars = 1000 tokens + 150 overhead in; 700 out. atto = 1150*1e9 + 700*2e9 = 2.55e12. x1.15 = 2.9325e12 -> 3 micro.
-    expect(estimateCostMicro("DOC_ANALYSIS", { bytes: 4000, mime: "text/plain" }, { chat })).toBe(3n);
+    // 4000 chars = 1000 tokens + 150 overhead in; 1700 out. atto = 1150*1e9 + 1700*2e9 = 4.55e12. x1.15 = 5.2325e12 -> 6 micro.
+    expect(estimateCostMicro("DOC_ANALYSIS", { bytes: 4000, mime: "text/plain" }, { chat })).toBe(6n);
+    expect(ASSUMPTIONS.analysisOutputTokens).toBe(1_700);
   });
 
   it("adds transcription per second for audio", () => {

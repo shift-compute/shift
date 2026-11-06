@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildSettingsPayload } from "./settings";
+import { DEFAULT_DONATE_LEFTOVER, buildSettingsPayload } from "./settings";
 
 describe("buildSettingsPayload", () => {
+  it("leaves donation off unless the person opts in", () => {
+    expect(DEFAULT_DONATE_LEFTOVER).toBe(false);
+  });
+
   it("sends iAI mode without a budget, ignoring whatever is typed", () => {
     expect(buildSettingsPayload({ mode: "IAI_CREDITS_ONLY", budgetText: "99", donateLeftover: true })).toEqual({ ok: true, payload: { mode: "IAI_CREDITS_ONLY", donateLeftover: true } });
   });
