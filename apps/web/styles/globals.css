@@ -100,12 +100,36 @@
   pointer-events: none;
 }
 
+/* Sky wash that follows the pointer. Hidden until it moves, so the rest pose stays the CardArt field. */
+.landing-glow {
+  position: absolute;
+  top: 28%;
+  left: 50%;
+  width: 36rem;
+  height: 36rem;
+  margin-top: -18rem;
+  margin-left: -18rem;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgb(255 255 255 / 0.82), rgb(169 203 227 / 0.45) 46%, rgb(169 203 227 / 0) 72%);
+  opacity: 0;
+  transition: opacity 420ms ease;
+}
+
+.landing-ambient[data-pointer="on"] .landing-glow {
+  opacity: 1;
+}
+
+.landing-parallax {
+  position: absolute;
+  inset: 0;
+}
+
 .landing-grid {
   position: absolute;
-  inset: -2px;
-  background-image: radial-gradient(rgb(15 23 42 / 0.16) 1px, transparent 1px);
+  inset: -6rem;
+  background-image: radial-gradient(rgb(15 23 42 / 0.18) 1px, transparent 1px);
   background-size: 22px 22px;
-  mask-image: radial-gradient(ellipse at 50% 28%, black 12%, transparent 74%);
+  mask-image: radial-gradient(ellipse at 50% 28%, black 18%, transparent 72%);
 }
 
 .landing-orb {
@@ -150,23 +174,23 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .lockup-enter {
-    animation: lockup-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: lockup-in 0.7s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .landing-grid {
-    animation: grid-drift 32s linear infinite;
+    animation: grid-drift 16s linear infinite;
   }
 
   .landing-orb-sky {
-    animation: orb-drift-a 24s ease-in-out infinite;
+    animation: orb-drift-a 18s ease-in-out infinite;
   }
 
   .landing-orb-teal {
-    animation: orb-drift-b 28s ease-in-out infinite;
+    animation: orb-drift-b 22s ease-in-out infinite;
   }
 
   .landing-orb-low {
-    animation: orb-drift-a 32s ease-in-out infinite reverse;
+    animation: orb-drift-a 26s ease-in-out infinite reverse;
   }
 
   .status-dot::after {
@@ -195,7 +219,7 @@
     background-position: 0 0;
   }
   to {
-    background-position: 22px 44px;
+    background-position: 44px 22px;
   }
 }
 
@@ -204,8 +228,11 @@
   100% {
     transform: translate3d(0, 0, 0) scale(1);
   }
-  50% {
-    transform: translate3d(4%, 6%, 0) scale(1.06);
+  35% {
+    transform: translate3d(7%, -4%, 0) scale(1.06);
+  }
+  70% {
+    transform: translate3d(-4%, 6%, 0) scale(1.03);
   }
 }
 
@@ -214,8 +241,11 @@
   100% {
     transform: translate3d(0, 0, 0) scale(1);
   }
-  50% {
-    transform: translate3d(-6%, 4%, 0) scale(1.08);
+  40% {
+    transform: translate3d(-8%, 5%, 0) scale(1.08);
+  }
+  75% {
+    transform: translate3d(5%, -3%, 0) scale(1.02);
   }
 }
 
@@ -233,8 +263,162 @@
 
 /* Motion writes the entrance inline. Reduced motion snaps to the rest pose. */
 @media (prefers-reduced-motion: reduce) {
-  .shift-enter {
+  .shift-enter,
+  .landing-parallax,
+  .site-logo:hover,
+  .cta:active {
     opacity: 1 !important;
     transform: none !important;
+  }
+
+  .landing-glow {
+    display: none;
+  }
+}
+
+/* Sticky chrome. Scroll (is-raised) and a fine pointer deepen the edge and the blur. */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  border-bottom: 1px solid rgb(15 23 42 / 0.08);
+  background: rgb(248 250 252 / 0.72);
+  backdrop-filter: blur(12px);
+  transition:
+    background-color 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    backdrop-filter 220ms ease;
+}
+
+.site-header.is-raised {
+  border-bottom-color: rgb(15 23 42 / 0.14);
+  background: rgb(248 250 252 / 0.9);
+  box-shadow: 0 10px 30px rgb(15 23 42 / 0.06);
+  backdrop-filter: blur(18px);
+}
+
+.site-logo {
+  display: inline-flex;
+  border-radius: 0.6rem;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.site-nav-link {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.28rem 0.7rem;
+  color: var(--color-muted);
+  text-decoration: none;
+  transition:
+    color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.quiet-link {
+  color: var(--color-muted);
+  text-decoration: none;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  background-size: 0 1px;
+  transition:
+    color 180ms ease,
+    background-size 200ms ease;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.cta-primary {
+  background: var(--color-teal);
+  color: var(--color-paper);
+  padding: 0.65rem 1.25rem;
+  box-shadow:
+    0 8px 20px rgb(23 94 131 / 0.22),
+    inset 0 1px 0 rgb(255 255 255 / 0.18);
+}
+
+.cta-quiet {
+  background: rgb(255 255 255 / 0.92);
+  color: var(--color-ink);
+  padding: 0.65rem 1.25rem;
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.05),
+    inset 0 0 0 1px rgb(15 23 42 / 0.1);
+}
+
+.cta-sm {
+  padding: 0.4rem 0.95rem;
+  font-size: 0.875rem;
+}
+
+.cta:focus-visible,
+.site-nav-link:focus-visible,
+.site-logo:focus-visible,
+.quiet-link:focus-visible {
+  outline: 2px solid var(--color-teal);
+  outline-offset: 3px;
+  border-radius: 9999px;
+}
+
+.cta:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.lift-card {
+  border-radius: 1.5rem;
+  transition: box-shadow 280ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .site-header:hover {
+    border-bottom-color: rgb(15 23 42 / 0.16);
+    background: rgb(248 250 252 / 0.92);
+    box-shadow: 0 12px 36px rgb(15 23 42 / 0.07);
+    backdrop-filter: blur(18px);
+  }
+
+  .site-logo:hover {
+    transform: translateY(-1px) scale(1.035);
+  }
+
+  .site-nav-link:hover {
+    color: var(--color-ink);
+    background: rgb(169 203 227 / 0.45);
+    box-shadow: inset 0 0 0 1px rgb(23 94 131 / 0.1);
+  }
+
+  .quiet-link:hover {
+    color: var(--color-ink);
+    background-size: 100% 1px;
+  }
+
+  .cta-primary:hover {
+    background: var(--color-ink);
+    box-shadow:
+      0 14px 32px rgb(23 94 131 / 0.32),
+      0 0 0 6px rgb(23 94 131 / 0.12);
+  }
+
+  .cta-quiet:hover {
+    background: rgb(169 203 227 / 0.55);
+    box-shadow:
+      0 12px 28px rgb(15 23 42 / 0.08),
+      inset 0 0 0 1px rgb(23 94 131 / 0.18),
+      0 0 0 6px rgb(169 203 227 / 0.35);
+  }
+
+  .lift-card:hover {
+    box-shadow: 0 22px 48px rgb(15 23 42 / 0.09);
   }
 }

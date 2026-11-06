@@ -11,28 +11,25 @@ const STEPS = [
   {
     n: "01",
     title: "Queue",
-    body: "Add an audio summary, a document analysis, or an image prompt. Tasks wait until the nightly window. The preview prices the live catalog and does not run anything.",
+    body: "Audio, a document, or an image prompt. It waits for the window.",
   },
   {
     n: "02",
-    title: "Optimize overnight",
-    body: "From 23:00 to 23:50 UTC, the optimizer fits that queue to the credits about to expire. Decision models set the quality floor when the live catalog includes them.",
+    title: "Optimize",
+    body: "23:00–23:50 UTC. The optimizer fits the queue to credits about to expire.",
   },
   {
     n: "03",
-    title: "Donate leftovers",
-    body: "Leftovers you donate pay for public-good translations. Provenance for the night is anchored on 0G Chain.",
+    title: "Donate",
+    body: "Leftovers you donate fund public translations. A finished night anchors on 0G Chain.",
   },
 ] as const;
 
 const FACTS = [
-  { value: DEFAULT_NIGHT_START_UTC, label: "Window opens, UTC" },
-  { value: DEFAULT_NIGHT_HARD_STOP_UTC, label: "Hard stop, UTC" },
-  { value: "16602", label: "Galileo chain" },
+  { value: DEFAULT_NIGHT_START_UTC, label: "Opens UTC" },
+  { value: DEFAULT_NIGHT_HARD_STOP_UTC, label: "Hard stop" },
+  { value: "16602", label: "Galileo" },
 ] as const;
-
-const PRIMARY = "inline-flex items-center justify-center rounded-full bg-teal px-5 py-2.5 font-semibold text-paper no-underline shadow-sm shadow-teal/25 transition-colors duration-200 hover:bg-ink";
-const QUIET = "inline-flex items-center justify-center rounded-full bg-surface/90 px-5 py-2.5 font-semibold text-ink no-underline shadow-sm ring-1 ring-ink/10 transition-colors duration-200 hover:bg-skycard/60";
 
 export function Hero() {
   return (
@@ -40,27 +37,27 @@ export function Hero() {
       <Entrance className="flex justify-center">
         <p className="inline-flex items-center gap-2 rounded-full bg-surface/80 px-3 py-1 text-sm text-muted shadow-sm ring-1 ring-ink/10">
           <span className="status-dot" aria-hidden="true" />
-          Credits reset at 00:00 UTC
+          Resets at 00:00 UTC
         </p>
       </Entrance>
 
       <h1 id="hero-title" className="mx-auto mt-5 max-w-4xl text-balance text-center text-[2.35rem] font-medium leading-[1.02] tracking-[-0.045em] sm:text-6xl lg:text-7xl">
-        <RevealLine text="Unused 0G credits." className="font-normal text-ink/80" />
-        <RevealLine text="Spent before they expire." />
+        <RevealLine text="0G credits expire." className="font-normal text-ink/80" />
+        <RevealLine text="Shift spends them." />
       </h1>
 
       <Entrance delay={0.42}>
-        <p className="mx-auto mt-5 max-w-2xl text-center text-lg text-muted">
-          Every night at 00:00 UTC, unused 0G credits expire. Shift spends them on queued AI tasks with an optimizer powered by 0G decision models, donates leftovers to public-good translations, and anchors provenance on 0G Chain.
+        <p className="mx-auto mt-5 max-w-xl text-center text-lg text-muted">
+          Queue the work. An optimizer spends credits before the 00:00 UTC reset, donates leftovers you choose, and anchors a finished night on 0G Chain.
         </p>
       </Entrance>
 
       <Entrance delay={0.52} className="mt-7 flex flex-wrap items-center justify-center gap-3">
-        <MotionLink href="/connect" className={PRIMARY}>
+        <MotionLink href="/connect" className="cta cta-primary">
           Connect 0G
         </MotionLink>
-        <MotionLink href="/queue" className={QUIET}>
-          Run tonight&apos;s shift
+        <MotionLink href="/queue" className="cta cta-quiet">
+          Queue tonight
         </MotionLink>
       </Entrance>
 
@@ -86,7 +83,7 @@ export function Hero() {
         <Lift className="h-full">
           <article id="how" aria-labelledby="how-title" className="h-full rounded-3xl bg-skycard/35 px-6 py-7 ring-1 ring-ink/10 sm:px-8">
             <h2 id="how-title" className="text-2xl font-medium tracking-[-0.03em]">
-              How a night works
+              The night
             </h2>
             <div className="mt-5">
               <ResetBar />
@@ -110,10 +107,10 @@ export function Hero() {
         <Lift className="h-full">
           <article id="tonight" aria-labelledby="tonight-title" className="h-full rounded-3xl bg-surface/95 px-6 py-7 shadow-[0_24px_60px_rgb(15_23_42/0.07)] ring-1 ring-ink/10 sm:px-8">
             <h2 id="tonight-title" className="text-2xl font-medium tracking-[-0.03em]">
-              Tonight, from your account
+              Your account
             </h2>
             <p className="mt-3 text-sm text-muted">
-              The night strip and the balance are read from your 0G account. Signed out, this panel asks you to connect and leaves the strip empty.
+              Live balance and tonight&apos;s strip, from your 0G account. Signed out, this stays empty.
             </p>
             <div className="mt-6 space-y-8">
               <HomeNightStrip />

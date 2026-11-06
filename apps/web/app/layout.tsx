@@ -5,18 +5,12 @@ import "@fontsource/geist-sans/latin-500.css";
 import "@fontsource/geist-sans/latin-600.css";
 import "@fontsource/geist-mono/latin-400.css";
 import "@fontsource/geist-mono/latin-500.css";
-import { Logo } from "../components/brand/Logo";
+import { SiteHeader } from "../components/site/SiteHeader";
 import "../styles/globals.css";
-
-const NAV = [
-  { href: "/queue", label: "Queue" },
-  { href: "/commons", label: "Commons" },
-  { href: "/verify", label: "Verify" },
-] as const;
 
 export const metadata: Metadata = {
   title: "Shift",
-  description: "AI compute that was going to be wasted, turned into public goods with verifiable provenance.",
+  description: "Spend 0G credits before they expire at 00:00 UTC. Provenance on 0G Chain.",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -31,30 +25,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body className="min-h-screen">
-        <header className="sticky top-0 z-30 border-b border-ink/10 bg-paper/80 backdrop-blur-md">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-6 py-4">
-            <a href="/" className="lockup-enter shift-enter inline-flex shrink-0 no-underline">
-              <Logo className="h-8 w-auto sm:h-9" />
-            </a>
-            <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-2">
-              <nav aria-label="Primary" className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
-                {NAV.map((item) => (
-                  <a key={item.href} href={item.href} className="text-muted no-underline hover:text-ink">
-                    {item.label}
-                  </a>
-                ))}
-              </nav>
-              <span className="text-sm text-muted">0G Galileo testnet</span>
-              <a href="/connect" className="inline-flex items-center rounded-full bg-teal px-4 py-1.5 text-sm font-semibold text-paper no-underline shadow-sm shadow-teal/20 transition-colors duration-200 hover:bg-ink">
-                Connect 0G
-              </a>
-            </div>
-          </div>
-        </header>
+        <SiteHeader />
         <main className="mx-auto max-w-6xl px-6 py-10">{children}</main>
         <footer className="border-t border-ink/10">
           <div className="mx-auto max-w-6xl px-6 py-4 text-sm text-muted">
-            <a href="https://app.ens.domains/tryshift.eth" target="_blank" rel="noreferrer">
+            <a className="quiet-link" href="https://app.ens.domains/tryshift.eth" target="_blank" rel="noreferrer">
               tryshift.eth
             </a>
           </div>

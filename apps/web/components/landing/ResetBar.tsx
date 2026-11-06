@@ -41,7 +41,7 @@ export function ResetBar() {
           />
         )}
       </div>
-      <p className="mt-3 text-sm text-muted">This UTC day, advancing toward the 00:00 reset.</p>
+      <p className="mt-3 text-sm text-muted">This UTC day, toward 00:00.</p>
     </div>
   );
 }

@@ -60,10 +60,18 @@ export function RevealLine({ text, className }: { text: string; className?: stri
   );
 }
 
+const LIFT = { type: "spring", stiffness: 460, damping: 28, mass: 0.55 } as const;
+
 export function MotionLink({ href, className, children }: { href: string; className?: string; children: ReactNode }) {
   const reduce = useReducedMotion() === true;
   return (
-    <motion.a href={href} className={className} whileHover={reduce ? undefined : { y: -2 }} transition={{ duration: 0.22, ease: EASE }}>
+    <motion.a
+      href={href}
+      className={className}
+      whileHover={reduce ? undefined : { y: -3, scale: 1.025 }}
+      whileTap={reduce ? undefined : { y: 0, scale: 0.975 }}
+      transition={LIFT}
+    >
       {children}
     </motion.a>
   );
@@ -72,7 +80,7 @@ export function MotionLink({ href, className, children }: { href: string; classN
 export function Lift({ children, className }: { children: ReactNode; className?: string }) {
   const reduce = useReducedMotion() === true;
   return (
-    <motion.div className={className} whileHover={reduce ? undefined : { y: -4 }} transition={{ duration: 0.28, ease: EASE }}>
+    <motion.div className={join("lift-card", className)} whileHover={reduce ? undefined : { y: -6 }} transition={LIFT}>
       {children}
     </motion.div>
   );
