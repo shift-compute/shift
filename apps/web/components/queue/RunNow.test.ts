@@ -14,7 +14,7 @@ function panel(props: {
   return renderToStaticMarkup(createElement(RunNowPanel, { ...props, onRun: () => undefined }));
 }
 
-const failure = (over: Partial<RunNowFailure> & Pick<RunNowFailure, "kind" | "title" | "detail">): RunNowFailure => ({ retry: false, ...over });
+const failure = (over: Partial<RunNowFailure> & Pick<RunNowFailure, "kind" | "title" | "detail">): RunNowFailure => ({ retry: false, ambiguous: false, ...over });
 
 describe("RunNowPanel", () => {
   it("shows a disabled run action when nothing is queued", () => {
@@ -58,6 +58,29 @@ describe("RunNowPanel", () => {
     expect(html).toContain("will not start a second run");
     expect(html).toContain("disabled=\"\"");
     expect(html).toContain("aria-busy=\"true\"");
+  });
+
+  it("shows an unknown outcome without promising that the run did not spend", () => {
+    const html = panel({
+      eligibility: "The last response was not a clear result. Credits may already have been spent.",
+      estimate: null,
+      pending: false,
+      canStart: false,
+      notice: {
+        kind: "failure",
+        failure: failure({
+          kind: "unknown",
+          title: "This page does not know if the shift started",
+          detail: "Credits may already have been spent, up to the cap saved on the account for this run. This page will not send another run.",
+          ambiguous: true,
+        }),
+      },
+    });
+    expect(html).toContain("does not know if the shift started");
+    expect(html).toContain("may already have been spent");
+    expect(html).toContain("will not send another run");
+    expect(html).toContain("disabled=\"\"");
+    expect(html.toLowerCase()).not.toContain("did not start");
   });
 
   it("renders rate-limit, storage, and timeout errors", () => {

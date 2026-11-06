@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeRunNowFailure, eligibilityCopy, estimateCopy, openTaskCount, presentRunNowSuccess, runGate, RUN_NOW_TIMEOUT_MS } from "./run-now-state";
+import { describeRunNowFailure, eligibilityCopy, estimateCopy, openTaskCount, presentRunNowSuccess, runGate, unknownRunOutcome, RUN_NOW_TIMEOUT_MS } from "./run-now-state";
 
 const preview = {
   qualityFloor: 1 as const,
@@ -24,6 +24,13 @@ describe("runGate", () => {
     expect(runGate({ pending: false, openCount: 2, queueFailed: false, previewPhase: "reconnect" }).action).toBe("blocked");
   });
 
+  it("stays off while the preview is loading or unavailable, and after an unclear response", () => {
+    expect(runGate({ pending: false, openCount: 3, queueFailed: false, previewPhase: "loading" }).action).toBe("wait");
+    expect(runGate({ pending: false, openCount: 3, queueFailed: false, previewPhase: "unavailable" }).action).toBe("wait");
+    expect(runGate({ pending: false, openCount: 3, queueFailed: false, previewPhase: "message" }).action).toBe("wait");
+    expect(runGate({ pending: false, held: true, openCount: 3, queueFailed: false, previewPhase: "ready" }).action).toBe("wait");
+  });
+
   it("counts queued and deferred tasks, not finished ones", () => {
     expect(openTaskCount(null)).toBeNull();
     expect(openTaskCount([{ status: "QUEUED" }, { status: "DEFERRED" }, { status: "DONE" }, { status: "FAILED" }])).toBe(2);
@@ -33,15 +40,20 @@ describe("runGate", () => {
 describe("estimateCopy", () => {
   it("shows the cap, the estimate, and the remainder in USD", () => {
     expect(estimateCopy({ phase: "ready", preview })).toBe(
-      "Tonight's cap is 0.2 USD. Estimated spend is 0.0223 USD. Left for the commons queue is 0.1777 USD.",
+      "Preview for this run: budget 0.2 USD, estimated spend 0.0223 USD, left for the commons queue 0.1777 USD. The cap saved on the account applies again to the next run.",
     );
     expect(estimateCopy({ phase: "loading" })).toBeNull();
+    expect(estimateCopy({ phase: "unavailable" })).toBeNull();
   });
 
   it("tells the person how many tasks can run", () => {
     expect(eligibilityCopy(3, false)).toContain("3 tasks are waiting");
+    expect(eligibilityCopy(3, false)).toContain("another run can spend it again");
     expect(eligibilityCopy(0, false)).toContain("Nothing is queued");
     expect(eligibilityCopy(null, true)).toContain("stays off");
+    expect(eligibilityCopy(3, false, "loading")).toContain("No price is confirmed");
+    expect(eligibilityCopy(3, false, "unavailable")).toContain("not confirming a price");
+    expect(eligibilityCopy(3, false, "unavailable")).not.toContain("0.2 USD");
   });
 });
 
@@ -57,18 +69,44 @@ describe("describeRunNowFailure", () => {
       describeRunNowFailure({ status: "timeout", body: null }),
       describeRunNowFailure({ status: "network", body: null }),
     ];
-    expect(cases.map((item) => item.kind)).toEqual(["signed_out", "reconnect", "no_work", "rate_limited", "storage", "failed", "timeout", "lost"]);
+    expect(cases.map((item) => item.kind)).toEqual(["signed_out", "reconnect", "no_work", "rate_limited", "storage", "unknown", "timeout", "lost"]);
     expect(cases.every((item) => item.retry === false)).toBe(true);
     expect(cases.find((item) => item.kind === "rate_limited")?.retryAfterSeconds).toBe(125);
     expect(cases.find((item) => item.kind === "rate_limited")?.detail).toContain("125");
-    expect(cases.find((item) => item.kind === "timeout")?.detail).toContain("will not send another run");
+    expect(cases.find((item) => item.kind === "timeout")?.ambiguous).toBe(true);
+    expect(cases.find((item) => item.kind === "storage")?.ambiguous).toBe(false);
+    expect(cases.find((item) => item.kind === "unknown")?.detail).toContain("may already have been spent");
     expect(RUN_NOW_TIMEOUT_MS).toBe(300_000);
   });
 
+  it("treats HTTP 5xx and an unreadable 200 as an unknown spend, and does not promise the run failed to start", () => {
+    const texts: string[] = [];
+    for (const status of [500, 502, 503, 504]) {
+      const failure = describeRunNowFailure({ status, body: status === 500 ? { error: "internal_error", message: "saw mk-0123456789abcdef" } : { error: "bad_gateway" } });
+      texts.push(`${failure.title} ${failure.detail}`);
+      expect(failure.kind).toBe("unknown");
+      expect(failure.retry).toBe(false);
+      expect(failure.ambiguous).toBe(true);
+    }
+    const unreadable = unknownRunOutcome();
+    texts.push(`${unreadable.title} ${unreadable.detail}`);
+    expect(unreadable).toMatchObject({ kind: "unknown", retry: false, ambiguous: true });
+    expect(presentRunNowSuccess({ status: "DONE" })).toBeNull();
+    for (const text of texts) {
+      expect(text).not.toContain("mk-");
+      expect(text.toLowerCase()).not.toContain("did not start");
+      expect(text.toLowerCase()).not.toMatch(/no credits|not spent|were not spent|did not spend/);
+    }
+    const storage = describeRunNowFailure({ status: 503, body: { error: "storage_unconfigured", message: "No signer." } });
+    expect(storage.ambiguous).toBe(false);
+    expect(storage.detail).toContain("did not start");
+  });
+
   it("hides a message that contains a key", () => {
-    const failure = describeRunNowFailure({ status: 500, body: { error: "internal_error", message: "saw mk-0123456789abcdef" } });
+    const failure = describeRunNowFailure({ status: 400, body: { error: "invalid_request", message: "saw mk-0123456789abcdef" } });
     expect(failure.detail).not.toContain("mk-");
     expect(failure.retry).toBe(false);
+    expect(failure.ambiguous).toBe(false);
   });
 });
 

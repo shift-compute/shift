@@ -57,8 +57,8 @@ export function Queue() {
   const [message, setMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const tasksPromise = fetch("/api/tasks").catch(() => null);
-    const previewPromise = fetch("/api/plan/preview").catch(() => null);
+    const tasksPromise = fetch("/api/tasks", { cache: "no-store" }).catch(() => null);
+    const previewPromise = fetch("/api/plan/preview", { cache: "no-store" }).catch(() => null);
     const res = await tasksPromise;
     if (!res) {
       setMessage("We could not reach the server. Try again in a moment.");

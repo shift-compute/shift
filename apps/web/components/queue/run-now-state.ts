@@ -25,42 +25,79 @@ export type RunClick =
  * Whether this click may POST /api/runs/now.
  * A click while a start is in flight is ignored. An empty queue never starts a run.
  */
-export function runGate(input: { pending: boolean; openCount: number | null; queueFailed: boolean; previewPhase: PreviewPhase }): RunClick {
+export function runGate(input: {
+  pending: boolean;
+  openCount: number | null;
+  queueFailed: boolean;
+  previewPhase: PreviewPhase;
+  /** An unclear POST already happened. Do not send another one from this page. */
+  held?: boolean;
+}): RunClick {
   if (input.pending) return { action: "ignore" };
+  if (input.held) return { action: "wait" };
   if (input.queueFailed) return { action: "wait" };
   if (input.openCount === null) return { action: "wait" };
-  if (input.previewPhase === "reconnect") {
-    return { action: "blocked", message: "Your management key is no longer valid. Connect again before running." };
-  }
   if (input.openCount === 0) {
     return { action: "blocked", message: "There is no queued or deferred work for this account. Add a task before running." };
   }
+  if (input.previewPhase === "reconnect") {
+    return { action: "blocked", message: "Your management key is no longer valid. Connect again before running." };
+  }
+  // A loading or failed preview has not confirmed a price. The saved cap stays on the server either way.
+  if (input.previewPhase !== "ready") return { action: "wait" };
   return { action: "start" };
 }
 
-export function eligibilityCopy(openCount: number | null, queueFailed: boolean, previewPhase: PreviewPhase = "ready"): string {
+export function eligibilityCopy(openCount: number | null, queueFailed: boolean, previewPhase: PreviewPhase = "ready", held = false): string {
+  if (held) {
+    return "The last response was not a clear result. Credits may already have been spent, up to the cap saved on the account for this run. This page reloaded the queue and will not send another run.";
+  }
   if (queueFailed) return "We could not load your queue, so Run now stays off. This page will not start a run.";
-  if (previewPhase === "reconnect") return "Your management key is no longer valid. Connect again before running. This page will not start a run.";
   if (openCount === null) return "Loading your queue…";
   if (openCount === 0) return "Nothing is queued or deferred. Add a task before running. This does not spend credits.";
+  if (previewPhase === "reconnect") return "Your management key is no longer valid. Connect again before running. This page will not start a run.";
+  if (previewPhase === "loading") return "Loading the preview. Run now stays off until it loads. No price is confirmed yet.";
+  if (previewPhase !== "ready") {
+    return "The preview could not be read, so this page is not confirming a price and will not start a run. The cap saved on the account is what a run is allowed to spend, and that cap applies to each run. Reload the queue to read the preview again.";
+  }
   const noun = openCount === 1 ? "task is" : "tasks are";
-  return `${openCount} ${noun} waiting. Run now starts the same pipeline as the nightly shift and spends real credits, up to tonight's cap. It can start once every 10 minutes. This page does not retry a start.`;
+  return `${openCount} ${noun} waiting. Run now spends real credits on this run, up to the cap saved on the account. That cap is not a daily pool: another run can spend it again. The figures below are a preview, not a receipt. This page does not start a second run by itself.`;
 }
 
-/** Cap and estimate from the preview. Amounts are micro-USD integers. */
+/**
+ * Preview figures only. Absent unless the preview succeeded, so a loading or failed preview cannot look confirmed.
+ * `budgetMicro` is what this run may spend (the saved cap, clamped by the live balance), not a daily remainder.
+ */
 export function estimateCopy(panel: PreviewPanel | { phase: "loading" }): string | null {
   if (panel.phase !== "ready") return null;
   const preview = panel.preview;
-  return `Tonight's cap is ${formatAmount(preview.budgetMicro, "usd")}. Estimated spend is ${formatAmount(preview.spentEstimateMicro, "usd")}. Left for the commons queue is ${formatAmount(preview.remainingMicro, "usd")}.`;
+  return `Preview for this run: budget ${formatAmount(preview.budgetMicro, "usd")}, estimated spend ${formatAmount(preview.spentEstimateMicro, "usd")}, left for the commons queue ${formatAmount(preview.remainingMicro, "usd")}. The cap saved on the account applies again to the next run.`;
 }
 
 export interface RunNowFailure {
-  kind: "signed_out" | "reconnect" | "no_work" | "rate_limited" | "storage" | "timeout" | "lost" | "failed";
+  kind: "signed_out" | "reconnect" | "no_work" | "rate_limited" | "storage" | "timeout" | "lost" | "failed" | "unknown";
   title: string;
   detail: string;
   retryAfterSeconds?: number;
   /** A spending start is never repeated from this page. */
   retry: false;
+  /**
+   * True when this response does not prove whether credits were spent.
+   * The page reloads the queue and does not send another POST.
+   */
+  ambiguous: boolean;
+}
+
+/** 5xx and a 200 this page cannot read. The run may already have spent the saved cap. */
+export function unknownRunOutcome(): RunNowFailure {
+  return {
+    kind: "unknown",
+    title: "This page does not know if the shift started",
+    detail:
+      "The response was not a clear result. Credits may already have been spent, up to the cap saved on the account for this run. That cap applies to each run, not once per day. The queue will be reloaded from the server. This page will not send another run.",
+    retry: false,
+    ambiguous: true,
+  };
 }
 
 function safeText(value: unknown, fallback: string): string {
@@ -87,35 +124,39 @@ export function describeRunNowFailure(input: { status: number | "timeout" | "net
     return {
       kind: "timeout",
       title: "The request timed out",
-      detail: "Shift may still be running this shift. Check the queue and your nights before starting again. A start that already began counts against the 10-minute limit. This page will not send another run.",
+      detail: "Shift may still be running this shift, and credits may already have been spent. Check the queue and your nights. A start that already began counts against the 10-minute limit. This page will not send another run.",
       retry: false,
+      ambiguous: true,
     };
   }
   if (input.status === "network") {
     return {
       kind: "lost",
       title: "We lost the response",
-      detail: "If the run started, it still counts against the 10-minute limit. Check the queue before trying again. This page will not send another run on its own.",
+      detail: "If the run started, credits may already have been spent and it still counts against the 10-minute limit. Check the queue before trying again. This page will not send another run on its own.",
       retry: false,
+      ambiguous: true,
     };
   }
   if (input.status === 401 || error === "not_signed_in") {
-    return { kind: "signed_out", title: "Connect your 0G account", detail: "Run now only starts for the signed-in account.", retry: false };
+    return { kind: "signed_out", title: "Connect your 0G account", detail: "Run now only starts for the signed-in account. This request did not start a run.", retry: false, ambiguous: false };
   }
   if (input.status === 409 && error === "not_connected") {
     return {
       kind: "reconnect",
       title: "This account is not connected",
-      detail: message || "This account has no management key stored. Connect again before running.",
+      detail: message || "This account has no management key stored. Connect again before running. This request did not start a run.",
       retry: false,
+      ambiguous: false,
     };
   }
   if (input.status === 409 && error === "no_queued_work") {
     return {
       kind: "no_work",
       title: "Nothing is waiting",
-      detail: message || "There is no queued or deferred work for this account. Add a task before running.",
+      detail: message || "There is no queued or deferred work for this account. Add a task before running. This request did not start a run.",
       retry: false,
+      ambiguous: false,
     };
   }
   if (input.status === 429 || error === "rate_limited") {
@@ -127,23 +168,25 @@ export function describeRunNowFailure(input: { status: number | "timeout" | "net
       detail: message ? `${message} ${wait}` : wait,
       retryAfterSeconds: seconds,
       retry: false,
+      ambiguous: false,
     };
   }
-  if (input.status === 503 || error === "storage_unconfigured") {
+  if (error === "storage_unconfigured") {
     return {
       kind: "storage",
       title: "Run now cannot upload outputs",
-      detail: message || "The storage signer is not configured, so this shift did not start.",
+      detail: `${message || "The storage signer is not configured."} This request did not start a run.`,
       retry: false,
+      ambiguous: false,
     };
   }
+  if (typeof input.status === "number" && input.status >= 500) return unknownRunOutcome();
   return {
     kind: "failed",
-    title: "This shift did not start",
-    detail: message || (typeof input.status === "number" && input.status >= 500
-      ? "Something went wrong. Check the queue before trying again. This page will not send another run on its own."
-      : "The request was not accepted. This page will not send another run on its own."),
+    title: "This request was not accepted",
+    detail: message || "The request was not accepted. This page will not send another run on its own.",
     retry: false,
+    ambiguous: false,
   };
 }
 

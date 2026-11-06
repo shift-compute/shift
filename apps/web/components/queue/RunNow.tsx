@@ -10,6 +10,7 @@ import {
   presentRunNowSuccess,
   runGate,
   RUN_NOW_TIMEOUT_MS,
+  unknownRunOutcome,
   type PresentedRun,
   type RunNowFailure,
 } from "./run-now-state";
@@ -32,14 +33,25 @@ export function RunNow({
   onFinished: () => void;
 }) {
   const [pending, setPending] = useState(false);
+  const [held, setHeld] = useState(false);
   const [notice, setNotice] = useState<Notice>({ kind: "idle" });
   const inFlight = useRef(false);
   const openCount = openTaskCount(tasks);
-  const gate = runGate({ pending: pending || inFlight.current, openCount, queueFailed, previewPhase: preview.phase });
+  const gate = runGate({ pending: pending || inFlight.current, held, openCount, queueFailed, previewPhase: preview.phase });
   const estimate = estimateCopy(preview);
 
+  function stopAfterUnknown(failure: RunNowFailure) {
+    if (!failure.ambiguous) {
+      setNotice({ kind: "failure", failure });
+      return;
+    }
+    setHeld(true);
+    setNotice({ kind: "failure", failure });
+    onFinished();
+  }
+
   async function onRun() {
-    const decision = runGate({ pending: inFlight.current, openCount, queueFailed, previewPhase: preview.phase });
+    const decision = runGate({ pending: inFlight.current, held, openCount, queueFailed, previewPhase: preview.phase });
     if (decision.action === "ignore" || decision.action === "wait") return;
     if (decision.action === "blocked") {
       setNotice({
@@ -49,6 +61,7 @@ export function RunNow({
           title: preview.phase === "reconnect" ? "This account is not connected" : "Nothing is waiting",
           detail: decision.message,
           retry: false,
+          ambiguous: false,
         },
       });
       return;
@@ -63,21 +76,19 @@ export function RunNow({
       const res = await fetch("/api/runs/now", { method: "POST", cache: "no-store", signal: controller.signal });
       const body: unknown = await res.json().catch(() => null);
       if (!res.ok) {
-        setNotice({ kind: "failure", failure: describeRunNowFailure({ status: res.status, body, retryAfterHeader: res.headers.get("Retry-After") }) });
+        stopAfterUnknown(describeRunNowFailure({ status: res.status, body, retryAfterHeader: res.headers.get("Retry-After") }));
         return;
       }
       const result = presentRunNowSuccess(body);
       if (!result) {
-        setNotice({ kind: "failure", failure: describeRunNowFailure({ status: 500, body: null }) });
+        stopAfterUnknown(unknownRunOutcome());
         return;
       }
       setNotice({ kind: "result", result });
       onFinished();
     } catch (err) {
       const aborted = err instanceof DOMException && err.name === "AbortError";
-      const failure = describeRunNowFailure({ status: aborted ? "timeout" : "network", body: null });
-      setNotice({ kind: "failure", failure });
-      onFinished();
+      stopAfterUnknown(describeRunNowFailure({ status: aborted ? "timeout" : "network", body: null }));
     } finally {
       clearTimeout(timer);
       inFlight.current = false;
@@ -87,7 +98,7 @@ export function RunNow({
 
   return (
     <RunNowPanel
-      eligibility={eligibilityCopy(openCount, queueFailed, preview.phase)}
+      eligibility={eligibilityCopy(openCount, queueFailed, preview.phase, held)}
       estimate={estimate}
       pending={pending}
       canStart={gate.action === "start"}
