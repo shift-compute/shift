@@ -6,6 +6,8 @@ import { RunNow } from "./RunNow";
 import { TonightEstimate } from "./TonightEstimate";
 import { StatusBadge, type BadgeTone } from "../ui/StatusBadge";
 import { stripFromSource } from "../../lib/night-strip";
+import { formatAmount } from "../../lib/format";
+import { verifyHref } from "../../lib/night-response";
 import { readPreview, type PreviewPanel } from "./preview-state";
 
 interface TaskRow {
@@ -16,6 +18,10 @@ interface TaskRow {
   prompt: string | null;
   inputBytes: number | null;
   createdAt: string;
+  nightId?: string | null;
+  error?: string | null;
+  requestIds?: string[];
+  actualCostUsdMicro?: string | null;
 }
 
 const TYPE_LABEL: Record<TaskRow["type"], string> = {
@@ -216,6 +222,7 @@ export function Queue() {
                     {t.inputBytes !== null && ` · ${size(t.inputBytes)}`}
                     {t.prompt && ` · “${t.prompt.length > 60 ? `${t.prompt.slice(0, 60)}…` : t.prompt}”`}
                   </p>
+                  <TaskReceipt task={t} />
                 </div>
                 {CANCELLABLE.has(t.status) && (
                   <button type="button" onClick={() => cancel(t.id)} className="btn-quiet !min-h-9 text-sm">
@@ -227,6 +234,36 @@ export function Queue() {
           </ul>
         )}
       </section>
+    </div>
+  );
+}
+
+/** Stored with the task, so a disconnected Run now still leaves a receipt on the next load. */
+function TaskReceipt({ task }: { task: TaskRow }) {
+  const nightId = task.nightId && /^[1-9]\d*$/.test(task.nightId) ? task.nightId : null;
+  const requestIds = (task.requestIds ?? []).filter((id) => /^[A-Za-z0-9][A-Za-z0-9._:-]{7,180}$/.test(id) && !/^(?:sk|mk)-/i.test(id));
+  const cost = task.actualCostUsdMicro && /^\d+$/.test(task.actualCostUsdMicro) ? formatAmount(task.actualCostUsdMicro, "usd") : null;
+  const finished = task.status === "DONE" || task.status === "FAILED" || task.status === "RUNNING";
+  if (!finished && !task.error && !nightId) return null;
+  return (
+    <div className="mt-2 space-y-1 text-sm">
+      {task.error && <p className="text-ink">{task.error}</p>}
+      {cost && <p className="text-haze">Reported cost {cost}. This is the amount stored for the task, not a new charge.</p>}
+      {nightId && (
+        <p>
+          <a href={`/nights/${nightId}`}>View night {nightId}</a>
+          <span className="text-haze"> · The result, anchor and donation appear there only after this run stores them.</span>
+        </p>
+      )}
+      {requestIds.length > 0 && (
+        <p>
+          {requestIds.map((id) => (
+            <a key={id} href={verifyHref(id)} className="mr-3">
+              Verify {id}
+            </a>
+          ))}
+        </p>
+      )}
     </div>
   );
 }

@@ -180,7 +180,9 @@ export function describeRunNowFailure(input: { status: number | "timeout" | "net
       ambiguous: false,
     };
   }
-  if (typeof input.status === "number" && input.status >= 500) return unknownRunOutcome();
+  // 5xx, a proxy timeout (408), or nginx's client-closed 499: the handler may still be spending.
+  // A Railway 499 log does not say whether the browser saw that status or the socket just died.
+  if (typeof input.status === "number" && (input.status >= 500 || input.status === 408 || input.status === 499)) return unknownRunOutcome();
   return {
     kind: "failed",
     title: "This request was not accepted",

@@ -102,6 +102,19 @@ describe("describeRunNowFailure", () => {
     expect(storage.detail).toContain("did not start");
   });
 
+  it("treats a received 499 or 408 as an unknown spend and does not call it rejected", () => {
+    for (const status of [499, 408]) {
+      const failure = describeRunNowFailure({ status, body: null });
+      expect(failure).toMatchObject({ kind: "unknown", retry: false, ambiguous: true });
+      expect(`${failure.title} ${failure.detail}`.toLowerCase()).not.toContain("did not start");
+      expect(`${failure.title} ${failure.detail}`.toLowerCase()).not.toContain("not accepted");
+      expect(failure.detail).toContain("may already have been spent");
+    }
+    expect(describeRunNowFailure({ status: 401, body: { error: "not_signed_in" } }).ambiguous).toBe(false);
+    expect(describeRunNowFailure({ status: 409, body: { error: "no_queued_work" } }).ambiguous).toBe(false);
+    expect(describeRunNowFailure({ status: 400, body: { error: "invalid_request" } }).ambiguous).toBe(false);
+  });
+
   it("hides a message that contains a key", () => {
     const failure = describeRunNowFailure({ status: 400, body: { error: "invalid_request", message: "saw mk-0123456789abcdef" } });
     expect(failure.detail).not.toContain("mk-");
