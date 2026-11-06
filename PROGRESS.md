@@ -5,7 +5,7 @@ Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.
 
 **Current phase:** F6 — Delivery (F6.1 deploy is next; F3.12 and F4.7 remain open, blocked on Router credits; F5 is optional)
 **Next item:** F6.1 (deploy), or F5 if taken, or the blocked runs F3.12 / F4.7 once Router credits exist
-**Commits so far:** 68 (target for the project: 50–90)
+**Commits so far:** 69 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -193,6 +193,7 @@ Short entries: date — decision — reason. Example: `2026-11-06 — budget mod
 - 2026-11-06 — the judge README ships before deploy and before a real run — F6.1 is still open and the Router balance is 0, so the live URL, request-id table, and video stay empty until F6.1, F6.3, and F6.4. No rows were invented. Chain and storage stay on Galileo (chain ID 16602).
 - 2026-11-06 — the request-id table stays on a waiting row until a funded run — F6.3 publishes the Galileo contract page, the F0.6 deploy tx, the turbo indexer, and the Phase 0 storage proof in `docs/spike/STORAGE_RESULTS.json`. A night's request ids, anchor tx, and manifest root are filled in only after F3.12. F6.1 and F6.4 stay open.
 - 2026-11-06 — the demo video stays a placeholder until a person records it — F6.4 writes the submission details and the shot list from plan §24 (night strip, provenance, verify, commons accept/reject). No URL was invented. Narration is a human voice, not text-to-speech or an AI voice. The only sponsor prize named for the form is 0G "Build with 0G PC"; Arkiv stays off because Appendix A was not built. F6.1, F3.12, and F4.7 stay open. Next is F6.1, or F5 / the blocked runs.
+- 2026-11-06 — the home page is a marketing landing around the live product — L5s6 is the official lockup and favicon. The nav and hero use a transparent crop of that jpg so it sits on Sky. The hero bar is the UTC day moving toward 00:00, not a spend figure. Countdown, night strip, and account panel still read the signed-in account. Connect 0G opens `/connect`. Run tonight's shift opens `/queue`. No sample balance or request id. F6.1 stays open.
 
 ## Blockers
 - **The Router catalog changed after Phase 0.** At ~16:30 UTC on 2026-11-05 `GET /v1/models` returned 124 models, 9 of them TeeML (`0gm-1.0-35b-a3b`, `glm-5.3`, `laya`, `vela-2.0-9b`, `whisper-large-v3`, `z-image-turbo`, embeddings). Later the same day, with or without a key and with any trust-mode header, it returns 79 models, no `verifiability` field and none of those: no decision models, no speech-to-text, no private (TeeML) models. Shift's core (decision models, Whisper, private trust mode) depends on them. Ask 0G at the booth whether this is an outage or a permanent change; re-run `pnpm smoke` to refresh `docs/spike/models.json` (the committed copy is the earlier catalog). F3.1's loader accepts the reduced body: missing `verifiability` becomes trust `standard`, and an empty TeeML set does not throw. Private mode then has no chat model to plan with. F3.3 plans text tasks as `standard` and does not call `/v1/decisions` when that list also has no decision model. F4.3 leaves `RUNNING` commons rows untouched in that case and does not mark them accepted.
