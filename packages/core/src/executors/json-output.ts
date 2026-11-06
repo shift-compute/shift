@@ -30,8 +30,9 @@ export function parseModelJson<S extends z.ZodType>(schema: S, text: string): z.
   return checked.data;
 }
 
-export function chatText(reply: { choices: Array<{ message: { content?: string | null | undefined } }> }): string {
-  const content = reply.choices[0]?.message.content;
-  if (!content) throw new ExecutorOutputError("The model returned an empty answer.");
+/** The first assistant string of an OpenAI-style chat completion. A partial body is an output error, not a crash. */
+export function chatText(reply: unknown): string {
+  const content = (reply as { choices?: Array<{ message?: { content?: unknown } }> } | null)?.choices?.[0]?.message?.content;
+  if (typeof content !== "string" || content.length === 0) throw new ExecutorOutputError("The model returned an empty answer.");
   return content;
 }

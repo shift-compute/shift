@@ -3,9 +3,9 @@
 Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
-**Current phase:** F2 — Execution (F0 closed with open items, see Blockers)
-**Next item:** F2.10
-**Commits so far:** 48 (target for the project: 50–90)
+**Current phase:** F3 — Optimizer and anchoring (F0 closed with open items, see Blockers)
+**Next item:** F3.1
+**Commits so far:** 49 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -72,7 +72,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
   - Every 10 minutes, and once at process start, the worker revokes `NightRun` keys that are still alive and at least 2 hours old. It decrypts that user's management key in memory and calls `sweepOrphanedKeys`; `keyRevokedAt` is set only after the Router revoke succeeds, so a failure is retried next sweep. On start, `RUNNING` tasks with no Router request id in `steps` go back to `QUEUED`. Tasks that already recorded a request id stay `RUNNING`. The 10-minute sweep does not requeue: a live batch marks a task `RUNNING` before the request id exists.
 - [x] F2.9 Run-now endpoint using the real pipeline *(2 commits)* — `refactor(core): share the night pipeline with the web app` / `feat(web): add run now endpoint`
   - `POST /api/runs/now` requires a session and calls the same `runUser` as the worker (moved to `packages/core` so the web app does not keep a second pipeline). Manual `Night.id` is unix seconds (`manualNightId`): the column is a BigInt, so the plan's `manual-<timestamp>` string does not fit. The 10-minute limit applies to pipeline starts; a missing key, an empty queue, or a missing storage signer fails first and does not call the Router. `OPERATOR_PRIVATE_KEY` is read only to build that route's storage client and stays off `WebConfig`. Anchoring a manual batch stays in F3.9, same as the nightly `runUser`.
-- [ ] F2.10 Unit tests: vault, executors' parsing, redaction — `test(core): cover vault, executors and log redaction`
+- [x] F2.10 Unit tests: vault, executors' parsing, redaction — `test(core): cover vault, executors and log redaction`
+  - Vault tests from F1.5 already covered the round-trip, a wrong key, tampered ciphertext/tag/iv and account binding. Added the reverse context check (a seal with no account must not open under one), truncated iv/tag, and a check that every failure — including a bad master key — omits the secret. `openSecret` now rejects an auth tag that is not 16 bytes: Node's GCM accepts a 4–16 byte tag, so a truncated copy of a real tag used to decrypt. Executor tests inject Router-like bodies (verbose transcription, chat completions, image `b64_json`) and partial ones (missing `text` / `choices` / `message`, url-only images, schema mismatches) with no live calls. A partial chat body is now an `ExecutorOutputError`: `chatText` used to throw `TypeError` when `choices` or `message` was absent. Logs go through `redact` / `redactString` (pino is not wired): `mk-` / `sk-` tokens are stripped from nested fields and error strings, and `authorization` values are replaced. Tokens with fewer than 6 characters after the prefix are not treated as secrets. The Phase 0 spike still has its own copy of the helper in `scripts/lib/redact.ts`.
 
 ## F3 — Optimizer and anchoring (plan §10, §14, §15)
 - [ ] F3.1 Model catalog loader + price normalization to micro-USD — `feat(core): add model catalog and pricing`

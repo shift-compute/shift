@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { runDocAnalysis } from "./doc-analysis";
 import { extractDocText, limitText } from "./doc-text";
+import { ExecutorOutputError } from "./json-output";
 import type { ExecutorContext } from "./types";
 
 const text = (s: string) => new TextEncoder().encode(s);
@@ -66,6 +67,54 @@ describe("runDocAnalysis", () => {
     expect(out.result).toEqual({ summary: "s", actionItems: ["a"], risks: [], truncated: true, chars: 99 });
     expect(out.steps).toEqual([{ step: "analyze", model: "m", requestId: "req-1" }]);
     expect(chat.mock.calls[0]![2]).toEqual({ trustMode: "verified", clientRequestId: "t9-1-analyze" });
+  });
+
+  it("reads a chat completion and drops fields the schema does not declare", async () => {
+    const chat = vi.fn().mockResolvedValue({
+      data: {
+        id: "chatcmpl-9",
+        object: "chat.completion",
+        created: 1677652288,
+        model: "m",
+        choices: [
+          {
+            index: 0,
+            message: { role: "assistant", content: '{"summary":"A contract.","actionItems":["Sign"],"risks":["Deadline"],"confidence":0.9}' },
+            finish_reason: "stop",
+          },
+        ],
+        usage: { prompt_tokens: 40, completion_tokens: 20, total_tokens: 60 },
+      },
+      status: 200,
+      requestId: "req-9",
+    });
+    const ctx: ExecutorContext = { router: { chat } as unknown as ExecutorContext["router"], sk: "sk-x", models: { chat: "m" }, trustMode: "private", taskId: "t9", attempt: 1 };
+    const out = await runDocAnalysis(ctx, { text: "body", chars: 4, truncated: false });
+    expect(out.result).toEqual({ summary: "A contract.", actionItems: ["Sign"], risks: ["Deadline"], truncated: false, chars: 4 });
+    expect(out.result).not.toHaveProperty("confidence");
+  });
+
+  it("rejects partial and ill-typed chat bodies without echoing a leaked key", async () => {
+    const leaked = "mk-0123456789abcdefghijklmnopqrstuv";
+    const run = (data: unknown) => {
+      const chat = vi.fn().mockResolvedValue({ data, status: 200, requestId: "req-bad" });
+      const ctx: ExecutorContext = { router: { chat } as unknown as ExecutorContext["router"], sk: "sk-x", models: { chat: "m" }, trustMode: "private", taskId: "t9", attempt: 1 };
+      return runDocAnalysis(ctx, { text: "body", chars: 4, truncated: false });
+    };
+
+    await expect(run({ id: "chatcmpl-1", object: "chat.completion" })).rejects.toBeInstanceOf(ExecutorOutputError);
+    await expect(run({ choices: [{ index: 0, finish_reason: "length" }] })).rejects.toBeInstanceOf(ExecutorOutputError);
+    await expect(run({ choices: [{ message: { content: "" } }] })).rejects.toThrow(/empty/);
+    await expect(run({ choices: [{ message: { content: '{"summary":"s","actionItems":"sign","risks":[]}' } }] })).rejects.toThrow(/actionItems/);
+    await expect(run({ choices: [{ message: { content: '{"summary":"","actionItems":[],"risks":[]}' } }] })).rejects.toThrow(/summary/);
+
+    try {
+      await run({ choices: [{ message: { content: `see ${leaked}` } }] });
+      expect.unreachable();
+    } catch (err) {
+      expect(err).toBeInstanceOf(ExecutorOutputError);
+      expect(String(err)).not.toContain(leaked);
+    }
   });
 });
 

@@ -47,6 +47,15 @@ describe("vault", () => {
     const sealed = sealSecret(MK, KEY, ACCOUNT);
     expect(() => openSecret(sealed, KEY, "0x0000000000000000000000000000000000000001")).toThrow(VaultError);
     expect(() => openSecret(sealed, KEY)).toThrow(VaultError);
+    // The other direction: a seal with no account must not open under one.
+    expect(() => openSecret(sealSecret(MK, KEY), KEY, ACCOUNT)).toThrow(VaultError);
+  });
+
+  it("rejects a truncated iv, a truncated tag and an empty ciphertext", () => {
+    const sealed = sealSecret(MK, KEY, ACCOUNT);
+    expect(() => openSecret({ ...sealed, iv: sealed.iv.subarray(0, 8) }, KEY, ACCOUNT)).toThrow(VaultError);
+    expect(() => openSecret({ ...sealed, authTag: sealed.authTag.subarray(0, 8) }, KEY, ACCOUNT)).toThrow(VaultError);
+    expect(() => openSecret({ ...sealed, ciphertext: Buffer.alloc(0) }, KEY, ACCOUNT)).toThrow(VaultError);
   });
 
   it("requires a master key of exactly 32 bytes", () => {
@@ -56,15 +65,30 @@ describe("vault", () => {
   });
 
   it("never includes the secret or the key in error messages", () => {
-    const sealed = sealSecret(MK, KEY);
-    try {
-      openSecret(sealed, OTHER_KEY);
-      expect.unreachable();
-    } catch (err) {
-      const text = String(err);
-      expect(text).not.toContain(MK);
-      expect(text).not.toContain(KEY);
-      expect(text).not.toContain(OTHER_KEY);
+    const sealed = sealSecret(MK, KEY, ACCOUNT);
+    const flip = (b: Buffer) => Buffer.concat([Buffer.from([b[0]! ^ 1]), b.subarray(1)]);
+    const attempts = [
+      () => openSecret(sealed, OTHER_KEY, ACCOUNT),
+      () => openSecret(sealed, KEY, "0x0000000000000000000000000000000000000001"),
+      () => openSecret(sealed, KEY),
+      () => openSecret({ ...sealed, ciphertext: flip(sealed.ciphertext) }, KEY, ACCOUNT),
+      () => openSecret({ ...sealed, iv: flip(sealed.iv) }, KEY, ACCOUNT),
+      () => openSecret({ ...sealed, authTag: flip(sealed.authTag) }, KEY, ACCOUNT),
+      () => openSecret({ ...sealed, authTag: sealed.authTag.subarray(0, 8) }, KEY, ACCOUNT),
+      () => sealSecret(MK, MK),
+    ];
+    for (const attempt of attempts) {
+      try {
+        attempt();
+        expect.unreachable();
+      } catch (err) {
+        if (!(err instanceof VaultError)) throw err;
+        const text = `${err.name}\n${err.message}\n${err.stack ?? ""}`;
+        expect(text).not.toContain(MK);
+        expect(text).not.toContain(KEY);
+        expect(text).not.toContain(OTHER_KEY);
+        expect(text).not.toContain(ACCOUNT);
+      }
     }
   });
 });

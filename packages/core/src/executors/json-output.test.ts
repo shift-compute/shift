@@ -34,4 +34,11 @@ describe("chatText", () => {
     expect(() => chatText({ choices: [{ message: { content: null } }] })).toThrow(/empty/);
     expect(() => chatText({ choices: [] })).toThrow(/empty/);
   });
+
+  it("rejects a partial chat completion instead of throwing a TypeError", () => {
+    const partials = [null, {}, { id: "chatcmpl-1", object: "chat.completion" }, { choices: [{ index: 0, finish_reason: "length" }] }, { choices: [{ message: { content: [{ type: "text", text: "hi" }] } }] }];
+    for (const body of partials) {
+      expect(() => chatText(body)).toThrow(ExecutorOutputError);
+    }
+  });
 });

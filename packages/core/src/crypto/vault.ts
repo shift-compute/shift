@@ -18,6 +18,7 @@ export class VaultError extends Error {
 }
 
 const IV_BYTES = 12;
+const TAG_BYTES = 16;
 const KEY_BYTES = 32;
 
 function parseMasterKey(masterKeyBase64: string): Buffer {
@@ -42,6 +43,8 @@ export function sealSecret(plaintext: string, masterKeyBase64: string, context?:
 /** Decrypts a secret. Keep the result in memory only: never write it to disk, logs or responses. */
 export function openSecret(sealed: SealedSecret, masterKeyBase64: string, context?: string): string {
   const key = parseMasterKey(masterKeyBase64);
+  // Node accepts a 4–16 byte GCM tag. A truncated copy of a real tag still verifies, so only the full tag is allowed.
+  if (sealed.iv.length !== IV_BYTES || sealed.authTag.length !== TAG_BYTES) throw new VaultError("Could not decrypt the secret.");
   try {
     const decipher = createDecipheriv("aes-256-gcm", key, sealed.iv);
     if (context !== undefined) decipher.setAAD(Buffer.from(context, "utf8"));

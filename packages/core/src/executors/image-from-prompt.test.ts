@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { imageFrom, runImageFromPrompt } from "./image-from-prompt";
+import { ExecutorOutputError } from "./json-output";
 import type { ExecutorContext } from "./types";
 
 const PNG_B64 = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2]).toString("base64");
@@ -47,5 +48,46 @@ describe("runImageFromPrompt", () => {
     const { ctx, chat } = make(generateImage, { chat: "chat-m" });
     await expect(runImageFromPrompt(ctx, "x y z")).rejects.toThrow(/image model/);
     expect(chat).not.toHaveBeenCalled();
+  });
+
+  it("reads a Router image response and ignores a sibling url", async () => {
+    const generateImage = vi.fn().mockResolvedValue({
+      data: { created: 1677652288, data: [{ b64_json: PNG_B64, revised_prompt: "unused", url: "https://example.invalid/a.png" }] },
+      status: 200,
+      requestId: "req-img",
+    });
+    const { ctx } = make(generateImage, { chat: "chat-m", image: "img-m" });
+    const out = await runImageFromPrompt(ctx, "a lighthouse");
+    expect(out.result.imageFile).toBe("image.png");
+    expect(out.files[0]).toMatchObject({ mime: "image/png" });
+    expect(Buffer.from(out.files[0]!.bytes).subarray(0, 4)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  });
+
+  it("rejects partial image bodies and a refine step that is not a prompt", async () => {
+    const leaked = "sk-abcdefghijklmnopqrstuvwxyz012345";
+    const generateImage = vi.fn().mockResolvedValue({ data: { created: 1677652288, data: [{ url: "https://example.invalid/a.png" }] }, status: 200, requestId: "req-img" });
+    const { ctx } = make(generateImage, { chat: "chat-m", image: "img-m" });
+    await expect(runImageFromPrompt(ctx, "a lighthouse")).rejects.toBeInstanceOf(ExecutorOutputError);
+
+    generateImage.mockResolvedValue({ data: { created: 1677652288 }, status: 200 });
+    await expect(runImageFromPrompt(ctx, "a lighthouse")).rejects.toThrow(/no image data/);
+
+    generateImage.mockClear();
+    ctx.router.chat = vi.fn().mockResolvedValue({
+      data: { id: "chatcmpl-1", object: "chat.completion", choices: [{ message: { content: `{"prompt":"no"} key ${leaked}` } }] },
+      status: 200,
+    }) as unknown as ExecutorContext["router"]["chat"];
+    try {
+      await runImageFromPrompt(ctx, "a lighthouse");
+      expect.unreachable();
+    } catch (err) {
+      expect(err).toBeInstanceOf(ExecutorOutputError);
+      expect(String(err)).not.toContain(leaked);
+    }
+    expect(generateImage).not.toHaveBeenCalled();
+
+    ctx.router.chat = vi.fn().mockResolvedValue({ data: { choices: [{ finish_reason: "length" }] }, status: 200 }) as unknown as ExecutorContext["router"]["chat"];
+    await expect(runImageFromPrompt(ctx, "a lighthouse")).rejects.toBeInstanceOf(ExecutorOutputError);
+    expect(generateImage).not.toHaveBeenCalled();
   });
 });
