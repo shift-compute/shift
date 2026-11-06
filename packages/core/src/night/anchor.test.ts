@@ -50,6 +50,12 @@ function memory(tasks: CompletedTask[]) {
       saved.order.push("tx");
       saved.anchorTx = anchorTx;
     },
+    savedAnchor: async () => ({
+      merkleRoot: saved.root,
+      manifestRoot: saved.manifestRoot,
+      anchorTx: saved.anchorTx,
+      itemCount: saved.itemCount ?? 0,
+    }),
   };
   return { store, saved };
 }
@@ -142,25 +148,64 @@ describe("anchorNight", () => {
     expect(verifyLeaf(fake.saved.root!, parseValues(fake.saved.leaves[0]!.values), fake.saved.leaves[1]!.proof)).toBe(false);
   });
 
-  it("refuses a request that has no cost, trust or output root, and does not send a transaction", async () => {
-    const missingCost = fakes([{ ...done, steps: [{ step: "analyze", model: "m", requestId: "req-1", trust: "private" }] }]);
-    const missingTrust = fakes([{ ...done, steps: [{ step: "analyze", model: "m", requestId: "req-1", costUsdMicro: "1" }] }]);
+  it("skips a step that lacks model, cost or trust and anchors the rest", async () => {
+    const bad: CompletedTask = {
+      id: "bad",
+      owner: done.owner,
+      outputRoot: OUTPUT,
+      steps: [{ step: "analyze", requestId: "req-bad", trust: "private" }],
+    };
+    const logs: string[] = [];
+    const fake = fakes([bad, done]);
+    const result = await anchorNight({ ...deps(fake), nightId: NIGHT, now: () => NOW, log: (message) => logs.push(message) });
+
+    expect(result).toMatchObject({ anchored: true, itemCount: 2, anchorTx: TX });
+    expect(fake.anchored).toHaveLength(1);
+    expect(fake.saved.leaves.map((leaf) => leaf.requestId)).toEqual(["req-classify", "req-analyze"]);
+    expect(logs.join("\n")).toContain("req-bad");
+    expect(logs.join("\n")).toContain("missing a model, a reported cost, or a trust tier");
+  });
+
+  it("records why a task cannot be a leaf and does not anchor a night that has none", async () => {
     const missingRoot = fakes([{ ...done, outputRoot: null }]);
-    const duplicate = fakes([
-      done,
-      { ...done, id: "task-2", steps: [{ step: "analyze", model: "m", requestId: "req-analyze", costUsdMicro: "1", trust: "private" }] },
-    ]);
+    const logs: string[] = [];
+    await expect(anchorNight({ ...deps(missingRoot), nightId: NIGHT, log: (message) => logs.push(message) })).resolves.toEqual({
+      anchored: false,
+      reason: "empty",
+    });
+    expect(logs.join("\n")).toContain("no 0G Storage output root");
+    expect(missingRoot.anchored).toHaveLength(0);
+    expect(missingRoot.uploads).toHaveLength(0);
+    expect(missingRoot.saved.anchorTx).toBeNull();
+  });
 
-    await expect(anchorNight({ ...deps(missingCost), nightId: NIGHT })).rejects.toThrow(/reported cost/);
-    await expect(anchorNight({ ...deps(missingTrust), nightId: NIGHT })).rejects.toThrow(/trust tier/);
-    await expect(anchorNight({ ...deps(missingRoot), nightId: NIGHT })).rejects.toThrow(/output root/);
-    await expect(anchorNight({ ...deps(duplicate), nightId: NIGHT })).rejects.toThrow(/appears twice/);
+  it("does not send a second transaction when the stored root is already on chain", async () => {
+    const fake = fakes([done]);
+    const root = `0x${"11".repeat(32)}`;
+    fake.store.savedAnchor = async () => ({ merkleRoot: root, manifestRoot: MANIFEST_ROOT, anchorTx: null, itemCount: 2 });
+    fake.ledger.readNight = async () => ({ anchored: true, donationsRecorded: false });
+    const logs: string[] = [];
+    const result = await anchorNight({ ...deps(fake), nightId: NIGHT, log: (message) => logs.push(message) });
 
-    for (const fake of [missingCost, missingTrust, missingRoot, duplicate]) {
-      expect(fake.anchored).toHaveLength(0);
-      expect(fake.uploads).toHaveLength(0);
-      expect(fake.saved.anchorTx).toBeNull();
-    }
+    expect(result).toEqual({ anchored: true, root, manifestRoot: MANIFEST_ROOT, anchorTx: null, itemCount: 2 });
+    expect(fake.anchored).toHaveLength(0);
+    expect(fake.uploads).toHaveLength(0);
+    expect(fake.saved.order).toEqual([]);
+    expect(logs.join("\n")).toContain("already has this night");
+  });
+
+  it("sends the anchor transaction when the root is stored and the night is not on chain", async () => {
+    const fake = fakes([done]);
+    const root = `0x${"11".repeat(32)}`;
+    fake.store.savedAnchor = async () => ({ merkleRoot: root, manifestRoot: MANIFEST_ROOT, anchorTx: null, itemCount: 2 });
+    fake.ledger.readNight = async () => ({ anchored: false, donationsRecorded: false });
+    const result = await anchorNight({ ...deps(fake), nightId: NIGHT });
+
+    expect(fake.uploads).toHaveLength(0);
+    expect(fake.anchored).toEqual([{ nightId: NIGHT, root, manifestRoot: MANIFEST_ROOT, itemCount: 2 }]);
+    expect(result).toEqual({ anchored: true, root, manifestRoot: MANIFEST_ROOT, anchorTx: TX, itemCount: 2 });
+    expect(fake.saved.order).toEqual(["tx"]);
+    expect(fake.saved.anchorTx).toBe(TX);
   });
 
   it("does not store the transaction when the chain client rejects it", async () => {

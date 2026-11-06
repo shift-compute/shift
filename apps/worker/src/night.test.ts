@@ -69,6 +69,7 @@ function emptyAnchor() {
     saveAnchorTx: async () => {
       throw new Error("empty night must not write a tx");
     },
+    savedAnchor: async () => null,
   };
   const ledger: LedgerClient = {
     anchorNight: async () => {
@@ -211,6 +212,7 @@ describe("runNight", () => {
       saveTree: async () => undefined,
       saveManifestRoot: async () => undefined,
       saveAnchorTx: async () => undefined,
+      savedAnchor: async () => null,
     };
     const ledger: LedgerClient = {
       anchorNight: async (input) => {
@@ -266,6 +268,7 @@ describe("runNight", () => {
       saveTree: async () => undefined,
       saveManifestRoot: async () => undefined,
       saveAnchorTx: async () => undefined,
+      savedAnchor: async () => null,
     };
     const donations: DonationStore = {
       donationsTx: async () => null,
