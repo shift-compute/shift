@@ -1,5 +1,22 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createRunFlag, withNightFlag } from "./run-flag";
+import { createRunFlag, startNightLoop, withNightFlag } from "./run-flag";
+
+describe("startNightLoop", () => {
+  it("runs once on boot and registers the minute schedule", () => {
+    const runs: string[] = [];
+    let expression = "";
+    startNightLoop(
+      (cron, task) => {
+        expression = cron;
+        runs.push("scheduled");
+        void task;
+      },
+      () => runs.push("run"),
+    );
+    expect(expression).toBe("* * * * *");
+    expect(runs).toEqual(["scheduled", "run"]);
+  });
+});
 
 describe("withNightFlag", () => {
   afterEach(() => {

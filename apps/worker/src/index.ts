@@ -1,7 +1,7 @@
 import { createDb, createRouterClient, loadWorkerConfig, redactString, tick } from "@shift/core";
 import cron from "node-cron";
 import { runNight } from "./night";
-import { createRunFlag, withNightFlag } from "./run-flag";
+import { createRunFlag, startNightLoop, withNightFlag } from "./run-flag";
 import { SWEEP_CRON, createSweepLock, prismaSweeperStore, recoverInterruptedTasks, sweepEphemeralKeys } from "./sweeper";
 
 const config = loadWorkerConfig();
@@ -33,9 +33,14 @@ const runSweep = createSweepLock(async () => {
 // the database lock (acquireNight) does the same across processes. The flag is released at the hard stop even
 // if a tick is still awaiting, so a hung upload cannot block every later tick.
 function startNightCron(): void {
-  cron.schedule("* * * * *", () => {
-    void runTick();
-  });
+  startNightLoop(
+    (expression, task) => {
+      cron.schedule(expression, task);
+    },
+    () => {
+      void runTick();
+    },
+  );
 }
 
 async function runTick(): Promise<void> {

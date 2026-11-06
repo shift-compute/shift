@@ -1,5 +1,15 @@
 import { msUntilHardStop } from "@shift/core";
 
+/**
+ * Runs `run` immediately and on every minute. The immediate call is the boot retake:
+ * inside the window, `tick` can pick up a RUNNING night whose heartbeat is stale.
+ * A FAILED night is still refused by the lock.
+ */
+export function startNightLoop(schedule: (expression: string, task: () => void) => void, run: () => void): void {
+  schedule("* * * * *", run);
+  run();
+}
+
 /** In-process guard so two ticks of this process do not run the night at once. */
 export interface RunFlag {
   held: boolean;

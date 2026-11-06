@@ -1,4 +1,4 @@
-import { acquireNight, type NightStore } from "./night-lock";
+import { acquireNight, startNightHeartbeat, type NightStore } from "./night-lock";
 import { inNightWindow, nightIdFor } from "./schedule";
 
 export interface TickDeps {
@@ -26,11 +26,14 @@ export async function tick(deps: TickDeps): Promise<TickOutcome> {
   if (!(await acquireNight(deps.db, nightId, now))) return "busy";
 
   log(`night ${nightId} acquired`);
+  const stopHeartbeat = startNightHeartbeat(deps.db, nightId, undefined, deps.now);
   try {
     await deps.runNight(nightId);
     return "ran";
   } catch (err) {
     log(`night ${nightId} failed: ${err instanceof Error ? err.message : String(err)}`);
     return "failed";
+  } finally {
+    stopHeartbeat();
   }
 }
