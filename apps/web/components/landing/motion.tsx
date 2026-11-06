@@ -36,24 +36,27 @@ export function Reveal({ children, delay = 0, className }: { children: ReactNode
   );
 }
 
-/** One line of the hero, each word rising into place the way a display lockup does. */
-export function RevealLine({ text, className }: { text: string; className?: string }) {
-  const words = text.split(" ");
+/**
+ * One line of the hero, each word rising into place the way a display lockup does.
+ * `parts` mixes text with inline nodes (hero tiles); a node rises as one word.
+ */
+export function RevealLine({ text, parts, className, delay = 0.16 }: { text?: string; parts?: readonly ReactNode[]; className?: string; delay?: number }) {
+  const items: ReactNode[] = (parts ?? [text ?? ""]).flatMap((part) => (typeof part === "string" ? part.split(" ").filter(Boolean) : [part]));
   return (
     <span className={join("block", className)}>
-      {words.map((word, index) => (
-        <span key={`${word}-${index}`}>
-          <span className="inline-block overflow-hidden align-bottom pb-[0.12em]">
+      {items.map((item, index) => (
+        <span key={index}>
+          <span className={typeof item === "string" ? "inline-block overflow-hidden align-bottom pb-[0.12em]" : "inline-block align-bottom pb-[0.12em]"}>
             <motion.span
               className="shift-enter inline-block"
-              initial={{ y: "115%" }}
-              animate={{ y: "0%" }}
-              transition={{ duration: 0.7, delay: 0.16 + index * 0.055, ease: EASE }}
+              initial={typeof item === "string" ? { y: "115%" } : { y: "40%", scale: 0.6, opacity: 0 }}
+              animate={{ y: "0%", scale: 1, opacity: 1 }}
+              transition={{ duration: 0.7, delay: delay + index * 0.055, ease: EASE }}
             >
-              {word}
+              {item}
             </motion.span>
           </span>
-          {index < words.length - 1 ? " " : null}
+          {index < items.length - 1 ? " " : null}
         </span>
       ))}
     </span>

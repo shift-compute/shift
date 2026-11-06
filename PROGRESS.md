@@ -5,7 +5,7 @@ Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.
 
 **Current phase:** F6 — Delivery (F6.1 is live on Railway; F3.12 and F4.7 remain open, blocked on Router credits; F5 is optional)
 **Next item:** F3.12 and F4.7 stay open until a funded run is written up. QA.10 adds the queue Run now control and keeps `/connect` on the server session. Neither item was run against the Router.
-**Commits so far:** 82 (target for the project: 50–90)
+**Commits so far:** 83 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -160,6 +160,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
   - A 5xx response, and a 200 body this page cannot read, used to say the shift did not start and left the queue as it was. Those responses are now an unknown outcome: credits may already have been spent, the queue is reloaded with `cache: "no-store"`, and the page does not send another POST. Run now stays off while the preview is loading or unavailable, so a missing preview is not shown as a confirmed price. The cap saved on the account applies to each run. The in-memory 10-minute limiter is still per process: a second replica or a restart can forget it. That limit was not redesigned here.
 - [x] UI.1 Elevated cards and interactive steps on the inner pages — `feat(web): add elevated cards and interactive steps to inner pages`
   - `/connect`, `/queue`, `/commons`, `/verify` and `/nights/[id]` share one card style, a dotted field with a flat top gradient band (no blurred orbs), stat tiles for key numbers and status badges for tasks. `/connect` is a stepper of focusable cards (current, done, upcoming; hover lift; Enter/Space) beside a sticky side card; step progress is local UI state only. New classes live in `styles/inner.css` and `components/ui/*`, loaded only by the inner pages, so the home page files are untouched. shadcn/ui is not installed in this repo, so the primitives are small Tailwind components instead of a new dependency. No copy, logic or API change.
+- [x] UI.2 Partner logo tiles in the hero, a "Running on 0G" band, and the 0G lavender wash — `feat(web): add partner logo tiles and a Running on 0G band`
+  - The hero headline carries two rounded tiles that flip between real marks every 4s (0G and ENS; Shift, ETHGlobal and Ethereum). The two reels share no logo, so a mark never shows twice at once, and reduced motion keeps the first one. The logo files were supplied by the team and live in `public/brand`. Below "Why 0G", a band uses the official 0G logo, a slow belt of the 0G pieces Shift uses, and four cards (Compute Router, Storage, Chain, private mode). The footer has a "Running on 0G" badge. Sky `#a9cbe3` and the teal orb are replaced by lavender from the 0G logo, mixed toward white (`--sky-rgb`, `--orb-rgb`, `--color-skycard`). Sections below the fold reveal on scroll. Signed out, the empty night strip on the home is hidden and the account card says what connecting gives. CTAs, links and focus rings stay Teal.
 
 Planned commits: ~58 + a few `fix:` commits = within the 50–90 target.
 

@@ -54,11 +54,14 @@ export function AccountPanel() {
       );
     case "signed_out":
       return (
-        <p>
-          <a href="/connect" className="cta cta-primary">
-            Connect 0G
-          </a>
-        </p>
+        <div className="space-y-4">
+          <p className="text-haze">Connect your 0G account to see your balance and place tonight&apos;s tasks.</p>
+          <p>
+            <a href="/connect" className="cta cta-primary">
+              Connect 0G
+            </a>
+          </p>
+        </div>
       );
     case "reconnect":
       return (

@@ -4,8 +4,14 @@ import { AccountPanel } from "../home/AccountPanel";
 import { Countdown, ResetPhase } from "../home/Countdown";
 import { HomeNightStrip } from "../home/HomeNightStrip";
 import { DEFAULT_NIGHT_HARD_STOP_UTC, DEFAULT_NIGHT_START_UTC } from "../../lib/countdown";
+import { IconTile } from "./IconTile";
+import { ENS_LOGO, ETHEREUM_LOGO, ETHGLOBAL_LOGO, SHIFT_LOGO, ZERO_G_LOGO } from "./logos";
+
+// Disjoint reels, so the two tiles never show the same mark at once.
+const CREDITS_REEL = [ZERO_G_LOGO, ENS_LOGO];
+const SPEND_REEL = [SHIFT_LOGO, ETHGLOBAL_LOGO, ETHEREUM_LOGO];
 import { ResetBar } from "./ResetBar";
-import { Entrance, Lift, MotionLink, RevealLine } from "./motion";
+import { Entrance, Lift, MotionLink, Reveal, RevealLine } from "./motion";
 
 const STEPS = [
   {
@@ -35,15 +41,15 @@ export function Hero() {
   return (
     <section aria-labelledby="hero-title" className="pb-4 pt-4 sm:pt-8">
       <Entrance className="flex justify-center">
-        <p className="inline-flex items-center gap-2 rounded-full bg-surface/80 px-3 py-1 text-sm text-muted shadow-sm ring-1 ring-ink/10">
+        <p className="inline-flex items-center gap-2 rounded-full bg-surface/80 px-3 py-1 text-sm text-muted shadow-sm ring-1 ring-skycard">
           <span className="status-dot" aria-hidden="true" />
           Resets at 00:00 UTC
         </p>
       </Entrance>
 
-      <h1 id="hero-title" className="mx-auto mt-5 max-w-4xl text-balance text-center text-[2.35rem] font-medium leading-[1.02] tracking-[-0.045em] sm:text-6xl lg:text-7xl">
-        <RevealLine text="0G credits expire." className="font-normal text-ink/80" />
-        <RevealLine text="Shift spends them." />
+      <h1 id="hero-title" className="mx-auto mt-5 max-w-5xl text-balance text-center text-[2.5rem] font-semibold leading-[1.04] tracking-[-0.05em] sm:text-6xl lg:text-[5.25rem]">
+        <RevealLine parts={["0G credits", <IconTile key="0g" reel={CREDITS_REEL} />, "expire."]} className="text-ink/80" />
+        <RevealLine parts={["Shift", <IconTile key="shift" reel={SPEND_REEL} offset={2000} />, "spends them."]} />
       </h1>
 
       <Entrance delay={0.42}>
@@ -79,46 +85,50 @@ export function Hero() {
         </div>
       </Entrance>
 
-      <Entrance delay={0.78} className="mt-8 grid items-start gap-4 lg:grid-cols-2">
-        <Lift className="h-full">
-          <article id="how" aria-labelledby="how-title" className="h-full rounded-3xl bg-skycard/35 px-6 py-7 ring-1 ring-ink/10 sm:px-8">
-            <h2 id="how-title" className="text-2xl font-medium tracking-[-0.03em]">
-              The night
-            </h2>
-            <div className="mt-5">
-              <ResetBar />
-            </div>
-            <ol className="mt-2 divide-y divide-ink/10">
-              {STEPS.map((step) => (
-                <li key={step.title} className="grid grid-cols-[3.25rem_1fr] gap-3 py-5">
-                  <span className="font-mono text-sm text-teal tabular-nums" aria-hidden="true">
-                    {step.n}
-                  </span>
-                  <div>
-                    <h3 className="text-lg font-medium">{step.title}</h3>
-                    <p className="mt-1 text-sm text-muted">{step.body}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </article>
-        </Lift>
+      <div className="mt-8 grid items-start gap-4 lg:grid-cols-2">
+        <Reveal className="h-full">
+          <Lift className="h-full">
+            <article id="how" aria-labelledby="how-title" className="h-full rounded-3xl bg-skycard/35 px-6 py-7 ring-1 ring-ink/10 sm:px-8">
+              <h2 id="how-title" className="text-2xl font-medium tracking-[-0.03em]">
+                The night
+              </h2>
+              <div className="mt-5">
+                <ResetBar />
+              </div>
+              <ol className="mt-2 divide-y divide-ink/10">
+                {STEPS.map((step) => (
+                  <li key={step.title} className="grid grid-cols-[3.25rem_1fr] gap-3 py-5">
+                    <span className="font-mono text-sm text-teal tabular-nums" aria-hidden="true">
+                      {step.n}
+                    </span>
+                    <div>
+                      <h3 className="text-lg font-medium">{step.title}</h3>
+                      <p className="mt-1 text-sm text-muted">{step.body}</p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </article>
+          </Lift>
+        </Reveal>
 
-        <Lift className="h-full">
-          <article id="tonight" aria-labelledby="tonight-title" className="h-full rounded-3xl bg-surface/95 px-6 py-7 shadow-[0_24px_60px_rgb(15_23_42/0.07)] ring-1 ring-ink/10 sm:px-8">
-            <h2 id="tonight-title" className="text-2xl font-medium tracking-[-0.03em]">
-              Your account
-            </h2>
-            <p className="mt-3 text-sm text-muted">
-              Live balance and tonight&apos;s strip, from your 0G account. Signed out, this stays empty.
-            </p>
-            <div className="mt-6 space-y-8">
-              <HomeNightStrip />
-              <AccountPanel />
-            </div>
-          </article>
-        </Lift>
-      </Entrance>
+        <Reveal className="h-full" delay={0.12}>
+          <Lift className="h-full">
+            <article id="tonight" aria-labelledby="tonight-title" className="h-full rounded-3xl bg-surface/95 px-6 py-7 shadow-[0_24px_60px_rgb(15_23_42/0.07)] ring-1 ring-ink/10 sm:px-8">
+              <h2 id="tonight-title" className="text-2xl font-medium tracking-[-0.03em]">
+                Your account
+              </h2>
+              <p className="mt-3 text-sm text-muted">
+                Live balance and tonight&apos;s strip, from your 0G account.
+              </p>
+              <div className="mt-6 space-y-8">
+                <HomeNightStrip />
+                <AccountPanel />
+              </div>
+            </article>
+          </Lift>
+        </Reveal>
+      </div>
     </section>
   );
 }

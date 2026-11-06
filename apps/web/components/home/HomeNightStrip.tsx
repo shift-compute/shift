@@ -37,10 +37,12 @@ function tasksOf(body: unknown): StripTask[] {
  * Home strip. The preview is read once (live balance and catalog, no execution).
  * While the page is open, task status is refreshed from the database so a running night advances the edge
  * without asking the Router again. The first preview is kept, so a task that finishes keeps its estimated width.
+ * Signed out, it renders nothing.
  */
 export function HomeNightStrip() {
   const [model, setModel] = useState<NightStripModel>(() => stripFromSource({ phase: "loading" }, []));
   const [busy, setBusy] = useState(true);
+  const [signedOut, setSignedOut] = useState(false);
   const previewRef = useRef<{ budgetMicro: string; assignments: StripAssignment[] } | null>(null);
 
   useEffect(() => {
@@ -73,6 +75,7 @@ export function HomeNightStrip() {
       }
       if (taskResult.signedOut) {
         setModel(signedOutNightStrip());
+        setSignedOut(true);
         setBusy(false);
         return;
       }
@@ -91,5 +94,7 @@ export function HomeNightStrip() {
     };
   }, []);
 
+  // Signed out there is nothing to place, so the empty strip is left out; the account panel carries the connect step.
+  if (signedOut) return null;
   return <NightStrip model={model} busy={busy} />;
 }
