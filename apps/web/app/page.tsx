@@ -1,5 +1,6 @@
 import { AccountPanel } from "../components/home/AccountPanel";
 import { Countdown } from "../components/home/Countdown";
+import { HomeNightStrip } from "../components/home/HomeNightStrip";
 
 export default function HomePage() {
   return (
@@ -11,6 +12,7 @@ export default function HomePage() {
         </p>
       </section>
       <Countdown />
+      <HomeNightStrip />
       <AccountPanel />
     </div>
   );

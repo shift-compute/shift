@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { NightStrip } from "../night/NightStrip";
 import { TonightEstimate } from "./TonightEstimate";
+import { stripFromSource } from "../../lib/night-strip";
 import { readPreview, type PreviewPanel } from "./preview-state";
 
 interface TaskRow {
@@ -75,6 +77,24 @@ export function Queue() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (signedOut) return;
+    const id = setInterval(() => {
+      void (async () => {
+        const res = await fetch("/api/tasks", { cache: "no-store" }).catch(() => null);
+        if (!res || res.status === 401) {
+          if (res?.status === 401) setSignedOut(true);
+          return;
+        }
+        if (!res.ok) return;
+        const body = (await res.json().catch(() => null)) as { tasks?: TaskRow[] } | null;
+        if (!body?.tasks) return;
+        setTasks(body.tasks);
+      })();
+    }, 8000);
+    return () => clearInterval(id);
+  }, [signedOut]);
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -166,6 +186,8 @@ export function Queue() {
           </p>
         )}
       </form>
+
+      <NightStrip model={stripFromSource(preview, tasks ?? [])} busy={preview.phase === "loading"} />
 
       <TonightEstimate panel={preview} tasks={tasks ?? []} />
 

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { NightStrip } from "../night/NightStrip";
 import { formatAmount } from "../../lib/format";
+import { stripFromNight } from "../../lib/night-strip";
 import {
   anchorHref,
   formatUtc,
@@ -39,14 +41,26 @@ export function NightResults({ nightId }: { nightId: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    let timer: ReturnType<typeof setInterval> | undefined;
+
+    async function load() {
       const res = await fetch(`/api/nights/${encodeURIComponent(nightId)}`, { cache: "no-store" }).catch(() => null);
       if (cancelled) return;
       const next = await readNight(res);
-      if (!cancelled) setPanel(next);
-    })();
+      if (cancelled) return;
+      setPanel(next);
+      const live = next.phase === "ready" && (next.night.status === "RUNNING" || next.night.status === "ANCHORING");
+      if (live && timer === undefined) timer = setInterval(() => void load(), 8000);
+      if (!live && timer !== undefined) {
+        clearInterval(timer);
+        timer = undefined;
+      }
+    }
+
+    void load();
     return () => {
       cancelled = true;
+      if (timer) clearInterval(timer);
     };
   }, [nightId]);
 
@@ -67,8 +81,11 @@ export function NightResults({ nightId }: { nightId: string }) {
     return <p className="text-haze">No night with this id has been recorded. Nights show up here after a shift runs.</p>;
   }
 
+  const strip = stripFromNight(panel.night.status, panel.signedIn ? panel.results.tasks : []);
+
   return (
     <div className="space-y-8">
+      <NightStrip model={strip} />
       <Batch night={panel.night} />
       {panel.signedIn ? <Personal results={panel.results} /> : <ConnectPrompt />}
     </div>
