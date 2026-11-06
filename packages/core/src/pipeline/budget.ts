@@ -1,4 +1,4 @@
-import { usdStringToAtto } from "../catalog/catalog";
+import { microUsdToWei, weiToMicroUsd } from "../catalog/rate";
 
 /**
  * Turns a live balance into the two numbers the night needs: the optimizer's budget in micro-USD, and the
@@ -10,9 +10,6 @@ import { usdStringToAtto } from "../catalog/catalog";
  * catalog does not imply one, the user is skipped visibly.
  */
 
-const WEI_PER_OG = 10n ** 18n;
-const MICRO_PER_USD = 1_000_000n;
-
 /** Smallest `credit_limit` the Router accepted for a 0G account (0.0001 0G). Verified while connecting accounts. */
 export const MIN_OG_WEI = 100_000_000_000_000n;
 /**
@@ -20,11 +17,6 @@ export const MIN_OG_WEI = 100_000_000_000_000n;
  * the connection probe uses, and we refuse to create a key below it.
  */
 export const MIN_USD_MICRO = 10_000n;
-
-export interface PricePair {
-  pricing?: { prompt?: unknown; completion?: unknown; image?: unknown } | null;
-  pricing_usd?: { prompt?: unknown; completion?: unknown; image?: unknown } | null;
-}
 
 export type BudgetDecision =
   | { ok: true; budgetMicro: bigint; creditLimit: string; nativeAmount: bigint }
@@ -41,34 +33,6 @@ export function formatUnits(amount: bigint, decimals: number): string {
 
 function integerAmount(value: string): bigint | undefined {
   return /^\d+$/.test(value) ? BigInt(value) : undefined;
-}
-
-function nativeWei(value: unknown): bigint | undefined {
-  if (typeof value !== "string" || !/^\d+$/.test(value)) return undefined;
-  const wei = BigInt(value);
-  return wei === 0n ? undefined : wei;
-}
-
-/**
- * micro-USD per 1 0G, from every model that prices the same unit in wei and in USD.
- * The median's lower middle value is used so the rate is never rounded up. Undefined when nothing usable is published.
- */
-export function impliedMicroUsdPerOg(models: readonly PricePair[]): bigint | undefined {
-  const rates: bigint[] = [];
-  for (const model of models) {
-    for (const field of ["prompt", "completion", "image"] as const) {
-      const wei = nativeWei(model.pricing?.[field]);
-      const atto = usdStringToAtto(model.pricing_usd?.[field]);
-      if (wei === undefined || atto === 0n) continue;
-      // atto-USD per wei, scaled to micro-USD per 1e18 wei.
-      const rate = (atto * MICRO_PER_USD) / wei;
-      if (rate > 0n) rates.push(rate);
-    }
-  }
-  if (rates.length === 0) return undefined;
-  rates.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-  const mid = Math.floor(rates.length / 2);
-  return rates.length % 2 === 1 ? rates[mid] : rates[mid - 1];
 }
 
 export interface BudgetInput {
@@ -141,9 +105,9 @@ export function decideBudget(input: BudgetInput): BudgetDecision {
 
 function nativeFromMicro(micro: bigint, microUsdPerOg: bigint | undefined): bigint | undefined {
   if (microUsdPerOg === undefined || microUsdPerOg === 0n) return undefined;
-  return (micro * WEI_PER_OG) / microUsdPerOg;
+  return microUsdToWei(micro, microUsdPerOg);
 }
 
 function nativeToMicro(wei: bigint, microUsdPerOg: bigint): bigint {
-  return (wei * microUsdPerOg) / WEI_PER_OG;
+  return weiToMicroUsd(wei, microUsdPerOg);
 }

@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { buildCatalog, candidates, type CatalogEntry } from "../catalog/catalog";
+import { candidates, type CatalogEntry } from "../catalog/catalog";
+import { loadModelCatalog, type CatalogCache } from "../catalog/loader";
+import { impliedMicroUsdPerOg } from "../catalog/rate";
 import type { WorkerConfig } from "../config";
 import { openSecret } from "../crypto/vault";
 import { extractDocText, type DocText } from "../executors/doc-text";
@@ -18,15 +20,13 @@ import { TASK_TYPES } from "../tasks/task-input";
 import { withEphemeralKey } from "../zg/ephemeral-keys";
 import { RouterError } from "../zg/errors";
 import type { RouterClient } from "../zg/router";
-import type { Model, UsageRow } from "../zg/schemas";
+import type { UsageRow } from "../zg/schemas";
 import type { StorageClient } from "../zg/storage";
 import { z } from "zod";
-import { decideBudget, impliedMicroUsdPerOg, type BudgetDecision } from "./budget";
+import { decideBudget, type BudgetDecision } from "./budget";
 import type { ConnectedUser, OpenTask, PipelineStore, RunPatch } from "./store";
 import { resolveUpload } from "./uploads";
 
-/** Ten minutes, as in plan §9.3. Shared by every user of one night. */
-const CATALOG_TTL_MS = 10 * 60_000;
 /** Plan §9.4: a task is tried once more, at most twice, and only when the failure was a 429 or a 5xx. */
 const MAX_RETRIES = 2;
 const USAGE_HISTORY_LIMIT = 100;
@@ -46,12 +46,6 @@ const MIME_BY_EXT: Record<string, string> = {
   ".txt": "text/plain",
   ".md": "text/markdown",
 };
-
-export interface CatalogCache {
-  at?: number;
-  models?: Model[];
-  catalog?: CatalogEntry[];
-}
 
 export type RunConfig = Pick<WorkerConfig, "SHIFT_MASTER_KEY" | "SAFETY_MARGIN_PCT" | "MAX_CONCURRENCY" | "NIGHT_HARD_STOP_UTC" | "UPLOAD_DIR">;
 
@@ -179,7 +173,7 @@ async function runOpen(deps: RunUserDeps, runId: string): Promise<RunUserOutcome
 async function runWithKey(deps: RunUserDeps, runId: string, mk: string, runnable: Prepared[]): Promise<RunUserOutcome> {
   const { user, store, router, log } = deps;
   const now = deps.now ?? (() => new Date());
-  const { models, catalog } = await loadCatalog(router, deps.catalogCache ?? {}, now().getTime());
+  const { models, catalog } = await loadModelCatalog(router, deps.catalogCache ?? {}, now().getTime());
   const balance = await router.getBalance(mk);
   const budget = decideBudget({
     mode: user.mode,
@@ -188,7 +182,7 @@ async function runWithKey(deps: RunUserDeps, runId: string, mk: string, runnable
     depositBalance: balance.data.deposit_balance,
     nightlyBudgetUsdMicro: user.nightlyBudgetUsdMicro,
     marginPct: deps.config.SAFETY_MARGIN_PCT,
-    microUsdPerOg: impliedMicroUsdPerOg(models as Parameters<typeof impliedMicroUsdPerOg>[0]),
+    microUsdPerOg: impliedMicroUsdPerOg(models),
   });
   if (!budget.ok) {
     const status = budget.reason === "below_minimum" ? "SKIPPED" : "FAILED";
@@ -522,19 +516,6 @@ function chooseDecisionModel(catalog: CatalogEntry[], stateChars: number): Catal
   if (fitting[0]) return fitting[0];
   const largest = sized.slice().sort((a, b) => (b.contextLength ?? 0) - (a.contextLength ?? 0))[0];
   return largest ?? models[0];
-}
-
-async function loadCatalog(router: UserRouter, cache: CatalogCache, nowMs: number): Promise<{ models: Model[]; catalog: CatalogEntry[] }> {
-  if (cache.models && cache.catalog && cache.at !== undefined && nowMs - cache.at < CATALOG_TTL_MS) {
-    return { models: cache.models, catalog: cache.catalog };
-  }
-  const listed = await router.listModels();
-  const models = listed.data;
-  const catalog = buildCatalog(models);
-  cache.at = nowMs;
-  cache.models = models;
-  cache.catalog = catalog;
-  return { models, catalog };
 }
 
 async function recordUsage(deps: RunUserDeps, mk: string, requestIds: string[], summary: RunPatch): Promise<void> {
