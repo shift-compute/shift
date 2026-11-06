@@ -5,7 +5,7 @@ Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.
 
 **Current phase:** F6 — Delivery (F6.1 is live on Railway; F3.12 and F4.7 remain open, blocked on Router credits; F5 is optional)
 **Next item:** F3.12 and F4.7 stay open. A manual run was observed in production logs and is not written up as complete: no request id, anchor or donation was copied here.
-**Commits so far:** 85 (target for the project: 50–90)
+**Commits so far:** 86 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -167,7 +167,7 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
 - [x] QA.11 Persistent run receipt, commons empty-answer stop, HTTP 499 — `fix(web): keep a run receipt and stop empty commons answers`
   - `GET /api/tasks` now returns the night id, a redacted error, safe request ids and the reported micro-USD. The queue shows them after a reload, including when Run now's HTTP response never arrives. The night link is where the result, anchor and donation are read; this page does not invent them. Traces, upload paths and keys stay off the response.
   - Two commons pairs in a row whose model text is empty stop the translation loop. Those pairs stay FAILED with the cost the response reported. Later items stay PENDING. The loop does not retry them. The logged sentence `The model returned an empty answer.` is what `chatText` and the commons trim check produce when `choices[0].message.content` is missing, null, empty or whitespace. The OpenAPI `ChatMessage.content` field is a string. The response body was not in the logs, so this does not name a different field. The parser was not changed.
-  - HTTP 499 and HTTP 408 are an unknown spend, same as a 5xx: the page reloads the queue and does not send another POST. 401, 409 `not_connected` / `no_queued_work`, 429 and 503 `storage_unconfigured` still mean that request did not start a run. No pause flag was added. A connected account with donation off and no queued or deferred task is already left out of `eligibleUsers`. The in-flight run keeps the user snapshot it started with. F3.12 is not closed. F4.7 was not run.
+  - HTTP 499 and HTTP 408 are an unknown spend, same as a 5xx: the page reloads the queue and does not send another POST. 401, 409 `not_connected` / `no_queued_work`, 429 and 503 `storage_unconfigured` still mean that request did not start a run. A happy-dom test clicks the real Run now button with a mocked 499 and 408: one POST, one read-only refresh, the button stays held, and a second click does not POST. Remounting the queue shows the stored night, error, cost and verify link, and a second mount does not keep the previous account's receipt. `GET /api/tasks` is queried with the signed-in user id; another user's error, request id and path are absent, and an `mk-` in the stored error is redacted. No pause flag was added. A connected account with donation off and no queued or deferred task is already left out of `eligibleUsers`. The in-flight run keeps the user snapshot it started with. F3.12 is not closed. F4.7 was not run.
 
 Planned commits: ~58 + a few `fix:` commits = within the 50–90 target.
 
