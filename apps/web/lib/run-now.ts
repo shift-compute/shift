@@ -44,6 +44,26 @@ export interface RunNowTaskView {
   error: string | null;
   chosenModel: string | null;
   outputRoot: string | null;
+  /** Router request ids copied off the step list. Traces stay on the server. */
+  requestIds: string[];
+}
+
+const REQUEST_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,200}$/;
+const SECRET_ID = /^(?:sk|mk)-/i;
+
+/** Request ids a verify link can use. Drops traces, duplicates, and anything that looks like a key. */
+export function requestIdsFromSteps(steps: unknown): string[] {
+  if (!Array.isArray(steps)) return [];
+  const ids: string[] = [];
+  for (const step of steps) {
+    if (!step || typeof step !== "object") continue;
+    const raw = (step as { requestId?: unknown }).requestId;
+    if (typeof raw !== "string") continue;
+    const id = raw.trim();
+    if (!REQUEST_ID.test(id) || SECRET_ID.test(id) || ids.includes(id)) continue;
+    ids.push(id);
+  }
+  return ids;
 }
 
 export interface RunNowSummary {
@@ -243,7 +263,7 @@ function prismaHooks(db: PrismaClient): ManualRunHooks {
       const run = await db.nightRun.findUnique({ where: { id: runId }, select: { error: true } });
       const tasks = await db.task.findMany({
         where: { userId, nightId },
-        select: { id: true, type: true, status: true, error: true, chosenModel: true, outputRoot: true },
+        select: { id: true, type: true, status: true, error: true, chosenModel: true, outputRoot: true, steps: true },
       });
       return {
         error: run?.error ?? null,
@@ -254,6 +274,7 @@ function prismaHooks(db: PrismaClient): ManualRunHooks {
           error: task.error,
           chosenModel: task.chosenModel,
           outputRoot: task.outputRoot,
+          requestIds: requestIdsFromSteps(task.steps),
         })),
       };
     },

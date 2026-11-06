@@ -21,7 +21,7 @@ Built for ETHGlobal Mumbai 2026 (0G "Build with 0G PC", and the general finalist
 
 1. **Connect** (`/connect`). You paste a 0G management key (`mk-`) with `account:read`, `keys:create`, and `keys:manage`. Shift encrypts it at rest (AES-256-GCM, bound to your account address). The browser never receives the key again.
 2. **Queue** (`/queue`). Add an audio file, a document, or an image prompt. Tonight's preview prices the live catalog and your live balance. It does not create a key and does not call inference.
-3. **Run.** The worker opens the window at 23:00 UTC and hard-stops at 23:50 UTC (04:30–05:20 IST). **Run tonight's shift now** (`POST /api/runs/now`) uses that same pipeline. Shift creates an ephemeral `sk-` capped to the night's budget, calls the 0G Router, uploads outputs to 0G Storage, and revokes the key before it returns. A sweeper revokes keys left alive for more than two hours.
+3. **Run.** The worker opens the window at 23:00 UTC and hard-stops at 23:50 UTC (04:30–05:20 IST). On `/queue`, **Run tonight's shift now** calls `POST /api/runs/now` (no body, once every 10 minutes) and uses that same pipeline. Shift creates an ephemeral `sk-` capped to the night's budget, calls the 0G Router, uploads outputs to 0G Storage, and revokes the key before it returns. A sweeper revokes keys left alive for more than two hours. The button does not retry a start.
 4. **Commons** (`/commons`). Leftover budget, when you donate it, pays for two private translations and a decision-model gate.
 5. **Anchor.** Personal steps that finished with a request id become Merkle leaves. `ShiftLedger.anchorNight` stores the root and the manifest's storage root. Positive donations are written with `recordDonations` only after that anchor.
 6. **Verify** (`/verify?rid=`). Anyone can recompute the leaf in the browser and ask the contract. The storage link is the ciphertext of a personal output.
@@ -242,9 +242,9 @@ Every project also goes through ETHGlobal's general finalist review. The form al
 
 Same path on [https://shift-production-b890.up.railway.app](https://shift-production-b890.up.railway.app) and on `http://localhost:3000` after `pnpm dev`:
 
-1. **Connect** — `/connect`. Paste an `mk-` with `account:read`, `keys:create`, and `keys:manage`.
-2. **Queue** — `/queue`. Add an audio summary, a document analysis, and an image prompt. Tonight's plan and the night strip are on this page. The preview does not spend credits.
-3. **Run** — **Run tonight's shift now** (`POST /api/runs/now`), or leave the worker up for 23:00–23:50 UTC (04:30–05:20 IST). Both call the same pipeline. A 0 Router balance stops at HTTP 402 `insufficient_balance`. Shift records that failure and does not fill in a result.
+1. **Connect** — `/connect`. Paste an `mk-` with `account:read`, `keys:create`, and `keys:manage`. A reload keeps the signed-in account and the saved budget. It does not ask for the key again. USD balances from the Router are micro-USD (`USD × 1e6`) and the page shows them in dollars.
+2. **Queue** — `/queue`. Add an audio summary, a document analysis, and an image prompt. Tonight's plan, the night strip, and **Run tonight's shift now** are on this page. The preview does not spend credits. The button stays off when nothing is queued or deferred.
+3. **Run** — **Run tonight's shift now** on `/queue` (`POST /api/runs/now`), or leave the worker up for 23:00–23:50 UTC (04:30–05:20 IST). Both call the same pipeline. The button stays off until the preview has loaded. The cap saved on the account applies to each run, not once per day. A 0 Router balance stops at HTTP 402 `insufficient_balance`. Shift records that failure and does not fill in a result. The page does not send a second start on its own. A 5xx response, or a result the page cannot read, does not mean credits were not spent: the queue is reloaded and no further POST is sent.
 4. **Night** — `/nights/[id]`. Night strip, provenance cards, and the anchored batch.
 5. **Verify** — `/verify?rid=<request id>` from **Verify this result** on a card. The browser recomputes the leaf and calls `verifyLeaf` on ShiftLedger.
 6. **Commons** — `/commons`. Accepted and rejected translations, with the filter probability on each card.
@@ -261,8 +261,8 @@ Shot list to film against. Times follow plan §24. The frames are the surfaces t
 |---|---|---|
 | 0:00–0:20 | Home `/` | Countdown to 00:00 UTC (05:30 IST) and the night strip. Cue: unused 0G credits expire at 00:00 UTC, by design. |
 | 0:20–0:45 | `/connect` | The scoped `mk-` wizard. Cue: no third-party OAuth, so Shift reads balances and mints short-lived capped keys. |
-| 0:45–1:15 | `/queue` | Three tasks, the plan preview, and the night strip (block width is cost; the remainder is labeled for the commons). Cue: decision models set the quality bar, and the optimizer takes the cheapest model that still clears it. |
-| 1:15–1:55 | Run tonight's shift now | A real Router run: the balance moving and results appearing. Cue: 0G Private Computer; the key is created, capped, used, and revoked. |
+| 0:45–1:15 | `/queue` | Three tasks, the plan preview, the night strip (block width is cost; the remainder is labeled for the commons), and **Run tonight's shift now**. Cue: decision models set the quality bar, and the optimizer takes the cheapest model that still clears it. |
+| 1:15–1:55 | Run tonight's shift now | The button on `/queue`. A real Router run: the balance moving and results appearing, with a link to the night and to verify. Cue: 0G Private Computer; the key is created, capped, used, and revoked. A failed task stays failed. |
 | 1:55–2:15 | `/nights/[id]` | Night strip for that night (the end label is **First light** when the night is `DONE`). Provenance card: model, cost, 0G Storage root, then each step's request id, model, trust level, TEE verdict, and **Verify this result**. Anchored batch: Merkle root, manifest root, anchor transaction — only the values this run stored. |
 | 2:15–2:35 | `/commons` | One **Accepted** card and one **Rejected** card (Hindi or Marathi), filter probability visible, rejected text still on the card. Cue: leftovers translate Ethereum docs, and the decision model keeps a row only when both translations match the source. An empty board is the honest frame until a funded pair finishes; say that on camera. |
 | 2:35–2:50 | `/verify?rid=` | The request id from the night above. The page checks the proof in the browser, then `verifyLeaf` on Galileo. Cue: anyone can see which model produced it, who owns it, and who donated the compute. |
@@ -279,8 +279,8 @@ Shot list to film against. Times follow plan §24. The frames are the surfaces t
 Walkthrough that matches the code today:
 
 - Home countdown and night strip render without a session.
-- Connect needs a real `mk-` from [pc.0g.ai](https://pc.0g.ai) (or the testnet console if `ZG_ROUTER_BASE_URL` contains `testnet`). Minimum scopes: `account:read`, `keys:create`, `keys:manage`. The connect probe creates and revokes a throwaway key. The Router rejects a `credit_limit` below 0.0001 0G.
-- The queue preview shows models and micro-USD estimates from the live catalog. It does not classify complexity (that call spends credits) and it does not execute.
+- Connect needs a real `mk-` from [pc.0g.ai](https://pc.0g.ai) (or the testnet console if `ZG_ROUTER_BASE_URL` contains `testnet`). Minimum scopes: `account:read`, `keys:create`, `keys:manage`. The connect probe creates and revokes a throwaway key. The Router rejects a `credit_limit` below 0.0001 0G. After that, `/connect` reads the session: the account, the nightly cap, and the donation choice stay on the page across a reload. Credit and deposit figures for a USD account are micro-USD integers from the Router, shown in dollars.
+- The queue preview shows models and micro-USD estimates from the live catalog. It does not classify complexity (that call spends credits) and it does not execute. **Run tonight's shift now** is on this page. It POSTs once, shows the cap and the estimate, and lists each task's outcome. It does not retry. A funded run is still F3.12: this button has not been clicked against production for this write-up.
 - `/commons` explains the gate and shows an empty board until a translation is accepted or rejected.
 - `/verify` is ready. It has nothing to verify until a leaf exists.
 

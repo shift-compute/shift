@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { NightStrip } from "../night/NightStrip";
+import { RunNow } from "./RunNow";
 import { TonightEstimate } from "./TonightEstimate";
 import { stripFromSource } from "../../lib/night-strip";
 import { readPreview, type PreviewPanel } from "./preview-state";
@@ -56,8 +57,8 @@ export function Queue() {
   const [message, setMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const tasksPromise = fetch("/api/tasks").catch(() => null);
-    const previewPromise = fetch("/api/plan/preview").catch(() => null);
+    const tasksPromise = fetch("/api/tasks", { cache: "no-store" }).catch(() => null);
+    const previewPromise = fetch("/api/plan/preview", { cache: "no-store" }).catch(() => null);
     const res = await tasksPromise;
     if (!res) {
       setMessage("We could not reach the server. Try again in a moment.");
@@ -190,6 +191,8 @@ export function Queue() {
       <NightStrip model={stripFromSource(preview, tasks ?? [])} busy={preview.phase === "loading"} />
 
       <TonightEstimate panel={preview} tasks={tasks ?? []} />
+
+      <RunNow tasks={tasks} queueFailed={tasks === null && message !== null} preview={preview} onFinished={() => void load()} />
 
       <section aria-label="Your tasks">
         <h2 className="text-2xl font-semibold">Your tasks</h2>

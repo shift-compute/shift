@@ -10,10 +10,10 @@ const OPTIONS: Array<{ value: Mode; title: string; body: string }> = [
   { value: "BUDGET", title: "A nightly budget", body: "Shift spends up to a cap you set each night, in US dollars." },
 ];
 
-export function SpendingForm() {
-  const [mode, setMode] = useState<Mode>("IAI_CREDITS_ONLY");
-  const [budget, setBudget] = useState("");
-  const [donate, setDonate] = useState(DEFAULT_DONATE_LEFTOVER);
+export function SpendingForm({ initial }: { initial?: { mode: Mode; budgetText: string; donateLeftover: boolean } }) {
+  const [mode, setMode] = useState<Mode>(initial?.mode ?? "IAI_CREDITS_ONLY");
+  const [budget, setBudget] = useState(initial?.budgetText ?? "");
+  const [donate, setDonate] = useState(initial?.donateLeftover ?? DEFAULT_DONATE_LEFTOVER);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
 
   async function onSubmit(e: FormEvent) {
