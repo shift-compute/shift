@@ -67,6 +67,7 @@ describe("runDocAnalysis", () => {
     expect(out.result).toEqual({ summary: "s", actionItems: ["a"], risks: [], truncated: true, chars: 99 });
     expect(out.steps).toEqual([{ step: "analyze", model: "m", trust: "verified", requestId: "req-1" }]);
     expect(chat.mock.calls[0]![2]).toEqual({ trustMode: "verified", clientRequestId: "t9-1-analyze" });
+    expect(chat.mock.calls[0]![1].max_tokens).toBe(900);
   });
 
   it("reads a chat completion and drops fields the schema does not declare", async () => {

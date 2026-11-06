@@ -2,12 +2,13 @@ import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { buildCatalog } from "../catalog/catalog";
 import { estimateCostMicro, estimateDecisionMicro, estimateTranslationMicro } from "../catalog/estimator";
+import { ANALYSIS_MAX_TOKENS, maxTokensCostMicro } from "../executors/chat-limits";
 import { gateQuestionChars, pickGateModel } from "./commons-gate";
 import { complexityState } from "../optimizer/complexity";
 import { COST_DRIFT_PERCENT, costDrifted } from "../optimizer/replan";
 import { sealSecret } from "../crypto/vault";
 import { RouterError } from "../zg/errors";
-import type { StorageClient } from "../zg/storage";
+import { createStorageClient, type StorageClient } from "../zg/storage";
 import { translationSystemPrompt, type CommonsGateItem, type CommonsItemRef, type CommonsStore, type CommonsTranslationPatch } from "./commons";
 import { runUser, type RunConfig, type UserRouter } from "./runUser";
 import type { ConnectedUser, OpenTask, PipelineStore, TaskPatch } from "./store";
@@ -91,7 +92,7 @@ interface Harness {
   storage: StorageClient;
 }
 
-function harness(options: { tasks?: OpenTask[]; models?: unknown[]; balance?: ReturnType<typeof usdBalance>; chat?: UserRouter["chat"]; transcribe?: UserRouter["transcribe"]; generateImage?: UserRouter["generateImage"]; decide?: UserRouter["decide"] } = {}): Harness {
+function harness(options: { tasks?: OpenTask[]; models?: unknown[]; balance?: ReturnType<typeof usdBalance>; chat?: UserRouter["chat"]; transcribe?: UserRouter["transcribe"]; generateImage?: UserRouter["generateImage"]; decide?: UserRouter["decide"]; usage?: UserRouter["getUsageHistory"] } = {}): Harness {
   const events: string[] = [];
   const logs: string[] = [];
   const tasks = new Map<string, TaskPatch & { status?: string }>();
@@ -133,7 +134,7 @@ function harness(options: { tasks?: OpenTask[]; models?: unknown[]; balance?: Re
       events.push("balance");
       return { data: options.balance ?? usdBalance(), status: 200 };
     },
-    getUsageHistory: async () => ({
+    getUsageHistory: options.usage ?? (async () => ({
       data: [
         { request_id: "req-other", credit_used: "5", deposit_used: "7" },
         { request_id: "req-doc", credit_used: "40", deposit_used: "1" },
@@ -141,7 +142,7 @@ function harness(options: { tasks?: OpenTask[]; models?: unknown[]; balance?: Re
         { request_id: "req-image", credit_used: "2", deposit_used: "0" },
       ],
       status: 200,
-    }),
+    })),
     createApiKey: async (_mk, params) => {
       events.push(`create:${params.trustMode}:${params.creditLimit}`);
       return { data: { key_id: "key-1", key: SK, name: params.name }, status: 200 };
@@ -203,6 +204,83 @@ function run(h: Harness, over: Partial<Parameters<typeof runUser>[0]> = {}) {
 }
 
 describe("runUser", () => {
+  it("fails a task when the storage indexer never resolves", async () => {
+    const h = harness();
+    const storage = createStorageClient({
+      rpcUrl: "http://127.0.0.1:8545",
+      indexerUrl: "http://127.0.0.1:1",
+      signer: {},
+      uploadTimeoutMs: 30,
+      maxAttempts: 1,
+      sleep: async () => undefined,
+      indexer: {
+        upload: () => new Promise(() => undefined),
+        download: async () => {
+          throw new Error("not used");
+        },
+      },
+    });
+    const started = Date.now();
+    const outcome = await run(h, { storage });
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(outcome.status).toBe("DONE");
+    expect(h.tasks.get("task1")?.status).toBe("FAILED");
+    expect(h.tasks.get("task1")?.error).toMatch(/timed out/);
+    expect(h.events).toContain("revoke");
+  });
+
+  it("fails a task that is still running when the hard stop passes", async () => {
+    const h = harness();
+    h.storage.upload = () => new Promise(() => undefined);
+    const started = Date.now();
+    const outcome = await run(h, { now: () => new Date("2026-11-06T23:49:59.850Z") });
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(outcome.status).toBe("DONE");
+    expect(h.tasks.get("task1")?.status).toBe("FAILED");
+    expect(h.tasks.get("task1")?.error).toMatch(/hard stop/);
+    expect(h.events).toContain("revoke");
+  });
+
+  it("prices a failed chat with no request id at max_tokens times the completion price", async () => {
+    const entry = buildCatalog([chatModel])[0];
+    if (!entry) throw new Error("missing catalog entry");
+    const worst = maxTokensCostMicro(ANALYSIS_MAX_TOKENS, entry.completionAtto);
+    const h = harness({
+      chat: async (_sk, body) => {
+        expect(body.max_tokens).toBe(ANALYSIS_MAX_TOKENS);
+        throw new RouterError({ status: 400, message: "rejected" });
+      },
+    });
+    const outcome = await run(h);
+    expect(outcome.status).toBe("DONE");
+    expect(h.tasks.get("task1")?.status).toBe("FAILED");
+    expect(worst).toBeGreaterThan(0n);
+    expect([...h.runs.values()][0]?.spentUsdMicro).toBe(worst);
+    expect([...h.runs.values()][0]?.donatedUsdMicro).toBe(0n);
+  });
+
+  it("adds unrecorded ephemeral-key requests to spend, and to donated when leftovers are donated", async () => {
+    const missing = "2657f93a-9f0e-4732-8e44-30dee4cf5269";
+    const usage: UserRouter["getUsageHistory"] = async (_mk, query) => {
+      expect(query?.apiKeyId).toBe("key-1");
+      return {
+        status: 200,
+        data: [
+          { request_id: "req-doc", api_key_id: "key-1", cost: "100", credit_used: "40", deposit_used: "1" },
+          { request_id: missing, api_key_id: "key-1", cost: "37796", credit_used: "37796", deposit_used: "0" },
+          { request_id: "someone-else", api_key_id: "other-key", cost: "999", credit_used: "999", deposit_used: "0" },
+        ],
+      };
+    };
+    const plain = harness({ usage });
+    await run(plain);
+    expect([...plain.runs.values()][0]).toMatchObject({ spentUsdMicro: 100n + 37796n, donatedUsdMicro: 0n, creditUsed: "40" });
+
+    const donating = harness({ usage });
+    await run(donating, { user: user({ donateLeftover: true }) });
+    expect([...donating.runs.values()][0]).toMatchObject({ spentUsdMicro: 100n + 37796n, donatedUsdMicro: 37796n });
+  });
+
   it("caps a private key from the credit balance, stores the output and revokes the key", async () => {
     const h = harness();
     const outcome = await run(h);

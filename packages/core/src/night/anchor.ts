@@ -51,6 +51,8 @@ export interface AnchorStore {
   saveTree(nightId: bigint, root: string, itemCount: number, leaves: PersistedLeaf[]): Promise<void>;
   saveManifestRoot(nightId: bigint, manifestRoot: string): Promise<void>;
   saveAnchorTx(nightId: bigint, anchorTx: string): Promise<void>;
+  /** Root, manifest and tx already stored. Null when this night has no row yet. */
+  savedAnchor(nightId: bigint): Promise<SavedAnchor | null>;
 }
 
 export interface AnchorDeps {
@@ -66,7 +68,22 @@ export interface AnchorDeps {
 
 export type AnchorResult =
   | { anchored: false; reason: "empty" }
-  | { anchored: true; root: string; manifestRoot: string; anchorTx: string; itemCount: number };
+  | {
+      anchored: true;
+      root: string;
+      manifestRoot: string;
+      /** Null when the contract already has the night and this process has no transaction hash to store. */
+      anchorTx: string | null;
+      itemCount: number;
+    };
+
+/** What is already stored for this night. Used to resume an anchor that uploaded the root but did not save the tx. */
+export interface SavedAnchor {
+  merkleRoot: string | null;
+  manifestRoot: string | null;
+  anchorTx: string | null;
+  itemCount: number;
+}
 
 export class AnchorError extends Error {
   constructor(message: string) {
@@ -95,8 +112,10 @@ interface BatchLeaf {
  */
 export async function anchorNight(deps: AnchorDeps): Promise<AnchorResult> {
   const log = deps.log ?? (() => undefined);
+  const resumed = await resumeStoredAnchor(deps, log);
+  if (resumed) return resumed;
   const tasks = await deps.store.completedTasks(deps.nightId);
-  const sources = collectBatchLeaves(tasks);
+  const sources = collectBatchLeaves(tasks, log);
   if (sources.length === 0) {
     log(`night ${deps.nightId}: empty batch, not anchored`);
     return { anchored: false, reason: "empty" };
@@ -152,25 +171,56 @@ export async function anchorNight(deps: AnchorDeps): Promise<AnchorResult> {
 }
 
 /**
+ * Sends the anchor transaction for a root that was stored on a previous attempt and never got a tx hash.
+ * Reads the contract first. A night that is already anchored is not sent again, and no hash is invented.
+ */
+async function resumeStoredAnchor(deps: AnchorDeps, log: (message: string) => void): Promise<AnchorResult | undefined> {
+  const prior = await deps.store.savedAnchor(deps.nightId);
+  if (!prior?.merkleRoot || !prior.manifestRoot || prior.anchorTx || prior.itemCount < 1) return undefined;
+  const chain = await deps.ledger.readNight(deps.nightId);
+  if (chain.anchored) {
+    log(`night ${deps.nightId}: merkle root is stored and the contract already has this night; anchor transaction was not sent`);
+    return { anchored: true, root: prior.merkleRoot, manifestRoot: prior.manifestRoot, anchorTx: null, itemCount: prior.itemCount };
+  }
+  const receipt = await deps.ledger.anchorNight({
+    nightId: deps.nightId,
+    root: asBytes32(prior.merkleRoot, "Merkle root"),
+    manifestRoot: asBytes32(prior.manifestRoot, "Manifest root"),
+    itemCount: prior.itemCount,
+  });
+  await deps.store.saveAnchorTx(deps.nightId, receipt.txHash);
+  log(`night ${deps.nightId}: resumed anchor in ${receipt.txHash}`);
+  return { anchored: true, root: prior.merkleRoot, manifestRoot: prior.manifestRoot, anchorTx: receipt.txHash, itemCount: prior.itemCount };
+}
+
+/**
  * One leaf per completed step that has a Router request id.
  * Several steps of one task share that task's output root.
  * Commons rows are not leaves. Each row stores one total and a list of request ids, and a rejected row has no output root.
- * A request id without a reported cost, a trust tier, or an output root fails the night: a leaf never invents them.
+ * A step that lacks a model, a reported cost, a trust tier, or an output root is skipped and logged. The rest of the night is still anchored.
  */
-function collectBatchLeaves(tasks: readonly CompletedTask[]): BatchLeaf[] {
+function collectBatchLeaves(tasks: readonly CompletedTask[], log: (message: string) => void): BatchLeaf[] {
   const leaves: BatchLeaf[] = [];
   const seen = new Set<string>();
   for (const task of tasks) {
-    const ready = readSteps(task).filter((step) => step.requestId !== undefined && step.requestId.length > 0);
+    const steps = readSteps(task, log);
+    if (!steps) continue;
+    const ready = steps.filter((step) => step.requestId !== undefined && step.requestId.length > 0);
     if (ready.length === 0) continue;
-    if (!task.outputRoot) throw new AnchorError(`Task ${task.id} has a request id but no 0G Storage output root.`);
+    if (!task.outputRoot) {
+      log(`night anchor: skipping task ${task.id} because it has a request id but no 0G Storage output root`);
+      continue;
+    }
     for (const step of ready) {
       const requestId = step.requestId ?? "";
       if (!step.model || !step.costUsdMicro || !step.trust) {
-        throw new AnchorError(`Task ${task.id} request ${requestId} is missing a model, a reported cost, or a trust tier.`);
+        log(`night anchor: skipping task ${task.id} request ${requestId} because it is missing a model, a reported cost, or a trust tier`);
+        continue;
       }
-      if (seen.has(requestId)) throw new AnchorError(`Request id ${requestId} appears twice in this night.`);
-      seen.add(requestId);
+      if (seen.has(requestId)) {
+        log(`night anchor: skipping duplicate request id ${requestId} on task ${task.id}`);
+        continue;
+      }
       let values: MerkleLeafValues;
       try {
         values = leafFromStep(
@@ -178,9 +228,13 @@ function collectBatchLeaves(tasks: readonly CompletedTask[]): BatchLeaf[] {
           { owner: task.owner, taskId: task.id, outputRoot: task.outputRoot, trust: step.trust, isCommons: false },
         );
       } catch (err) {
-        if (err instanceof MerkleLeafError) throw new AnchorError(`Task ${task.id} request ${requestId}: ${err.message}`);
+        if (err instanceof MerkleLeafError) {
+          log(`night anchor: skipping task ${task.id} request ${requestId} because ${err.message}`);
+          continue;
+        }
         throw err;
       }
+      seen.add(requestId);
       const owner = values[1];
       leaves.push({
         requestId,
@@ -239,17 +293,35 @@ export function prismaAnchorStore(db: PrismaClient): AnchorStore {
     async saveAnchorTx(nightId, anchorTx) {
       await db.night.update({ where: { id: nightId }, data: { anchorTx } });
     },
+
+    async savedAnchor(nightId) {
+      const night = await db.night.findUnique({
+        where: { id: nightId },
+        select: { merkleRoot: true, manifestRoot: true, anchorTx: true, itemCount: true },
+      });
+      if (!night) return null;
+      return { merkleRoot: night.merkleRoot, manifestRoot: night.manifestRoot, anchorTx: night.anchorTx, itemCount: night.itemCount };
+    },
   };
 }
 
-function readSteps(task: CompletedTask): StoredStep[] {
+/** Null when the task's step blob is not a list. That task is skipped; the rest of the night is still anchored. */
+function readSteps(task: CompletedTask, log: (message: string) => void): StoredStep[] | null {
   if (task.steps == null) return [];
-  if (!Array.isArray(task.steps)) throw new AnchorError(`Task ${task.id} has steps that are not a list.`);
-  return task.steps.map((step, index) => {
+  if (!Array.isArray(task.steps)) {
+    log(`night anchor: skipping task ${task.id} because its steps are not a list`);
+    return null;
+  }
+  const steps: StoredStep[] = [];
+  task.steps.forEach((step, index) => {
     const parsed = storedStepSchema.safeParse(step);
-    if (!parsed.success) throw new AnchorError(`Task ${task.id} step ${index} is not a step record.`);
-    return parsed.data;
+    if (!parsed.success) {
+      log(`night anchor: skipping task ${task.id} step ${index} because it is not a step record`);
+      return;
+    }
+    steps.push(parsed.data);
   });
+  return steps;
 }
 
 function asBytes32(value: string, label: string): `0x${string}` {

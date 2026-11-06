@@ -1,6 +1,7 @@
 import { createDb, createRouterClient, loadWorkerConfig, redactString, tick } from "@shift/core";
 import cron from "node-cron";
 import { runNight } from "./night";
+import { createRunFlag, startNightLoop, withNightFlag } from "./run-flag";
 import { SWEEP_CRON, createSweepLock, prismaSweeperStore, recoverInterruptedTasks, sweepEphemeralKeys } from "./sweeper";
 
 const config = loadWorkerConfig();
@@ -9,7 +10,7 @@ const router = createRouterClient({ baseUrl: config.ZG_ROUTER_BASE_URL });
 const sweeperStore = prismaSweeperStore(db);
 const log = (message: string) => console.log(`${new Date().toISOString()} ${redactString(message)}`);
 
-let running = false;
+const nightFlag = createRunFlag();
 
 function errorText(err: unknown): string {
   return err instanceof Error ? err.message : "unknown error";
@@ -29,11 +30,21 @@ const runSweep = createSweepLock(async () => {
 });
 
 // Every minute. The in-process flag stops a slow night from overlapping with the next tick of this same process;
-// the database lock (acquireNight) does the same across processes.
+// the database lock (acquireNight) does the same across processes. The flag is released at the hard stop even
+// if a tick is still awaiting, so a hung upload cannot block every later tick.
 function startNightCron(): void {
-  cron.schedule("* * * * *", async () => {
-    if (running) return;
-    running = true;
+  startNightLoop(
+    (expression, task) => {
+      cron.schedule(expression, task);
+    },
+    () => {
+      void runTick();
+    },
+  );
+}
+
+async function runTick(): Promise<void> {
+  await withNightFlag(nightFlag, config.NIGHT_HARD_STOP_UTC, new Date(), log, async () => {
     try {
       await tick({
         db,
@@ -55,8 +66,6 @@ function startNightCron(): void {
       });
     } catch (err) {
       log(`tick error: ${errorText(err)}`);
-    } finally {
-      running = false;
     }
   });
 }

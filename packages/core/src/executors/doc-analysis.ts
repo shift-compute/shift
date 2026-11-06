@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ANALYSIS_MAX_TOKENS } from "./chat-limits";
 import type { DocText } from "./doc-text";
 import { chatText, parseModelJson } from "./json-output";
 import { recordStep } from "./step";
@@ -30,6 +31,7 @@ export async function runDocAnalysis(ctx: ExecutorContext, doc: DocText): Promis
     ctx.sk,
     {
       model: ctx.models.chat,
+      max_tokens: ANALYSIS_MAX_TOKENS,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: doc.text },

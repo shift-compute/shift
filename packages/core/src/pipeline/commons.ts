@@ -1,5 +1,6 @@
 import { candidates, type CatalogEntry } from "../catalog/catalog";
 import { estimateTranslationMicro } from "../catalog/estimator";
+import { maxTokensCostMicro, translationMaxTokens } from "../executors/chat-limits";
 import { chatText } from "../executors/json-output";
 import { recordStep } from "../executors/step";
 import { msUntilHardStop } from "../night/schedule";
@@ -104,6 +105,8 @@ interface TranslationCall {
   text: string;
   requestId?: string;
   reportedMicro?: bigint;
+  /** Set when the call failed before a request id existed. Counted so a billed failure is not zero. */
+  worstCaseMicro?: bigint;
   estimateMicro: bigint;
 }
 
@@ -303,6 +306,7 @@ async function translateSide(
         input.sk,
         {
           model: model.id,
+          max_tokens: translationMaxTokens(input.item.sourceText.length),
           messages: [
             { role: "system", content: translationSystemPrompt(input.language) },
             { role: "user", content: input.item.sourceText },
@@ -328,9 +332,15 @@ async function translateSide(
       last = err;
       const requestId = err instanceof RouterError ? err.requestId : undefined;
       if (stopsTheNight(err) || !(err instanceof RouterError) || !err.retryable || attempt === MAX_RETRIES) {
+        const worstCaseMicro = requestId ? undefined : maxTokensCostMicro(translationMaxTokens(input.item.sourceText.length), model.completionAtto);
         return {
           ok: false,
-          call: { text: "", estimateMicro, ...(requestId ? { requestId } : {}) },
+          call: {
+            text: "",
+            estimateMicro,
+            ...(requestId ? { requestId } : {}),
+            ...(worstCaseMicro !== undefined && worstCaseMicro > 0n ? { worstCaseMicro } : {}),
+          },
           error: err,
         };
       }
@@ -360,14 +370,18 @@ async function persist(
 
 function applyCall(ledger: Ledger, call: TranslationCall): void {
   if (call.requestId) ledger.requestIds.push(call.requestId);
-  const used = call.reportedMicro !== undefined ? call.reportedMicro : call.estimateMicro > 0n ? call.estimateMicro : 0n;
+  const worst = call.worstCaseMicro !== undefined && call.worstCaseMicro > 0n ? call.worstCaseMicro : undefined;
+  const used = call.reportedMicro !== undefined ? call.reportedMicro : worst !== undefined ? worst : call.estimateMicro > 0n ? call.estimateMicro : 0n;
   if (call.reportedMicro !== undefined) ledger.reportedMicro += call.reportedMicro;
+  else if (worst !== undefined) ledger.reportedMicro += worst;
   ledger.accountedMicro += used;
   ledger.remaining = ledger.remaining > used ? ledger.remaining - used : 0n;
 }
 
+/** A failure with no request id still counts when we priced the worst case. Releasing it would hide a charge. */
 function billed(call: TranslationCall): boolean {
-  return call.requestId !== undefined || call.reportedMicro !== undefined;
+  if (call.requestId !== undefined || call.reportedMicro !== undefined) return true;
+  return call.worstCaseMicro !== undefined && call.worstCaseMicro > 0n;
 }
 
 function reportedField(cost: string | undefined): { reportedMicro: bigint } | Record<string, never> {
@@ -379,8 +393,9 @@ function reportedSum(calls: TranslationCall[]): bigint | null {
   let sum = 0n;
   let any = false;
   for (const call of calls) {
-    if (call.reportedMicro !== undefined) {
-      sum += call.reportedMicro;
+    const part = call.reportedMicro ?? (call.worstCaseMicro !== undefined && call.worstCaseMicro > 0n ? call.worstCaseMicro : undefined);
+    if (part !== undefined) {
+      sum += part;
       any = true;
     }
   }

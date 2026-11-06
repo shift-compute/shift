@@ -5,6 +5,7 @@ import { loadModelCatalog, type CatalogCache } from "../catalog/loader";
 import { impliedMicroUsdPerOg } from "../catalog/rate";
 import type { WorkerConfig } from "../config";
 import { openSecret } from "../crypto/vault";
+import { ANALYSIS_MAX_TOKENS, REFINE_MAX_TOKENS, SUMMARY_MAX_TOKENS, maxTokensCostMicro } from "../executors/chat-limits";
 import { extractDocText, type DocText } from "../executors/doc-text";
 import { runAudioSummary } from "../executors/audio-summary";
 import { runDocAnalysis } from "../executors/doc-analysis";
@@ -33,6 +34,8 @@ import { resolveUpload } from "./uploads";
 /** Plan §9.4: a task is tried once more, at most twice, and only when the failure was a 429 or a 5xx. */
 const MAX_RETRIES = 2;
 const USAGE_HISTORY_LIMIT = 100;
+/** A task that is still running after this is failed. It is never left RUNNING. */
+export const TASK_DEADLINE_MS = 5 * 60_000;
 
 const inputMetaSchema = z.object({
   bytes: z.number().int().nonnegative().optional(),
@@ -69,6 +72,8 @@ export interface RunUserDeps {
   readFile?: (absolutePath: string) => Promise<Uint8Array>;
   /** PENDING commons rows. Absent in tests that do not donate. The worker passes the Prisma store. */
   commons?: CommonsStore;
+  /** Per-task cap. Defaults to {@link TASK_DEADLINE_MS}. Tests pass a short value. Also capped by the hard stop. */
+  taskDeadlineMs?: number;
 }
 
 export interface RunUserOutcome {
@@ -257,7 +262,7 @@ async function runWithKey(deps: RunUserDeps, runId: string, mk: string, runnable
     donatedUsdMicro: spend.result.donatedMicro,
     ...(revokeError ? { error: `The ephemeral key could not be revoked; the sweeper will retry. ${revokeError}` } : {}),
   };
-  await recordUsage(deps, mk, spend.result.requestIds, summary);
+  await recordUsage(deps, mk, spend.keyId, spend.result.requestIds, summary, balance.data.currency);
   await store.updateRun(runId, summary);
   return { status: "DONE", runId };
 }
@@ -529,7 +534,14 @@ async function executePlan(deps: RunUserDeps, sk: string, tasks: Prepared[], cat
 type TaskOutcome = "ok" | "stop" | "exclude" | "replan";
 
 async function runTask(deps: RunUserDeps, sk: string, task: Prepared, option: PlanOption, spend: Spend): Promise<TaskOutcome> {
-  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const clock = deps.now ?? (() => new Date());
+  const hardStopMs = msUntilHardStop(clock(), deps.config.NIGHT_HARD_STOP_UTC);
+  const limitMs = deps.taskDeadlineMs ?? TASK_DEADLINE_MS;
+  const deadlineMs = Math.min(limitMs, hardStopMs);
+  const deadlineMessage =
+    hardStopMs <= limitMs
+      ? "The hard stop passed before this task could finish."
+      : "The task exceeded its deadline.";
   await deps.store.updateTask(task.row.id, {
     status: "RUNNING",
     nightId: deps.nightId,
@@ -537,6 +549,43 @@ async function runTask(deps: RunUserDeps, sk: string, task: Prepared, option: Pl
     chosenModel: option.models.chat.id,
     estCostUsdMicro: option.costMicro,
   });
+  if (deadlineMs <= 0) {
+    await deps.store.updateTask(task.row.id, { status: "FAILED", nightId: deps.nightId, error: deadlineMessage });
+    return "ok";
+  }
+
+  const gate = { expired: false };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<"deadline">((resolve) => {
+    timer = setTimeout(() => {
+      gate.expired = true;
+      resolve("deadline");
+    }, deadlineMs);
+  });
+  const body = runTaskBody(deps, sk, task, option, spend, gate).then(
+    (outcome) => outcome,
+    (err: unknown) => {
+      if (gate.expired) return "ok" as TaskOutcome;
+      throw err;
+    },
+  );
+  try {
+    const outcome = await Promise.race([body, timeout]);
+    if (outcome === "deadline") {
+      await deps.store.updateTask(task.row.id, { status: "FAILED", nightId: deps.nightId, error: deadlineMessage });
+      return "ok";
+    }
+    return outcome;
+  } catch (err) {
+    await deps.store.updateTask(task.row.id, { status: "FAILED", nightId: deps.nightId, error: failureText(err) }).catch(() => undefined);
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function runTaskBody(deps: RunUserDeps, sk: string, task: Prepared, option: PlanOption, spend: Spend, gate: { expired: boolean }): Promise<TaskOutcome> {
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
 
   const failedSteps: StepRecord[] = [];
   let last: unknown;
@@ -559,8 +608,10 @@ async function runTask(deps: RunUserDeps, sk: string, task: Prepared, option: Pl
 
   const prior = task.classifyStep ? [task.classifyStep] : [];
   if (!output) {
+    if (gate.expired) return "ok";
     const steps = [...prior, ...failedSteps];
     if (failedSteps.length > 0) addCost(spend, failedSteps, option.costMicro);
+    else addUnpricedChat(spend, task, option);
     await deps.store.updateTask(task.row.id, { status: "FAILED", nightId: deps.nightId, ...(steps.length > 0 ? { steps } : {}), error: failureText(last) });
     if (isStop(last)) return "stop";
     if (last instanceof RouterError && (last.action === "exclude_model_and_replan" || last.action === "switch_provider_or_model")) return "exclude";
@@ -571,8 +622,10 @@ async function runTask(deps: RunUserDeps, sk: string, task: Prepared, option: Pl
   const steps = [...prior, ...output.steps];
   addCost(spend, output.steps, option.costMicro);
   const actual = reportedCost(output.steps);
+  if (gate.expired) return "ok";
   try {
     const stored = await storeTaskOutput(deps.storage, { id: task.row.id, type: task.plan.type }, output);
+    if (gate.expired) return "ok";
     await deps.store.updateTask(task.row.id, {
       status: "DONE",
       nightId: deps.nightId,
@@ -584,6 +637,7 @@ async function runTask(deps: RunUserDeps, sk: string, task: Prepared, option: Pl
     });
   } catch (err) {
     // The call was already billed. A storage failure must not run it again, but the drift check below still runs.
+    if (gate.expired) return "ok";
     await deps.store.updateTask(task.row.id, { status: "FAILED", nightId: deps.nightId, steps, actualCostUsdMicro: actual ?? null, error: failureText(err) });
   }
   return costDrifted(option.costMicro, actual) ? "replan" : "ok";
@@ -637,15 +691,29 @@ async function classify(deps: RunUserDeps, sk: string, task: Prepared, model: Ca
   return { complexity: "standard" };
 }
 
-async function recordUsage(deps: RunUserDeps, mk: string, requestIds: string[], summary: RunPatch): Promise<void> {
+const usageCostSchema = z.object({
+  request_id: z.string().min(1),
+  api_key_id: z.string().min(1).optional(),
+  cost: z.string().regex(/^\d+$/).optional(),
+});
+
+async function recordUsage(deps: RunUserDeps, mk: string, keyId: string, requestIds: string[], summary: RunPatch, currency: string): Promise<void> {
   const wanted = new Set(requestIds);
   try {
-    const history = await deps.router.getUsageHistory(mk, { limit: USAGE_HISTORY_LIMIT });
+    const history = await deps.router.getUsageHistory(mk, { limit: USAGE_HISTORY_LIMIT, apiKeyId: keyId });
     const rows = history.data.filter((row) => wanted.has(row.request_id));
     summary.creditUsed = sumField(rows, "credit_used");
     summary.depositUsed = sumField(rows, "deposit_used");
     const missing = requestIds.filter((id) => !rows.some((row) => row.request_id === id));
     if (missing.length > 0) deps.log(`user ${deps.user.id}: ${missing.length} request id(s) were not in the usage history yet`);
+    const extra = unrecordedKeyMicro(history.data, keyId, wanted, currency);
+    if (extra.micro > 0n) {
+      // The Router billed these. They were not on a step we stored. donatedUsdMicro is what recordDonations sends,
+      // so a missing commons request has to land there when this user is donating leftovers.
+      summary.spentUsdMicro = (summary.spentUsdMicro ?? 0n) + extra.micro;
+      if (deps.user.donateLeftover) summary.donatedUsdMicro = (summary.donatedUsdMicro ?? 0n) + extra.micro;
+      deps.log(`user ${deps.user.id}: ${extra.micro} micro-USD from ${extra.count} unrecorded request id(s) on the ephemeral key`);
+    }
   } catch (err) {
     deps.log(`user ${deps.user.id}: usage history could not be read (${failureText(err)})`);
   }
@@ -654,6 +722,44 @@ async function recordUsage(deps: RunUserDeps, mk: string, requestIds: string[], 
   } catch (err) {
     deps.log(`user ${deps.user.id}: balance after the run could not be read (${failureText(err)})`);
   }
+}
+
+/** A chat that failed with no request id is priced at its output cap, not at zero. */
+function addUnpricedChat(spend: Spend, task: Prepared, option: PlanOption): void {
+  const worst = maxTokensCostMicro(chatMaxTokens(task.plan.type), option.models.chat.completionAtto);
+  if (worst <= 0n) return;
+  spend.reportedMicro += worst;
+  spend.accountedMicro += worst;
+}
+
+function chatMaxTokens(type: Prepared["plan"]["type"]): number {
+  switch (type) {
+    case "AUDIO_SUMMARY":
+      return SUMMARY_MAX_TOKENS;
+    case "DOC_ANALYSIS":
+      return ANALYSIS_MAX_TOKENS;
+    case "IMAGE_FROM_PROMPT":
+      return REFINE_MAX_TOKENS;
+  }
+}
+
+/**
+ * Micro-USD on this ephemeral key that our steps never recorded.
+ * For a USD account, usage `cost` is already micro-USD. Other currencies are skipped: wei is not treated as dollars.
+ */
+function unrecordedKeyMicro(rows: readonly UsageRow[], keyId: string, known: Set<string>, currency: string): { micro: bigint; count: number } {
+  if (currency.toLowerCase() !== "usd") return { micro: 0n, count: 0 };
+  let micro = 0n;
+  let count = 0;
+  for (const row of rows) {
+    const parsed = usageCostSchema.safeParse(row);
+    if (!parsed.success || parsed.data.api_key_id !== keyId || parsed.data.cost === undefined) continue;
+    if (known.has(parsed.data.request_id)) continue;
+    micro += BigInt(parsed.data.cost);
+    count += 1;
+    known.add(parsed.data.request_id);
+  }
+  return { micro, count };
 }
 
 function addCost(spend: Spend, steps: StepRecord[], estimate: bigint): void {

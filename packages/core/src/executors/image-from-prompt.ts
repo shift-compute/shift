@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { REFINE_MAX_TOKENS } from "./chat-limits";
 import { chatText, ExecutorOutputError, parseModelJson } from "./json-output";
 import { recordStep } from "./step";
 import { clientRequestId, type ExecutorContext, type ExecutorResult } from "./types";
@@ -36,6 +37,7 @@ export async function runImageFromPrompt(ctx: ExecutorContext, idea: string): Pr
     ctx.sk,
     {
       model: ctx.models.chat,
+      max_tokens: REFINE_MAX_TOKENS,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: idea },

@@ -205,8 +205,13 @@ export function createRouterClient(options: RouterClientOptions) {
     getAccount: (mk: string): Promise<RouterResponse<Account>> => call("GET", "/account", { key: mk, schema: accountSchema }),
     getBalance: (mk: string): Promise<RouterResponse<Balance>> => call("GET", "/account/balance", { key: mk, schema: balanceSchema }),
     getFunds: (mk: string): Promise<RouterResponse<Funds>> => call("GET", "/account/funds", { key: mk, schema: fundsSchema }),
-    async getUsageHistory(mk: string, query: { limit?: number } = {}): Promise<RouterResponse<UsageRow[]>> {
-      const qs = query.limit ? `?limit=${query.limit}` : "";
+    async getUsageHistory(mk: string, query: { limit?: number; apiKeyId?: string } = {}): Promise<RouterResponse<UsageRow[]>> {
+      const params = new URLSearchParams();
+      if (query.limit !== undefined && Number.isInteger(query.limit) && query.limit > 0) params.set("limit", String(query.limit));
+      // The key id is not the secret. Anything else is left off the query rather than interpolated.
+      if (query.apiKeyId !== undefined && /^[A-Za-z0-9_-]{1,128}$/.test(query.apiKeyId)) params.set("api_key_id", query.apiKeyId);
+      const encoded = params.toString();
+      const qs = encoded.length > 0 ? `?${encoded}` : "";
       const r = await call("GET", `/account/usage/history${qs}`, { key: mk, schema: usageHistorySchema });
       return { ...r, data: r.data.data };
     },
