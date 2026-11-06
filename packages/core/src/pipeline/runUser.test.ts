@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { buildCatalog } from "../catalog/catalog";
-import { estimateCostMicro } from "../catalog/estimator";
+import { estimateCostMicro, estimateDecisionMicro } from "../catalog/estimator";
+import { complexityState } from "../optimizer/complexity";
 import { sealSecret } from "../crypto/vault";
 import { RouterError } from "../zg/errors";
 import type { StorageClient } from "../zg/storage";
@@ -218,7 +219,7 @@ describe("runUser", () => {
       chat: async () => ({ data: { choices: [{ message: { content: '{"summary":"Morning.","keyPoints":["Hello"]}' } }] }, status: 200, requestId: "req-doc", trace: { billing: { total_cost_usd_micro: "4" } } }),
     });
     await run(audio, { readFile: async () => new Uint8Array([0x49, 0x44, 0x33, 0]) });
-    expect(audio.tasks.get("audio1")).toMatchObject({ status: "DONE", actualCostUsdMicro: 7n });
+    expect(audio.tasks.get("audio1")).toMatchObject({ status: "DONE", actualCostUsdMicro: 7n, complexity: null });
     expect(audio.events).toContain("revoke");
 
     const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1]);
@@ -378,7 +379,93 @@ describe("runUser", () => {
     expect(h.events).not.toContain("chat");
     expect(h.tasks.get("task1")?.status).toBe("DEFERRED");
     expect(h.tasks.get("task1")?.steps).toMatchObject([{ step: "classify", requestId: "req-decide" }]);
+    expect(h.tasks.get("task1")?.complexity).toBe("complex");
     expect([...h.runs.values()][0]?.spentUsdMicro).toBe(7n);
+  });
+
+  it("classifies short text with the small decision model and long text with the large one", async () => {
+    const models = [
+      chatModel,
+      { id: "laya", type: "decisions", verifiability: "TeeML", context_length: 512, pricing_usd: { prompt: "0", completion: "0" } },
+      { id: "vela-2.0-9b", type: "decisions", verifiability: "TeeML", context_length: 16384, pricing_usd: { prompt: "0", completion: "0" } },
+    ];
+    const decide = (seen: string[]): UserRouter["decide"] => async (_sk, body) => {
+      seen.push(body.model);
+      return {
+        data: { model: body.model, answers: { complexity: { type: "choice", probabilities: { simple: 0.8, standard: 0.1, complex: 0.1 } } } },
+        status: 200,
+        requestId: "req-decide",
+      };
+    };
+
+    const shortSeen: string[] = [];
+    const short = harness({ models, decide: decide(shortSeen) });
+    await run(short);
+    expect(shortSeen).toEqual(["laya"]);
+    expect(short.tasks.get("task1")?.complexity).toBe("simple");
+
+    const longSeen: string[] = [];
+    const long = harness({ models, decide: decide(longSeen) });
+    await run(long, { readFile: async () => new TextEncoder().encode("x".repeat(3000)) });
+    expect(longSeen).toEqual(["vela-2.0-9b"]);
+  });
+
+  it("uses a non-private decision model when the catalog has no TeeML one", async () => {
+    const seen: Array<{ model: string; trustMode?: string }> = [];
+    const h = harness({
+      models: [chatModel, { id: "open-decider", type: "decisions", context_length: 8192, pricing_usd: { prompt: "0", completion: "0" } }],
+      decide: async (_sk, body, options) => {
+        seen.push({ model: body.model, trustMode: options?.trustMode });
+        return {
+          data: { model: body.model, answers: { complexity: { type: "choice", probabilities: { standard: 0.9, simple: 0.05, complex: 0.05 } } } },
+          status: 200,
+          requestId: "req-decide",
+        };
+      },
+    });
+    await run(h);
+    expect(seen).toEqual([{ model: "open-decider", trustMode: "standard" }]);
+    expect(h.tasks.get("task1")?.complexity).toBe("standard");
+  });
+
+  it("plans standard and does not call decisions when the catalog has no decision model", async () => {
+    const h = harness();
+    await run(h);
+    expect(h.tasks.get("task1")?.complexity).toBe("standard");
+    expect(h.events).not.toContain("decide");
+    expect([...h.runs.values()][0]?.spentUsdMicro).toBe(100n);
+  });
+
+  it("holds back the task estimate when the decision call reports no cost", async () => {
+    const text = "Hello from the report";
+    const decisionModel = { id: "wide-decision", type: "decisions", verifiability: "TeeML", context_length: 16384, pricing_usd: { prompt: "0.002", completion: "0" } };
+    const catalog = buildCatalog([chatModel, decisionModel]);
+    const decision = catalog.find((entry) => entry.kind === "decision");
+    const chat = catalog.find((entry) => entry.kind === "chat");
+    if (!decision || !chat) throw new Error("catalog fixture is missing a model");
+    const taskCost = estimateCostMicro("DOC_ANALYSIS", { bytes: text.length, mime: "text/plain", chars: text.length }, { chat });
+    const decisionCost = estimateDecisionMicro(decision, complexityState("DOC_ANALYSIS task", text).length);
+    const budget = taskCost + decisionCost - 1n;
+    expect(decisionCost).toBeGreaterThan(0n);
+    expect(budget).toBeGreaterThanOrEqual(10_000n);
+
+    let decided = 0;
+    const h = harness({
+      models: [chatModel, decisionModel],
+      balance: usdBalance(budget.toString(), "0"),
+      decide: async () => {
+        decided += 1;
+        return {
+          data: { model: "wide-decision", answers: { complexity: { type: "choice", probabilities: { simple: 0.9, standard: 0.05, complex: 0.05 } } } },
+          status: 200,
+          requestId: "req-decide",
+        };
+      },
+    });
+    await run(h, { config: { ...config, SAFETY_MARGIN_PCT: 0 }, readFile: async () => new TextEncoder().encode(text) });
+    expect(decided).toBe(1);
+    expect(h.events).not.toContain("chat");
+    expect(h.tasks.get("task1")?.status).toBe("DEFERRED");
   });
 
   it("runs two tasks at once when the concurrency allows it", async () => {

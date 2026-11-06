@@ -1,3 +1,5 @@
+import type { CatalogEntry, TrustLevel } from "../catalog/catalog";
+import { ASSUMPTIONS, estimateDecisionMicro } from "../catalog/estimator";
 import { recordStep } from "../executors/step";
 import type { StepRecord } from "../executors/types";
 import type { DecisionsRequest, RouterClient, TrustMode } from "../zg/router";
@@ -24,9 +26,17 @@ const QUESTION = {
   },
 } as const;
 
+/** State sent to the decision model: a short description plus the first {@link STATE_CHARS} characters of the input. */
+export function complexityState(description: string, input: string): string {
+  return `${description}\n\n${input.slice(0, STATE_CHARS)}`.trim();
+}
+
 export function buildComplexityRequest(model: string, description: string, input: string): DecisionsRequest {
-  const state = `${description}\n\n${input.slice(0, STATE_CHARS)}`.trim();
-  return { model, state, questions: { complexity: { ...QUESTION, criteria: { ...QUESTION.criteria } } } };
+  return {
+    model,
+    state: complexityState(description, input),
+    questions: { complexity: { ...QUESTION, criteria: { ...QUESTION.criteria } } },
+  };
 }
 
 export interface ComplexityVerdict {
@@ -87,4 +97,71 @@ export async function classifyComplexity(i: ClassifyInput): Promise<Classificati
   } catch {
     return { complexity: "standard", fellBack: true };
   }
+}
+
+/** Strictest trust first. A TeeML model is preferred; a verified one is next; an ordinary catalog model is last. */
+const DECISION_TRUST: readonly TrustLevel[] = ["private", "verified", "standard"];
+
+function textTokens(textChars: number): number {
+  if (!Number.isFinite(textChars) || textChars <= 0) return 0;
+  return Math.ceil(textChars / ASSUMPTIONS.charsPerToken);
+}
+
+function pickInTier(models: CatalogEntry[], tokens: number): CatalogEntry | undefined {
+  if (models.length === 0) return undefined;
+  const byId = models.slice().sort((a, b) => a.id.localeCompare(b.id));
+  const sized = byId.filter((model) => model.contextLength !== undefined);
+  const fitting = sized
+    .filter((model) => (model.contextLength ?? 0) >= tokens)
+    .sort((a, b) => (a.contextLength ?? 0) - (b.contextLength ?? 0) || a.id.localeCompare(b.id));
+  if (fitting[0]) return fitting[0];
+  const largest = sized
+    .slice()
+    .sort((a, b) => (b.contextLength ?? 0) - (a.contextLength ?? 0) || a.id.localeCompare(b.id))[0];
+  return largest ?? byId[0];
+}
+
+/**
+ * Decision model for one text task (plan §10.2).
+ * The id always comes from `catalog`. Private (TeeML) models are used when any exist; otherwise the strictest
+ * tier that does (verified, then standard). Inside that tier the smallest context that can hold `textChars`
+ * wins — Laya's published context is 512 tokens, Vela's is far larger — and if none can, the largest context.
+ * A model with no published context is used only when the tier has no sized model.
+ * Returns undefined when the catalog has no decision model: the caller plans `standard` and does not call the Router.
+ */
+export function pickDecisionModel(catalog: readonly CatalogEntry[], textChars: number): CatalogEntry | undefined {
+  const tokens = textTokens(textChars);
+  for (const trust of DECISION_TRUST) {
+    const picked = pickInTier(
+      catalog.filter((entry) => entry.kind === "decision" && entry.trust === trust),
+      tokens,
+    );
+    if (picked) return picked;
+  }
+  return undefined;
+}
+
+export interface ClassificationSpend {
+  /** Micro-USD to take out of the night budget for this classification. */
+  micro: bigint;
+  /** `reported` is the Router's figure; `estimate` is {@link estimateDecisionMicro}; `none` was not priced. */
+  source: "reported" | "estimate" | "none";
+}
+
+/**
+ * What one classification costs the night (plan §10.2).
+ * The Router's reported cost wins. Otherwise the catalog estimate of the state that was sent.
+ * No model and no reported cost is zero: nothing was called, so nothing is spent.
+ */
+export function classificationSpendMicro(input: {
+  model?: CatalogEntry;
+  /** Length of {@link complexityState}, the text the decision call actually carries. */
+  stateChars: number;
+  step?: Pick<StepRecord, "costUsdMicro">;
+}): ClassificationSpend {
+  const reported = input.step?.costUsdMicro;
+  if (reported !== undefined && /^\d+$/.test(reported)) return { micro: BigInt(reported), source: "reported" };
+  if (!input.model || input.model.kind !== "decision") return { micro: 0n, source: "none" };
+  const chars = Number.isFinite(input.stateChars) && input.stateChars > 0 ? input.stateChars : 0;
+  return { micro: estimateDecisionMicro(input.model, chars), source: "estimate" };
 }
