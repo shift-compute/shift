@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { buildCatalog } from "../catalog/catalog";
-import { estimateCostMicro, estimateDecisionMicro } from "../catalog/estimator";
+import { estimateCostMicro, estimateDecisionMicro, estimateTranslationMicro } from "../catalog/estimator";
 import { complexityState } from "../optimizer/complexity";
 import { COST_DRIFT_PERCENT, costDrifted } from "../optimizer/replan";
 import { sealSecret } from "../crypto/vault";
 import { RouterError } from "../zg/errors";
 import type { StorageClient } from "../zg/storage";
+import { translationSystemPrompt, type CommonsItemRef, type CommonsStore, type CommonsTranslationPatch } from "./commons";
 import { runUser, type RunConfig, type UserRouter } from "./runUser";
 import type { ConnectedUser, OpenTask, PipelineStore, TaskPatch } from "./store";
 
@@ -666,4 +667,122 @@ describe("runUser", () => {
     expect(h.tasks.get("a")?.status).toBe("DONE");
     expect(h.tasks.get("b")?.status).toBe("DONE");
   });
+
+  it("spends leftover budget on one translation pair and leaves the next item pending", async () => {
+    const source = "Ethereum gas pays for a smart contract.";
+    const cheap = { id: "lite-chat", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0.0001", completion: "0.0001" } };
+    const premium = { id: "glm-5.3", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0.0001", completion: "0.0001" } };
+    const entries = buildCatalog([cheap, premium]);
+    const glm = entries.find((entry) => entry.id === "glm-5.3");
+    const lite = entries.find((entry) => entry.id === "lite-chat");
+    if (!glm || !lite) throw new Error("missing catalog entry");
+    const taskEstimate = estimateCostMicro("DOC_ANALYSIS", DOC_SIZE, { chat: glm });
+    const onePair = estimateTranslationMicro(glm, source.length, translationSystemPrompt("Hindi").length) + estimateTranslationMicro(lite, source.length, translationSystemPrompt("Hindi").length);
+    const rows = [commonsRow("c1", source, "hi"), commonsRow("c2", source, "mr")];
+    const models: string[] = [];
+    const h = harness({
+      models: [cheap, premium],
+      balance: usdBalance((taskEstimate + onePair).toString(), "0"),
+      chat: async (_sk, body) => {
+        models.push(body.model);
+        const translating = body.messages.some((message) => message.role === "system" && message.content.startsWith("Translate the text from English"));
+        if (!translating) {
+          return { data: { choices: [{ message: { content: '{"summary":"Done.","actionItems":[],"risks":[]}' } }] }, status: 200, requestId: "req-doc", trace: { billing: { total_cost_usd_micro: taskEstimate.toString() } } };
+        }
+        return { data: { choices: [{ message: { content: `tr-${body.model}` } }] }, status: 200, requestId: `req-${body.model}`, trace: { billing: { total_cost_usd_micro: "1" } } };
+      },
+    });
+    await run(h, {
+      user: user({ donateLeftover: true }),
+      commons: memoryCommons(rows),
+      config: { ...config, SAFETY_MARGIN_PCT: 0 },
+    });
+    expect(h.tasks.get("task1")?.status).toBe("DONE");
+    expect(models).toEqual(["glm-5.3", "glm-5.3", "lite-chat"]);
+    expect(rows[0]).toMatchObject({ status: "RUNNING", translationA: "tr-glm-5.3", translationB: "tr-lite-chat", requestIds: ["req-glm-5.3", "req-lite-chat"], costUsdMicro: 2n, donorUserId: "user-1", nightId: NIGHT });
+    expect(rows[1]?.status).toBe("PENDING");
+    expect([...h.runs.values()][0]).toMatchObject({ spentUsdMicro: taskEstimate, donatedUsdMicro: 2n });
+    expect(h.events).toContain("revoke");
+    expect(h.uploads).toHaveLength(1);
+  });
+
+  it("does not translate when leftover donation is off", async () => {
+    const rows = [commonsRow("c1", "Ethereum gas pays for a smart contract.", "hi")];
+    let chats = 0;
+    const h = harness({
+      models: [
+        { id: "lite-chat", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0.000001", completion: "0.000001" } },
+        { id: "glm-5.3", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0.000001", completion: "0.000001" } },
+      ],
+      chat: async () => {
+        chats += 1;
+        return { data: { choices: [{ message: { content: '{"summary":"Done.","actionItems":[],"risks":[]}' } }] }, status: 200, requestId: "req-doc", trace: { billing: { total_cost_usd_micro: "1" } } };
+      },
+    });
+    await run(h, { commons: memoryCommons(rows), config: { ...config, SAFETY_MARGIN_PCT: 0 } });
+    expect(chats).toBe(1);
+    expect(rows[0]?.status).toBe("PENDING");
+    expect([...h.runs.values()][0]?.donatedUsdMicro).toBe(0n);
+  });
+
+  it("translates with no personal tasks when donation is on", async () => {
+    const source = "Ethereum gas pays for a smart contract.";
+    const rows = [commonsRow("c1", source, "hi")];
+    const h = harness({
+      tasks: [],
+      models: [
+        { id: "0gm-1.0-35b-a3b", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0.000001", completion: "0.000001" } },
+        { id: "glm-5.3", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0.000001", completion: "0.000001" } },
+      ],
+      chat: async (_sk, body) => ({ data: { choices: [{ message: { content: body.model } }] }, status: 200, requestId: `req-${body.model}`, trace: { billing: { total_cost_usd_micro: "5" } } }),
+    });
+    const outcome = await run(h, { user: user({ donateLeftover: true }), commons: memoryCommons(rows), config: { ...config, SAFETY_MARGIN_PCT: 0 } });
+    expect(outcome.status).toBe("DONE");
+    expect(rows[0]).toMatchObject({ status: "RUNNING", modelA: "glm-5.3", modelB: "0gm-1.0-35b-a3b", translationA: "glm-5.3", translationB: "0gm-1.0-35b-a3b" });
+    expect([...h.runs.values()][0]).toMatchObject({ spentUsdMicro: 0n, donatedUsdMicro: 10n });
+    expect(h.uploads).toHaveLength(0);
+    expect(h.events).toContain("revoke");
+  });
+
+  it("does not create a key for commons when the catalog has no private chat pair", async () => {
+    const rows = [commonsRow("c1", "Ethereum gas pays for a smart contract.", "hi")];
+    const h = harness({
+      tasks: [],
+      models: [
+        { id: "plain-chat", type: "chatbot", pricing_usd: { prompt: "0.000001", completion: "0.000001" } },
+        { id: "other-chat", type: "chatbot", pricing_usd: { prompt: "0.000001", completion: "0.000001" } },
+      ],
+      chat: async () => {
+        throw new Error("chat must not be called");
+      },
+    });
+    const outcome = await run(h, { user: user({ donateLeftover: true }), commons: memoryCommons(rows), config: { ...config, SAFETY_MARGIN_PCT: 0 } });
+    expect(outcome.status).toBe("DONE");
+    expect(h.events).toEqual(["models", "balance"]);
+    expect(rows[0]?.status).toBe("PENDING");
+    expect(h.logs.join("\n")).toContain("fewer than two private chat models");
+    expect([...h.runs.values()][0]?.donatedUsdMicro).toBe(0n);
+  });
 });
+
+function commonsRow(id: string, sourceText: string, targetLang: string): CommonsItemRef & CommonsTranslationPatch & { status: "PENDING" | "RUNNING" | "FAILED"; requestIds: string[] } {
+  return { id, sourceText, targetLang, status: "PENDING", requestIds: [] };
+}
+
+function memoryCommons(rows: Array<CommonsItemRef & { status: "PENDING" | "RUNNING" | "FAILED"; requestIds: string[] }>): CommonsStore {
+  return {
+    pendingItems: async () => rows.filter((row) => row.status === "PENDING").map((row) => ({ id: row.id, sourceText: row.sourceText, targetLang: row.targetLang })),
+    claim: async (id, donor) => {
+      const row = rows.find((item) => item.id === id);
+      if (!row || row.status !== "PENDING") return false;
+      row.status = "RUNNING";
+      Object.assign(row, { donorUserId: donor.userId, nightId: donor.nightId });
+      return true;
+    },
+    save: async (id, patch) => {
+      const row = rows.find((item) => item.id === id);
+      if (!row) throw new Error(`missing ${id}`);
+      Object.assign(row, patch);
+    },
+  };
+}

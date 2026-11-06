@@ -3,11 +3,13 @@ import {
   createLedgerClient,
   manualNightId,
   prismaAnchorStore,
+  prismaCommonsStore,
   prismaPipelineStore,
   redact,
   redactString,
   runUser,
   type ConnectedUser,
+  type CommonsStore,
   type PipelineStore,
   type PrismaClient,
   type RateLimitResult,
@@ -141,6 +143,8 @@ export async function executeManualRun(deps: {
   anchor?: (nightId: bigint) => Promise<unknown>;
   log: (message: string) => void;
   now?: () => Date;
+  /** Leftover budget translations. Production passes the Prisma store; tests omit it. */
+  commons?: CommonsStore;
 }): Promise<RunNowSummary> {
   const now = deps.now ?? (() => new Date());
   await deps.hooks.beginNight(deps.nightId, now());
@@ -154,6 +158,7 @@ export async function executeManualRun(deps: {
       storage: deps.storage,
       log: deps.log,
       now,
+      ...(deps.commons ? { commons: deps.commons } : {}),
     });
     await deps.anchor?.(deps.nightId);
     const back = await deps.hooks.readBack(deps.nightId, deps.user.id, outcome.runId);
@@ -191,6 +196,7 @@ export async function runCurrentUser(deps: {
   return executeManualRun({
     ...deps,
     store: prismaPipelineStore(deps.db),
+    commons: prismaCommonsStore(deps.db),
     hooks: prismaHooks(deps.db),
     anchor: (nightId) =>
       anchorNight({

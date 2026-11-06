@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sealSecret, type AnchorStore, type CompletedTask, type ConnectedUser, type LedgerClient, type OpenTask, type PipelineStore, type TaskPatch, type UserRouter, type WorkerConfig } from "@shift/core";
+import { sealSecret, type AnchorStore, type CommonsStore, type CompletedTask, type ConnectedUser, type LedgerClient, type OpenTask, type PipelineStore, type TaskPatch, type UserRouter, type WorkerConfig } from "@shift/core";
 import { runNight } from "./night";
 
 const KEY = Buffer.alloc(32, 4).toString("base64");
@@ -234,5 +234,69 @@ describe("runNight", () => {
     const manifest = JSON.parse(new TextDecoder().decode(uploads[0]!)) as { donationsRecorded: boolean; leaves: { requestId: string }[] };
     expect(manifest.donationsRecorded).toBe(false);
     expect(manifest.leaves.map((leaf) => leaf.requestId)).toEqual(["req-1"]);
+  });
+
+  it("translates a pending commons item from leftover budget after personal tasks", async () => {
+    const user = connected("donor", "mk-dddddddddddddddddddd");
+    user.donateLeftover = true;
+    const mem = memory([user], []);
+    const row = { id: "c1", sourceText: "Ethereum gas pays for a smart contract.", targetLang: "hi", status: "PENDING", requestIds: [] as string[], translationA: undefined as string | undefined, translationB: undefined as string | undefined };
+    const commons: CommonsStore = {
+      pendingItems: async () => (row.status === "PENDING" ? [{ id: row.id, sourceText: row.sourceText, targetLang: row.targetLang }] : []),
+      claim: async (id, donor) => {
+        if (row.status !== "PENDING" || id !== row.id) return false;
+        row.status = "RUNNING";
+        expect(donor.userId).toBe("donor");
+        return true;
+      },
+      save: async (_id, patch) => {
+        Object.assign(row, patch);
+      },
+    };
+    const models: string[] = [];
+    const router = {
+      listModels: async () => ({
+        data: [
+          { id: "glm-5.3", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0", completion: "0" } },
+          { id: "0gm-1.0-35b-a3b", type: "chatbot", verifiability: "TeeML", pricing_usd: { prompt: "0", completion: "0" } },
+        ],
+        status: 200,
+      }),
+      getBalance: async () => ({ data: { address: ADDRESS, currency: "usd", credit_balance: "1000000", deposit_balance: "0", pending_charge: "0", total_balance: "1000000" }, status: 200 }),
+      getUsageHistory: async () => ({ data: [], status: 200 }),
+      createApiKey: async () => ({ data: { key_id: "key-d", key: "sk-dddddddddddddddddddd", name: "shift" }, status: 200 }),
+      revokeApiKey: async () => ({ data: { key_id: "key-d" }, status: 200 }),
+      chat: async (_sk: string, body: { model: string }) => {
+        models.push(body.model);
+        return { data: { choices: [{ message: { content: `tr-${body.model}` } }] }, status: 200, requestId: `req-${body.model}`, trace: { billing: { total_cost_usd_micro: "3" } } };
+      },
+      decide: async () => {
+        throw new Error("the quality gate is not part of this step");
+      },
+      transcribe: async () => {
+        throw new Error("no");
+      },
+      generateImage: async () => {
+        throw new Error("no");
+      },
+    } as UserRouter;
+    const anchored = emptyAnchor();
+    await runNight({
+      config,
+      nightId: 20261106n,
+      log: () => undefined,
+      store: mem.store,
+      commons,
+      anchorStore: anchored.anchorStore,
+      ledger: anchored.ledger,
+      router,
+      storage: { upload: async () => { throw new Error("commons translations are not uploaded in this step"); }, download: async () => new Uint8Array() },
+      now: () => new Date("2026-11-06T23:10:00Z"),
+      sleep: async () => undefined,
+    });
+    expect(models).toEqual(["glm-5.3", "0gm-1.0-35b-a3b"]);
+    expect(row).toMatchObject({ status: "RUNNING", translationA: "tr-glm-5.3", translationB: "tr-0gm-1.0-35b-a3b", requestIds: ["req-glm-5.3", "req-0gm-1.0-35b-a3b"], costUsdMicro: 6n });
+    expect(anchored.lookups()).toBe(1);
+    expect(mem.runs).toEqual(["donor"]);
   });
 });

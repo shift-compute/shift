@@ -4,8 +4,8 @@ Living status of the build. Updated in the same commit as the work it describes.
 Plan: [`docs/SHIFT_PLAN.md`](docs/SHIFT_PLAN.md) · Structure: [`docs/STRUCTURE.md`](docs/STRUCTURE.md)
 
 **Current phase:** F4 — Commons (F3.12 remains open: blocked on Router credits)
-**Next item:** F4.2
-**Commits so far:** 62 (target for the project: 50–90)
+**Next item:** F4.3
+**Commits so far:** 63 (target for the project: 50–90)
 
 Legend: `[ ]` to do · `[x]` done · `[~]` done with a fallback or limitation (see note) · `[-]` dropped (see note)
 
@@ -104,7 +104,8 @@ Each item is one commit unless marked *(2 commits)*. The text after the item is 
 ## F4 — Commons (plan §12)
 - [x] F4.1 Seed source paragraphs with license note — `feat(scripts): seed commons sources`
   - `data/commons/paragraphs.json` holds 200 excerpts (20–120 words) from ethereum.org at `ethereum-org-website` commit `c362ca84b53659a924d360ac02ca5a99987cacb3`. Non-code content is CC BY 4.0 under the Ethereum Foundation terms of use (verified 2026-11-06); attribution and the edit note are in `data/commons/NOTICE.md`. The site repository's MIT license covers code, which these files do not include. `pnpm seed:commons` inserts `CommonsItem` rows with `status = PENDING`, alternating `hi` and `mr` in corpus order (100 each). A re-run inserts a missing `sourceRef`, updates a row that is still `PENDING`, and does not overwrite a row that has already moved on. It does not delete rows. Checked on a local PostgreSQL 16: the first run inserted 200 PENDING rows (100 `hi`, 100 `mr`), the second left all 200 unchanged, a changed PENDING text was rewritten, and an ACCEPTED row was left as stored. No Router call and no credit spend.
-- [ ] F4.2 Translation A/B — `feat(worker): add commons translations`
+- [x] F4.2 Translation A/B — `feat(worker): add commons translations`
+  - `runCommonsTranslations` spends a donor's leftover micro-USD on PENDING `CommonsItem` rows after that user's personal tasks. Model A and model B are two distinct private chat models taken from the catalog (higher chat quality, then cheaper, then id). Ids are never hard-coded. Each pair is two chat calls with the appendix B prompt (Hindi or Marathi). Both texts, the model ids, the request ids and the reported micro-USD sum are stored on the row, which stays `RUNNING` until the F4.3 quality gate. The gate is not called, nothing is uploaded, and `recordDonations` is not called. A pair starts only when both estimates fit; the next item stays PENDING when they do not. Reported translation cost is added to `NightRun.donatedUsdMicro`. An empty TeeML chat set, or a single private chat, skips the pair and leaves every item PENDING: the ephemeral key is pinned to `private`, so a standard model would get 503 instead of running (plan §7.4, same rule as F3.4). Tests inject `chat`. No credit spend. F3.12 stays open until the account has Router credits.
 - [ ] F4.3 Decision-model quality gate — `feat(worker): add commons quality gate`
 - [ ] F4.4 Donation accounting + recordDonations — `feat(worker): record compute donations on-chain`
 - [ ] F4.5 Commons page — `feat(web): add commons page`
@@ -171,6 +172,7 @@ Short entries: date — decision — reason. Example: `2026-11-06 — budget mod
 - 2026-11-06 — `recordDonations` is skipped until a night has donations — an empty call still sets `donationsRecorded` on ShiftLedger, which would stop F4 from writing the real amounts. Commons leaves wait for the same phase.
 - 2026-11-06 — the worker signs `anchorNight` with ethers — the same library already pays for 0G Storage. The browser verifier in F3.11 can still use viem. Tests inject the client and do not broadcast.
 - 2026-11-06 — commons sources are CC BY 4.0 excerpts from ethereum.org, not the website repo's MIT code license — the terms of use license non-code content that way (verified before bundling). `pnpm seed:commons` is idempotent on `sourceRef` and will not overwrite a row that has left `PENDING`. F3.12 stays open until a real run with credits.
+- 2026-11-06 — commons A/B translations require two private chat models and skip when TeeML chat is missing — the night key stays `private`, so standard or verified models are not called (they would 503). A finished pair stays `RUNNING` for the F4.3 gate. `NightRun.donatedUsdMicro` is the reported translation cost; `recordDonations` is still not called.
 
 ## Blockers
 - **The Router catalog changed after Phase 0.** At ~16:30 UTC on 2026-11-05 `GET /v1/models` returned 124 models, 9 of them TeeML (`0gm-1.0-35b-a3b`, `glm-5.3`, `laya`, `vela-2.0-9b`, `whisper-large-v3`, `z-image-turbo`, embeddings). Later the same day, with or without a key and with any trust-mode header, it returns 79 models, no `verifiability` field and none of those: no decision models, no speech-to-text, no private (TeeML) models. Shift's core (decision models, Whisper, private trust mode) depends on them. Ask 0G at the booth whether this is an outage or a permanent change; re-run `pnpm smoke` to refresh `docs/spike/models.json` (the committed copy is the earlier catalog). F3.1's loader accepts the reduced body: missing `verifiability` becomes trust `standard`, and an empty TeeML set does not throw. Private mode then has no chat model to plan with. F3.3 plans text tasks as `standard` and does not call `/v1/decisions` when that list also has no decision model.

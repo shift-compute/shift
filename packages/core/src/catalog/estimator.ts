@@ -116,3 +116,19 @@ export function estimateDecisionMicro(model: CatalogEntry, chars: number): bigin
   if (!Number.isFinite(chars) || chars < 0) throw new Error("Decision input length must be a non-negative finite number of characters.");
   return withSafetyMicro(chatAtto(decision, tokens(chars), 0));
 }
+
+/**
+ * Estimated micro-USD of one commons translation chat.
+ * Input is the system prompt plus the source paragraph. Output is planned at twice the source tokens
+ * (at least one), because Hindi and Marathi often use more tokens than the English paragraph.
+ * Same ×1.15 padding and ceil as other estimates. Planning only — the Router's reported cost is the real one.
+ */
+export function estimateTranslationMicro(model: CatalogEntry, sourceChars: number, promptChars: number): bigint {
+  const chat = requireKind(model, "chat", "A chat model is required to estimate a translation.");
+  if (!Number.isFinite(sourceChars) || sourceChars < 0 || !Number.isFinite(promptChars) || promptChars < 0) {
+    throw new Error("Translation length must be a non-negative finite number of characters.");
+  }
+  const sourceTokens = tokens(sourceChars);
+  const outputTokens = Math.max(1, sourceTokens * 2);
+  return withSafetyMicro(chatAtto(chat, tokens(sourceChars + promptChars), outputTokens));
+}

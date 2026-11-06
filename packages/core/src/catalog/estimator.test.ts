@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { ASSUMPTIONS as exportedAssumptions, estimateCostMicro as exportedEstimate, estimateDecisionMicro as exportedDecision } from "@shift/core";
+import { ASSUMPTIONS as exportedAssumptions, estimateCostMicro as exportedEstimate, estimateDecisionMicro as exportedDecision, estimateTranslationMicro as exportedTranslation } from "@shift/core";
 import { ATTO_PER_MICRO, type CatalogEntry } from "./catalog";
-import { ASSUMPTIONS, estimateAudioSeconds, estimateCostMicro, estimateDecisionMicro, estimateDocChars } from "./estimator";
+import { ASSUMPTIONS, estimateAudioSeconds, estimateCostMicro, estimateDecisionMicro, estimateDocChars, estimateTranslationMicro } from "./estimator";
 
 const entry = (over: Partial<CatalogEntry>): CatalogEntry => ({ id: "m", kind: "chat", trust: "private", promptAtto: 0n, completionAtto: 0n, imageAtto: 0n, ...over });
 // 1 micro-USD per 1000 tokens in, 2 per 1000 out: easy to check by hand.
@@ -114,6 +114,7 @@ describe("@shift/core export", () => {
   it("exposes the planner the optimizer imports", () => {
     expect(exportedEstimate).toBe(estimateCostMicro);
     expect(exportedDecision).toBe(estimateDecisionMicro);
+    expect(exportedTranslation).toBe(estimateTranslationMicro);
     expect(exportedAssumptions.safetyPercent).toBe(ASSUMPTIONS.safetyPercent);
   });
 });
@@ -136,5 +137,21 @@ describe("estimateDecisionMicro", () => {
     expect(() => estimateDecisionMicro(entry({ kind: "chat", promptAtto: 1n }), 10)).toThrow(/decision model/);
     expect(() => estimateDecisionMicro(entry({ kind: "decision" }), Number.NaN)).toThrow(/non-negative/);
     expect(() => estimateDecisionMicro(entry({ kind: "decision" }), -1)).toThrow(/non-negative/);
+  });
+});
+
+describe("estimateTranslationMicro", () => {
+  it("pads the prompt plus the paragraph and plans twice the source tokens as output", () => {
+    // 1 micro-USD per token. Source is 8 chars (2 tokens) so output is 4 tokens.
+    // Prompt is 6 chars; input is 14 chars (4 tokens). 8 tokens × 1.15 rounds up to 10 micro-USD.
+    const priced = entry({ promptAtto: ATTO_PER_MICRO, completionAtto: ATTO_PER_MICRO });
+    expect(estimateTranslationMicro(priced, 8, 6)).toBe(10n);
+    expect(estimateTranslationMicro(entry({}), 80, 40)).toBe(0n);
+  });
+
+  it("refuses a model that is not a chat model and a bad length", () => {
+    expect(() => estimateTranslationMicro(entry({ kind: "decision" }), 8, 6)).toThrow(/chat model/);
+    expect(() => estimateTranslationMicro(entry({}), Number.NaN, 6)).toThrow(/non-negative/);
+    expect(() => estimateTranslationMicro(entry({}), 8, -1)).toThrow(/non-negative/);
   });
 });
