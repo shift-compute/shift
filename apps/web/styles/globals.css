@@ -101,17 +101,17 @@
 }
 
 /* Pull is `translate`, so it composes with the idle `transform` drift.
-   Values are the pointer's offset from the viewport center. */
+   --pull-x/y are -1..1. Distances are the first field: sky 46, teal 88, low 32. */
 .landing-pull-sky {
-  translate: calc(var(--pull-x, 0px) * 0.62) calc(var(--pull-y, 0px) * 0.48);
+  translate: calc(var(--pull-x, 0) * 46px) calc(var(--pull-y, 0) * 32px);
 }
 
 .landing-pull-teal {
-  translate: calc(var(--pull-x, 0px) * 0.78) calc(var(--pull-y, 0px) * 0.55);
+  translate: calc(var(--pull-x, 0) * 88px) calc(var(--pull-y, 0) * 60px);
 }
 
 .landing-pull-low {
-  translate: calc(var(--pull-x, 0px) * 0.42) calc(var(--pull-y, 0px) * 0.36);
+  translate: calc(var(--pull-x, 0) * 32px) calc(var(--pull-y, 0) * 22px);
 }
 
 /* Sky wash parked on the pointer. Hidden until it moves, so rest stays CardArt. */
@@ -128,7 +128,7 @@
 }
 
 .landing-pull-glow {
-  translate: calc(-50% + var(--pull-x, 0px)) calc(-50% + var(--pull-y, 0px));
+  translate: calc(-50% + var(--glow-x, 0) * 280px) calc(-50% + var(--glow-y, 0) * 160px);
 }
 
 .landing-ambient[data-pointer="on"] .landing-glow {
@@ -140,7 +140,7 @@
   inset: 0;
   background-image: radial-gradient(rgb(15 23 42 / 0.28) 1.15px, transparent 1.15px);
   background-size: 22px 22px;
-  background-position: calc(var(--pull-x, 0px) * 0.5) calc(var(--pull-y, 0px) * 0.5);
+  background-position: calc(var(--pull-x, 0) * 64px) calc(var(--pull-y, 0) * 40px);
   mask-image: radial-gradient(ellipse at 50% 28%, black 18%, transparent 72%);
 }
 
@@ -228,10 +228,10 @@
 
 @keyframes grid-drift {
   from {
-    background-position: calc(var(--pull-x, 0px) * 0.5) calc(var(--pull-y, 0px) * 0.5);
+    background-position: calc(var(--pull-x, 0) * 64px) calc(var(--pull-y, 0) * 40px);
   }
   to {
-    background-position: calc(var(--pull-x, 0px) * 0.5 + 22px) calc(var(--pull-y, 0px) * 0.5 + 11px);
+    background-position: calc(var(--pull-x, 0) * 64px + 22px) calc(var(--pull-y, 0) * 40px + 11px);
   }
 }
 
@@ -277,8 +277,10 @@
   }
 
   .landing-ambient {
-    --pull-x: 0px !important;
-    --pull-y: 0px !important;
+    --pull-x: 0 !important;
+    --pull-y: 0 !important;
+    --glow-x: 0px !important;
+    --glow-y: 0px !important;
   }
 
   .landing-pull-sky,
