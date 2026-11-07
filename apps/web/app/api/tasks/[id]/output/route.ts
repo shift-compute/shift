@@ -38,6 +38,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   } catch (err) {
     if (err instanceof OutputSealError) return json({ error: "cannot_decrypt" }, 403);
     if (err instanceof StorageKeyError) return json({ error: "storage_unconfigured" }, 503);
+    if (err instanceof Error && /download timed out/i.test(err.message)) return json({ error: "download_timeout" }, 504);
     console.error("task output:", err instanceof Error ? err.name : "unknown error");
     return json({ error: "internal_error" }, 500);
   }

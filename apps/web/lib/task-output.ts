@@ -23,18 +23,22 @@ export type TaskOutputBody = z.infer<typeof taskOutputSchema>;
 export type TaskOutputPanel =
   | { phase: "hidden" }
   | { phase: "loading" }
-  | { phase: "unavailable" }
+  | { phase: "unavailable"; detail: string }
   | { phase: "locked" }
   | { phase: "ready"; body: TaskOutputBody };
 
+const UNAVAILABLE = "The stored result could not be opened. Shift is not showing a made-up summary.";
+const TIMED_OUT = "The ciphertext download did not finish in time. The result text is not shown.";
+
 /** Turns the output response into the panel state. A bad body never throws into the page. */
 export async function readTaskOutput(res: Response | null): Promise<TaskOutputPanel> {
-  if (!res) return { phase: "unavailable" };
+  if (!res) return { phase: "unavailable", detail: UNAVAILABLE };
   if (res.status === 401 || res.status === 403) return { phase: "locked" };
-  if (!res.ok) return { phase: "unavailable" };
+  if (res.status === 504) return { phase: "unavailable", detail: TIMED_OUT };
+  if (!res.ok) return { phase: "unavailable", detail: UNAVAILABLE };
   const body: unknown = await res.json().catch(() => null);
   const parsed = taskOutputSchema.safeParse(body);
-  if (!parsed.success) return { phase: "unavailable" };
+  if (!parsed.success) return { phase: "unavailable", detail: UNAVAILABLE };
   return { phase: "ready", body: parsed.data };
 }
 

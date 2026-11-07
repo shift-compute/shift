@@ -41,6 +41,7 @@ const publicNightSchema = z.object({
   merkleRoot: z.string().nullable(),
   manifestRoot: z.string().nullable(),
   anchorTx: z.string().nullable(),
+  donationsTx: z.string().nullable(),
   explorerUrl: z.string().min(1),
   itemCount: z.number().int().nonnegative(),
   startedAt: z.string().nullable(),

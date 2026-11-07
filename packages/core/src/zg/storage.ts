@@ -18,6 +18,8 @@ export interface StorageClient {
 
 /** One attempt. A stuck node fails the attempt so the retry loop can move on. */
 export const UPLOAD_TIMEOUT_MS = 120_000;
+/** A stuck indexer download must not hold the result page open. */
+export const DOWNLOAD_TIMEOUT_MS = 20_000;
 
 /**
  * The indexer operations this client uses. Tests pass a fake.
@@ -41,6 +43,8 @@ export interface StorageOptions {
   maxAttempts?: number;
   /** Per `indexer.upload` attempt. Defaults to {@link UPLOAD_TIMEOUT_MS}. */
   uploadTimeoutMs?: number;
+  /** Per `indexer.download`. Defaults to {@link DOWNLOAD_TIMEOUT_MS}. The SDK call is not aborted. */
+  downloadTimeoutMs?: number;
 }
 
 export class StorageError extends Error {
@@ -72,10 +76,10 @@ function createUploadLock(): <T>(fn: () => Promise<T>) => Promise<T> {
  * Rejects when `work` does not settle in time. A later rejection of `work` is swallowed
  * so a stuck node that fails after the timeout is not an unhandled rejection.
  */
-function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+function withTimeout<T>(work: Promise<T>, ms: number, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`Upload attempt timed out after ${ms}ms`)), ms);
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
   });
   work.then(
     () => undefined,
@@ -95,6 +99,7 @@ export function createStorageClient(options: StorageOptions): StorageClient {
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const maxAttempts = options.maxAttempts ?? 3;
   const uploadTimeoutMs = options.uploadTimeoutMs ?? UPLOAD_TIMEOUT_MS;
+  const downloadTimeoutMs = options.downloadTimeoutMs ?? DOWNLOAD_TIMEOUT_MS;
   if (!options.signer && !options.privateKey) throw new StorageError("A storage signer or operator key is required.");
   const indexer = options.indexer ?? (new Indexer(options.indexerUrl) as unknown as StorageIndexer);
   const signer = options.signer ?? new ethers.Wallet(options.privateKey as string, new ethers.JsonRpcProvider(options.rpcUrl));
@@ -110,7 +115,7 @@ export function createStorageClient(options: StorageOptions): StorageClient {
           const [, treeErr] = await data.merkleTree();
           if (treeErr !== null) throw new StorageError(`Merkle tree generation failed: ${String(treeErr)}`);
           try {
-            const [tx, err] = await withTimeout(indexer.upload(data, options.rpcUrl, signer), uploadTimeoutMs);
+            const [tx, err] = await withTimeout(indexer.upload(data, options.rpcUrl, signer), uploadTimeoutMs, "Upload attempt");
             if (err === null && tx !== null && typeof tx === "object") {
               const record = tx as { rootHash?: unknown; rootHashes?: unknown[]; txHash?: unknown; txHashes?: unknown[] };
               const rootHash = typeof record.rootHash === "string" ? record.rootHash : record.rootHashes?.[0];
@@ -134,7 +139,7 @@ export function createStorageClient(options: StorageOptions): StorageClient {
       const dir = await mkdtemp(path.join(tmpdir(), "shift-dl-"));
       const file = path.join(dir, "blob");
       try {
-        const err = await indexer.download(rootHash, file, true);
+        const err = await withTimeout(indexer.download(rootHash, file, true), downloadTimeoutMs, "Download");
         if (err !== null) throw new StorageError(`Download failed: ${String(err)}`);
         return new Uint8Array(await readFile(file));
       } finally {

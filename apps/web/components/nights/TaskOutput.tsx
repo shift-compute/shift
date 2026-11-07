@@ -4,21 +4,38 @@ import { useEffect, useState } from "react";
 import { outputView, readTaskOutput, type TaskOutputPanel } from "../../lib/task-output";
 
 /** Loads the decrypted result for the signed-in owner. The storage root on the card stays the ciphertext. */
-export function TaskOutput({ taskId, enabled }: { taskId: string; enabled: boolean }) {
+export const OUTPUT_LOAD_TIMEOUT_MS = 25_000;
+
+export function TaskOutput({ taskId, enabled, timeoutMs = OUTPUT_LOAD_TIMEOUT_MS }: { taskId: string; enabled: boolean; timeoutMs?: number }) {
   const [panel, setPanel] = useState<TaskOutputPanel>(enabled ? { phase: "loading" } : { phase: "hidden" });
 
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     void (async () => {
-      const res = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/output`, { cache: "no-store" }).catch(() => null);
-      if (cancelled) return;
-      setPanel(await readTaskOutput(res));
+      try {
+        const res = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/output`, { cache: "no-store", signal: controller.signal });
+        if (cancelled) return;
+        setPanel(await readTaskOutput(res));
+      } catch {
+        if (!cancelled) {
+          setPanel({
+            phase: "unavailable",
+            detail: "The result request did not finish. Shift is not showing a made-up summary.",
+          });
+        }
+      } finally {
+        clearTimeout(timer);
+      }
     })();
     return () => {
       cancelled = true;
+      clearTimeout(timer);
+      controller.abort();
     };
-  }, [taskId, enabled]);
+  }, [taskId, enabled, timeoutMs]);
 
   if (panel.phase === "hidden") return null;
   if (panel.phase === "loading") {
@@ -28,7 +45,7 @@ export function TaskOutput({ taskId, enabled }: { taskId: string; enabled: boole
     return <p className="text-haze">This result is encrypted. Only the account that ran it can read it here.</p>;
   }
   if (panel.phase === "unavailable") {
-    return <p className="text-haze">The encrypted result could not be opened.</p>;
+    return <p className="text-haze">{panel.detail}</p>;
   }
 
   const view = outputView(panel.body.result);

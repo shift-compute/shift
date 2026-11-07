@@ -31,7 +31,14 @@ describe("task output view", () => {
 
   it("maps a locked response and a bad body", async () => {
     expect(await readTaskOutput(new Response(JSON.stringify({ error: "not_signed_in" }), { status: 401 }))).toEqual({ phase: "locked" });
-    expect(await readTaskOutput(new Response("nope", { status: 200 }))).toEqual({ phase: "unavailable" });
+    expect(await readTaskOutput(new Response("nope", { status: 200 }))).toEqual({
+      phase: "unavailable",
+      detail: "The stored result could not be opened. Shift is not showing a made-up summary.",
+    });
+    expect(await readTaskOutput(new Response(JSON.stringify({ error: "download_timeout" }), { status: 504 }))).toEqual({
+      phase: "unavailable",
+      detail: "The ciphertext download did not finish in time. The result text is not shown.",
+    });
     expect(await readTaskOutput(new Response(JSON.stringify(body), { status: 200 }))).toEqual({ phase: "ready", body });
   });
 });
