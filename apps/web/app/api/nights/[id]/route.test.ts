@@ -84,7 +84,7 @@ describe("GET /api/nights/[id]", () => {
     expect(res.status).toBe(200);
     expect(body).toMatchObject({
       signedIn: false,
-      night: { id: "20261106", merkleRoot: "0x" + "ab".repeat(32), manifestRoot: null, anchorTx: null, explorerUrl: "https://chainscan-galileo.0g.ai" },
+      night: { id: "20261106", merkleRoot: "0x" + "ab".repeat(32), manifestRoot: null, anchorTx: null, donationsTx: null, explorerUrl: "https://chainscan-galileo.0g.ai" },
     });
     expect(body).not.toHaveProperty("results");
     expect(JSON.stringify(body)).not.toContain(MK);
@@ -103,6 +103,7 @@ describe("GET /api/nights/[id]", () => {
       itemCount: 1,
       startedAt: new Date("2026-11-06T23:00:00.000Z"),
       finishedAt: new Date("2026-11-06T23:40:00.000Z"),
+      donationsTx: "0x" + "12".repeat(32),
     });
     runFind.mockResolvedValue({
       spentUsdMicro: 40n,

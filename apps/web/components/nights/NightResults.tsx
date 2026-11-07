@@ -157,6 +157,20 @@ function Batch({ night }: { night: PublicNight }) {
             "Not anchored yet"
           )}
         </dd>
+        <dt className="text-haze">Donation transaction</dt>
+        <dd className="break-all">
+          {night.donationsTx ? (
+            anchorHref(night.explorerUrl, night.donationsTx) ? (
+              <a href={anchorHref(night.explorerUrl, night.donationsTx) ?? undefined} target="_blank" rel="noreferrer">
+                {night.donationsTx}
+              </a>
+            ) : (
+              night.donationsTx
+            )
+          ) : (
+            "Not recorded"
+          )}
+        </dd>
         {started && (
           <>
             <dt className="text-haze">Started</dt>
@@ -179,12 +193,14 @@ function Spending({ spending }: { spending: NightSpending }) {
     <section aria-label="Credit and deposit" className="surface-card max-w-xl space-y-4">
       <div>
         <h2 className="text-2xl font-semibold">Credit and deposit</h2>
-        <p className="mt-1 text-sm text-haze">Taken from the Router usage history for this run.</p>
+        <p className="mt-1 text-sm text-haze">
+          Credits and deposit are the Router usage history for this run. Accounted cost is what Shift stored from reported step costs. They are not the same measurement, and a missing history row is not filled in.
+        </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
-        <StatTile label="Credits spent" value={spending.creditUsed === null ? "Not recorded" : formatAmount(spending.creditUsed, spending.currency)} />
-        <StatTile label="Deposit spent" value={spending.depositUsed === null ? "Not recorded" : formatAmount(spending.depositUsed, spending.currency)} />
-        <StatTile label="Accounted cost" value={formatAmount(spending.spentUsdMicro, "usd")} />
+        <StatTile label="Usage history: credits" value={spending.creditUsed === null ? "Not in history" : formatAmount(spending.creditUsed, spending.currency)} />
+        <StatTile label="Usage history: deposit" value={spending.depositUsed === null ? "Not in history" : formatAmount(spending.depositUsed, spending.currency)} />
+        <StatTile label="Stored by Shift" value={formatAmount(spending.spentUsdMicro, "usd")} />
       </div>
     </section>
   );
@@ -209,11 +225,14 @@ function ProvenanceCard({ task }: { task: NightTaskResult }) {
           {task.error}
         </p>
       )}
+      {task.status === "FAILED" && !task.error && (
+        <p className="text-haze">This task failed, and Shift did not store an error for it.</p>
+      )}
       <dl className="grid grid-cols-1 gap-y-3 sm:grid-cols-[12rem_1fr] sm:gap-x-6">
         <dt className="text-haze">Model</dt>
         <dd>{task.chosenModel ?? "Not recorded"}</dd>
-        <dt className="text-haze">Cost</dt>
-        <dd>{task.actualCostUsdMicro === null ? "Not reported" : formatAmount(task.actualCostUsdMicro, "usd")}</dd>
+        <dt className="text-haze">Reported step cost</dt>
+        <dd>{task.actualCostUsdMicro === null ? "Not reported on this task" : formatAmount(task.actualCostUsdMicro, "usd")}</dd>
         <dt className="text-haze">Ciphertext root</dt>
         <dd className="break-all">{task.outputRoot ?? "Not recorded"}</dd>
       </dl>

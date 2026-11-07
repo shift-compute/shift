@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { formatAmount } from "../../lib/format";
 import { anchorHref, formatUtc, teeVerdict, trustLabel } from "../../lib/night-response";
-import { blockHref, chainDetail, chainTitle, checkOnChain, createLedgerReader, type ChainVerdict } from "../../lib/verify-chain";
+import { blockHref, chainDetail, chainTitle, createLedgerReader, settleChainCheck, type ChainVerdict } from "../../lib/verify-chain";
 import { checkStoredProof, type LocalProofCheck } from "../../lib/verify-proof";
 import { readVerify, safeHttpUrl, type VerifyPanel, type VerifyResponse } from "../../lib/verify-response";
 
@@ -69,7 +69,7 @@ export function Verifier({ initialRequestId }: { initialRequestId: string }) {
           rpcUrl: panel.body.rpcUrl,
           contractAddress: panel.body.contractAddress,
         });
-        const verdict = await checkOnChain(reader, {
+        const verdict = await settleChainCheck(reader, {
           nightId: BigInt(panel.body.nightId),
           leaf: leafHash,
           proof: panel.body.proof,

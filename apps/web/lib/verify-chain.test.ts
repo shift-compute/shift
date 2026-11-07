@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { chainDetail, chainTitle, checkOnChain, createLedgerReader, type ChainNight, type LedgerReader } from "./verify-chain";
+import { chainDetail, chainTitle, checkOnChain, createLedgerReader, settleChainCheck, type ChainNight, type LedgerReader } from "./verify-chain";
 
 const ROOT = `0x${"ab".repeat(32)}` as Hex;
 const OTHER = `0x${"cd".repeat(32)}` as Hex;
@@ -118,6 +118,20 @@ describe("checkOnChain", () => {
     );
     expect(skipped.status).toBe("unavailable");
     expect(readNight).not.toHaveBeenCalled();
+  });
+
+  it("settles a hung contract read as unavailable and does not confirm the leaf", async () => {
+    const verdict = await settleChainCheck(
+      reader({
+        async readNight() {
+          return new Promise(() => undefined);
+        },
+      }),
+      input,
+      20,
+    );
+    expect(verdict).toEqual({ status: "unavailable", blockNumber: null, anchoredAt: null, chainRoot: null, contractAccepted: null });
+    expect(chainTitle(verdict)).toBe("The chain check could not be read.");
   });
 });
 

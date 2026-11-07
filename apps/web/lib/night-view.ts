@@ -7,6 +7,7 @@ export const NIGHT_PUBLIC_SELECT = {
   merkleRoot: true,
   manifestRoot: true,
   anchorTx: true,
+  donationsTx: true,
   itemCount: true,
   startedAt: true,
   finishedAt: true,
@@ -45,6 +46,7 @@ export interface NightRow {
   merkleRoot: string | null;
   manifestRoot: string | null;
   anchorTx: string | null;
+  donationsTx: string | null;
   itemCount: number;
   startedAt: Date | null;
   finishedAt: Date | null;
@@ -106,6 +108,7 @@ function publicNight(row: NightRow, explorerUrl: string): PublicNight | null {
     merkleRoot: publicHash(row.merkleRoot),
     manifestRoot: publicHash(row.manifestRoot),
     anchorTx: publicHash(row.anchorTx),
+    donationsTx: publicHash(row.donationsTx),
     explorerUrl: explorerUrl.replace(/\/+$/, ""),
     itemCount: row.itemCount,
     startedAt: row.startedAt ? row.startedAt.toISOString() : null,
@@ -197,8 +200,8 @@ function nonNegBig(value: bigint | null): string | null {
 }
 
 /** A hash or an id. A value that contains a key is dropped rather than published in redacted form. */
-function publicHash(value: string | null): string | null {
-  if (value === null || value.length === 0 || value.length > 200 || hasSecret(value)) return null;
+function publicHash(value: string | null | undefined): string | null {
+  if (value == null || value.length === 0 || value.length > 200 || hasSecret(value)) return null;
   return value;
 }
 

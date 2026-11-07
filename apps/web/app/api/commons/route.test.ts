@@ -14,14 +14,17 @@ const ALICE = "0x1111111111111111111111111111111111111111";
 
 describe("GET /api/commons", () => {
   const itemFind = vi.fn();
+  const itemCount = vi.fn();
   const runFind = vi.fn();
 
   beforeEach(() => {
     getDb.mockReset();
     itemFind.mockReset();
+    itemCount.mockReset();
     runFind.mockReset();
+    itemCount.mockResolvedValue(0);
     getDb.mockReturnValue({
-      commonsItem: { findMany: itemFind },
+      commonsItem: { findMany: itemFind, count: itemCount },
       nightRun: { findMany: runFind },
     });
   });
@@ -32,7 +35,7 @@ describe("GET /api/commons", () => {
     const res = await GET();
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-store");
-    expect(await res.json()).toEqual({ items: [], donors: [], totalDonatedUsdMicro: "0" });
+    expect(await res.json()).toEqual({ items: [], donors: [], totalDonatedUsdMicro: "0", failedCount: 0 });
     expect(itemFind).toHaveBeenCalledWith({
       where: { status: { in: ["ACCEPTED", "REJECTED"] } },
       orderBy: { updatedAt: "desc" },

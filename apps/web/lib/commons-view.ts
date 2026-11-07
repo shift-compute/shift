@@ -52,11 +52,12 @@ export interface CommonsDonationRow {
  * Prose that contains a management or inference key is redacted. A model id or a storage root that contains one is dropped.
  * Donor totals sum `donatedUsdMicro` by account address. A non-address, and a non-positive amount, are left out.
  */
-export function commonsBody(input: { items: CommonsItemRow[]; donations: CommonsDonationRow[] }): CommonsResponse {
+export function commonsBody(input: { items: CommonsItemRow[]; donations: CommonsDonationRow[]; failedCount?: number }): CommonsResponse {
   const items = input.items.flatMap(oneItem);
   const donors = donorsOf(input.donations);
   const total = donors.reduce((sum, donor) => sum + BigInt(donor.donatedUsdMicro), 0n);
-  return { items, donors, totalDonatedUsdMicro: total.toString() };
+  const failed = Number.isInteger(input.failedCount) && (input.failedCount ?? 0) >= 0 ? (input.failedCount as number) : 0;
+  return { items, donors, totalDonatedUsdMicro: total.toString(), failedCount: failed };
 }
 
 function oneItem(row: CommonsItemRow): CommonsItemPublic[] {

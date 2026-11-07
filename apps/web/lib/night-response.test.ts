@@ -11,6 +11,7 @@ const night = {
   merkleRoot: "0x" + "ab".repeat(32),
   manifestRoot: null,
   anchorTx: "0x" + "cd".repeat(32),
+  donationsTx: null,
   explorerUrl: "https://chainscan-galileo.0g.ai",
   itemCount: 1,
   startedAt: "2026-11-06T23:00:00.000Z",

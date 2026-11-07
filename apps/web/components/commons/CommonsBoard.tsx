@@ -43,7 +43,7 @@ export function CommonsBoard() {
   if (panel.phase === "empty") {
     return (
       <p className="text-haze">
-        No translation has been accepted or rejected yet, and no donation has been recorded. Both show up here after a night spends leftover compute on this queue.
+        No translation has been accepted or rejected yet, and no donation has been recorded. A failed translation is not shown as a success.
       </p>
     );
   }
@@ -52,6 +52,11 @@ export function CommonsBoard() {
   const rejected = panel.data.items.filter((item) => item.status === "REJECTED");
   return (
     <div className="space-y-10">
+      {panel.data.failedCount > 0 && (
+        <p className="surface-card-warn max-w-3xl rounded-xl bg-white/70 py-2 pl-3">
+          {panel.data.failedCount} translation {panel.data.failedCount === 1 ? "pair was" : "pairs were"} marked failed. They were not accepted or rejected, and they are not listed as finished translations.
+        </p>
+      )}
       <Donors donors={panel.data.donors} total={panel.data.totalDonatedUsdMicro} />
       <ItemList
         title="Accepted"

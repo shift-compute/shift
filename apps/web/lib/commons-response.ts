@@ -33,6 +33,7 @@ export const commonsResponseSchema = z
     items: z.array(itemSchema),
     donors: z.array(donorSchema),
     totalDonatedUsdMicro: digits,
+    failedCount: z.number().int().nonnegative(),
   })
   .superRefine((body, ctx) => {
     const sum = body.donors.reduce((total, donor) => total + BigInt(donor.donatedUsdMicro), 0n);
@@ -56,7 +57,7 @@ export async function readCommons(res: Response | null): Promise<CommonsPanel> {
   const body: unknown = await res.json().catch(() => null);
   const parsed = commonsResponseSchema.safeParse(body);
   if (!parsed.success) return { phase: "unavailable" };
-  if (parsed.data.items.length === 0 && parsed.data.donors.length === 0) return { phase: "empty" };
+  if (parsed.data.items.length === 0 && parsed.data.donors.length === 0 && parsed.data.failedCount === 0) return { phase: "empty" };
   return { phase: "ready", data: parsed.data };
 }
 

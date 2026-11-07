@@ -77,7 +77,7 @@ export function createLedgerReader(options: { chainId: number; rpcUrl: string; c
     nativeCurrency: { name: "0G", symbol: "0G", decimals: 18 },
     rpcUrls: { default: { http: [options.rpcUrl] } },
   });
-  const client = createPublicClient({ chain, transport: http(options.rpcUrl) });
+  const client = createPublicClient({ chain, transport: http(options.rpcUrl, { timeout: 10_000 }) });
   return readerFromClient(client, address);
 }
 
@@ -193,6 +193,22 @@ function asProof(proof: readonly string[]): Hex[] | null {
 function asBytes32(value: string | null): Hex | null {
   if (!value || !BYTES32.test(value)) return null;
   return value.toLowerCase() as Hex;
+}
+
+/** Outer bound for the browser's contract read. A hung RPC must not stay on "loading". */
+export const CHAIN_READ_TIMEOUT_MS = 12_000;
+
+/** Same verdicts as {@link checkOnChain}. A read that does not settle becomes `unavailable`, not a confirmation. */
+export async function settleChainCheck(reader: LedgerReader, input: ChainCheckInput, timeoutMs = CHAIN_READ_TIMEOUT_MS): Promise<ChainVerdict> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<ChainVerdict>((resolve) => {
+    timer = setTimeout(() => resolve(unavailable()), timeoutMs);
+  });
+  try {
+    return await Promise.race([checkOnChain(reader, input), timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 function unavailable(): ChainVerdict {

@@ -15,7 +15,7 @@ function json(body: unknown, status = 200): NextResponse {
 export async function GET(): Promise<NextResponse> {
   try {
     const db = getDb();
-    const [items, donations] = await Promise.all([
+    const [items, donations, failedCount] = await Promise.all([
       db.commonsItem.findMany({
         where: { status: { in: ["ACCEPTED", "REJECTED"] } },
         orderBy: { updatedAt: "desc" },
@@ -26,8 +26,9 @@ export async function GET(): Promise<NextResponse> {
         where: { donatedUsdMicro: { gt: 0 } },
         select: COMMONS_DONATION_SELECT,
       }),
+      db.commonsItem.count({ where: { status: "FAILED" } }),
     ]);
-    return json(commonsBody({ items, donations }));
+    return json(commonsBody({ items, donations, failedCount }));
   } catch (err) {
     console.error("commons:", err instanceof Error ? err.name : "unknown error");
     return json({ error: "internal_error" }, 500);

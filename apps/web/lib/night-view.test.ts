@@ -11,6 +11,7 @@ const night: NightRow = {
   merkleRoot: "0x" + "ab".repeat(32),
   manifestRoot: "0x" + "cd".repeat(32),
   anchorTx: "0x" + "ef".repeat(32),
+  donationsTx: "0x" + "12".repeat(32),
   itemCount: 2,
   startedAt: new Date("2026-11-06T23:00:00.000Z"),
   finishedAt: new Date("2026-11-06T23:40:00.000Z"),
